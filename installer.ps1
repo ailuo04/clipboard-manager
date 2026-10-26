@@ -69,11 +69,27 @@ try {
         }
         if (-not ('ClipboardInstallerPaths' -as [type])) {
             Add-Type -TypeDefinition @"
+using System;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 public static class ClipboardInstallerPaths {
     [DllImport("kernel32.dll", EntryPoint = "GetLongPathNameW", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern uint Expand(string path, StringBuilder buffer, uint capacity);
+    [ComImport, Guid("000214F9-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IUnicodeShellLink {
+        void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int capacity, IntPtr findData, uint flags);
+    }
+    public static string ReadShortcut(string path) {
+        object link = Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("00021401-0000-0000-C000-000000000046")));
+        try {
+            ((IPersistFile)link).Load(path, 0);
+            var target = new StringBuilder(32768);
+            ((IUnicodeShellLink)link).GetPath(target, target.Capacity, IntPtr.Zero, 4);
+            return target.ToString();
+        }
+        finally { Marshal.FinalReleaseComObject(link); }
+    }
 }
 "@
         }
@@ -86,8 +102,8 @@ public static class ClipboardInstallerPaths {
             $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) '剪贴板.lnk'
             foreach ($path in @($shortcut, $desktopShortcut)) {
                 if (-not (Test-Path -LiteralPath $path)) { throw "Missing installed shortcut: $path" }
-                $shell = New-Object -ComObject WScript.Shell
-                $actualTarget = $shell.CreateShortcut($path).TargetPath
+                # Use the Unicode shell interface for Chinese link names on English runners.
+                $actualTarget = [ClipboardInstallerPaths]::ReadShortcut($path)
                 $expectedTarget = Join-Path $installDirectory 'ClipboardManager.exe'
                 Write-Host "Shortcut: $path; target: $actualTarget; expected: $expectedTarget"
                 $longPath = [Text.StringBuilder]::new(32768)
