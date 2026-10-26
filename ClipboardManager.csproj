@@ -17,6 +17,7 @@
     <StartupObject>ClipboardManager.App</StartupObject>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="System.IO" />
     <EmbeddedResource Include="App.xaml;Views\*.xaml;Assets\Clipboard.ico" />
   </ItemGroup>
 </Project>
