@@ -1,14 +1,17 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'bin\Release\net8.0-windows'),
-    [switch]$RuntimeCompiler
+    [switch]$RuntimeCompiler,
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version = '0.0.1'
 )
 
 $ErrorActionPreference = 'Stop'
 $output = [IO.Path]::GetFullPath($OutputDirectory)
+$iconPath = Join-Path $PSScriptRoot 'Assets\Clipboard.ico'
 $dotnet = (Get-Command dotnet.exe -ErrorAction Stop).Source
 $sdks = @(& $dotnet --list-sdks)
 if ($sdks.Count -gt 0 -and -not $RuntimeCompiler) {
-    & $dotnet build (Join-Path $PSScriptRoot 'ClipboardManager.csproj') --configuration Release --output $output
+    & $dotnet build (Join-Path $PSScriptRoot 'ClipboardManager.csproj') --configuration Release --output $output "-p:Version=$Version"
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed: $LASTEXITCODE" }
     return
 }
@@ -41,6 +44,8 @@ $parseOptions = [Microsoft.CodeAnalysis.CSharp.CSharpParseOptions]::Default.With
 $trees = [Collections.Generic.List[Microsoft.CodeAnalysis.SyntaxTree]]::new()
 $implicitUsings = 'global using System; global using System.IO; global using System.Linq; global using System.Collections.Generic; global using System.Threading; global using System.Threading.Tasks;'
 $trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText($implicitUsings, $parseOptions))
+$assemblyMetadata = "[assembly: System.Reflection.AssemblyVersion(`"$Version.0`")] [assembly: System.Reflection.AssemblyFileVersion(`"$Version.0`")] [assembly: System.Reflection.AssemblyInformationalVersion(`"$Version`")] [assembly: System.Reflection.AssemblyProduct(`"ClipboardManager`")]"
+$trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText($assemblyMetadata, $parseOptions))
 $sourceFiles = Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -Filter '*.cs' |
     Where-Object { $_.FullName -notmatch '[\\/](bin|obj|\.verification)[\\/]' }
 foreach ($file in $sourceFiles) {
@@ -52,7 +57,7 @@ function New-ResourceProvider([string]$Path) {
     return [Func[IO.Stream]] { [IO.MemoryStream]::new($bytes, $false) }.GetNewClosure()
 }
 $resources = [Collections.Generic.List[Microsoft.CodeAnalysis.ResourceDescription]]::new()
-$resourceFiles = @((Get-Item -LiteralPath (Join-Path $PSScriptRoot 'App.xaml'))) + @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'Views') -Filter '*.xaml')
+$resourceFiles = @((Get-Item -LiteralPath (Join-Path $PSScriptRoot 'App.xaml')), (Get-Item -LiteralPath $iconPath)) + @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'Views') -Filter '*.xaml')
 foreach ($file in $resourceFiles) {
     $relative = [IO.Path]::GetRelativePath($PSScriptRoot, $file.FullName).Replace('\', '.').Replace('/', '.')
     $resources.Add([Microsoft.CodeAnalysis.ResourceDescription]::new("ClipboardManager.$relative", (New-ResourceProvider $file.FullName), $true))
@@ -64,9 +69,12 @@ $options = [Microsoft.CodeAnalysis.CSharp.CSharpCompilationOptions]::new([Micros
 $compilation = [Microsoft.CodeAnalysis.CSharp.CSharpCompilation]::Create('ClipboardManager', $trees, $references, $options)
 [IO.Directory]::CreateDirectory($output) | Out-Null
 $assemblyPath = Join-Path $output 'ClipboardManager.dll'
+$iconStream = [IO.File]::OpenRead($iconPath)
+try { $win32Resources = $compilation.CreateDefaultWin32Resources($true, $false, $null, $iconStream) }
+finally { $iconStream.Dispose() }
 $stream = [IO.File]::Create($assemblyPath)
-try { $result = $compilation.Emit($stream, $null, $null, $null, $resources, $null, [Threading.CancellationToken]::None) }
-finally { $stream.Dispose() }
+try { $result = $compilation.Emit($stream, $null, $null, $win32Resources, $resources, $null, [Threading.CancellationToken]::None) }
+finally { $stream.Dispose(); $win32Resources.Dispose() }
 foreach ($diagnostic in $result.Diagnostics) {
     if ($diagnostic.Severity -in @('Warning', 'Error')) { Write-Host $diagnostic.ToString() }
 }
@@ -95,7 +103,8 @@ internal static class DesktopLauncher {
     [STAThread] private static int Main() {
         try {
             string directory = AppDomain.CurrentDomain.BaseDirectory;
-            string host = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
+            string host = Path.Combine(directory, "runtime", "dotnet.exe");
+            if (!File.Exists(host)) host = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
             var info = new ProcessStartInfo(host, "\"" + Path.Combine(directory, "ClipboardManager.dll") + "\"");
             info.WorkingDirectory = directory;
             info.UseShellExecute = false;
@@ -109,10 +118,11 @@ internal static class DesktopLauncher {
     }
 }
 '@
+    $launcherSource = $launcherSource.Replace('internal static class DesktopLauncher {', $assemblyMetadata + [Environment]::NewLine + 'internal static class DesktopLauncher {')
     $launcherPath = Join-Path $output 'Launcher.generated.cs'
     [IO.File]::WriteAllText($launcherPath, $launcherSource, [Text.UTF8Encoding]::new($false))
     try {
-        & $frameworkCompiler /nologo /target:winexe /optimize+ /codepage:65001 /reference:System.Windows.Forms.dll "/out:$(Join-Path $output 'ClipboardManager.exe')" $launcherPath
+        & $frameworkCompiler /nologo /target:winexe /optimize+ /codepage:65001 /reference:System.Windows.Forms.dll "/win32icon:$iconPath" "/out:$(Join-Path $output 'ClipboardManager.exe')" $launcherPath
         if ($LASTEXITCODE -ne 0) { throw 'Desktop launcher compilation failed.' }
     }
     finally { [IO.File]::Delete($launcherPath) }

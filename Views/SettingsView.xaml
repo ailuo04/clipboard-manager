@@ -2,7 +2,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Margin="24">
     <Grid.RowDefinitions>
         <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
     <TextBlock Text="历史记录与存储" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,22" />
     <Grid Grid.Row="1" Margin="0,0,0,16">
@@ -15,7 +15,8 @@
         <StackPanel VerticalAlignment="Center"><TextBlock Text="内容空间上限" /><TextBlock Text="64–4096 MB" Style="{StaticResource SecondaryText}" Margin="0,5,0,0" /></StackPanel>
         <TextBox Grid.Column="1" x:Name="MaxStorageBox" AutomationProperties.Name="内容空间上限（MB）" MaxLength="4" />
     </Grid>
-    <StackPanel Grid.Row="3">
+    <CheckBox Grid.Row="3" x:Name="AlwaysOnTopCheckBox" Content="窗口置顶" AutomationProperties.Name="窗口置顶" Margin="0,0,0,22" />
+    <StackPanel Grid.Row="4">
         <TextBlock Text="数据目录" Margin="0,0,0,8" />
         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <TextBox x:Name="DirectoryBox" IsReadOnly="True" TextWrapping="Wrap" Background="#ECEFF2" FontSize="12" BorderThickness="0" />
@@ -27,8 +28,8 @@
             <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8A5;" Margin="0,0,8,0" /><TextBlock Text="查看日志" /></StackPanel>
         </Button>
     </StackPanel>
-    <TextBlock Grid.Row="4" x:Name="ValidationText" Foreground="#A53A3A" TextWrapping="Wrap" Margin="0,16,0,0" />
-    <StackPanel Grid.Row="6" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+    <TextBlock Grid.Row="5" x:Name="ValidationText" Foreground="#A53A3A" TextWrapping="Wrap" Margin="0,16,0,0" />
+    <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
         <Button x:Name="CancelButton" Content="取消" IsCancel="True" MinWidth="84" Margin="0,0,10,0" />
         <Button x:Name="SaveButton" Content="保存" IsDefault="True" Style="{StaticResource PrimaryButton}" MinWidth="84" />
     </StackPanel>

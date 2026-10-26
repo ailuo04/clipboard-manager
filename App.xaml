@@ -12,6 +12,7 @@
         <Setter Property="FontSize" Value="14" />
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
         <Setter Property="Background" Value="{StaticResource WindowBackgroundBrush}" />
+        <Setter Property="Icon" Value="{DynamicResource AppIcon}" />
     </Style>
     <Style TargetType="ToolTip">
         <Setter Property="MaxWidth" Value="350" />

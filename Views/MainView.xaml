@@ -4,7 +4,16 @@
     <Grid.Resources>
         <DataTemplate x:Key="TextContent">
             <TextBlock Text="{Binding Preview}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
-                       MaxHeight="92" LineHeight="22" FontSize="14" />
+                       LineStackingStrategy="BlockLineHeight">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="MaxHeight" Value="88" /><Setter Property="LineHeight" Value="22" /><Setter Property="FontSize" Value="14" />
+                        <Style.Triggers><DataTrigger Binding="{Binding DataContext.IsCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                            <Setter Property="MaxHeight" Value="54" /><Setter Property="LineHeight" Value="18" /><Setter Property="FontSize" Value="13" />
+                        </DataTrigger></Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
         </DataTemplate>
         <DataTemplate x:Key="ImageContent">
             <Border Background="#F1F3F5" CornerRadius="4" Height="{Binding DataContext.ThumbnailHeight, RelativeSource={RelativeSource AncestorType=Window}}" Margin="0,2,0,0">
@@ -17,8 +26,8 @@
             </Border>
         </DataTemplate>
         <Style x:Key="FilterItem" TargetType="ListBoxItem">
-            <Setter Property="Padding" Value="14,8" />
-            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,0,2,0" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
@@ -38,6 +47,25 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers><DataTrigger Binding="{Binding IsCompact}" Value="True">
+                <Setter Property="Padding" Value="6,4" /><Setter Property="FontSize" Value="12" />
+            </DataTrigger></Style.Triggers>
+        </Style>
+        <Style x:Key="WidgetIconButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Style.Triggers><DataTrigger Binding="{Binding IsCompact}" Value="True">
+                <Setter Property="Width" Value="30" /><Setter Property="Height" Value="30" /><Setter Property="MinHeight" Value="30" />
+            </DataTrigger></Style.Triggers>
+        </Style>
+        <Style x:Key="RecordAction" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="30" /><Setter Property="Height" Value="30" /><Setter Property="MinHeight" Value="30" />
+            <Setter Property="BorderThickness" Value="0" /><Setter Property="Background" Value="Transparent" />
+            <Setter Property="Margin" Value="1" /><Setter Property="Focusable" Value="False" /><Setter Property="IsTabStop" Value="False" />
+        </Style>
+        <Style x:Key="RecordCopySurface" TargetType="Button" BasedOn="{StaticResource CopySurface}">
+            <Setter Property="Padding" Value="12,10" /><Setter Property="Focusable" Value="False" /><Setter Property="IsTabStop" Value="False" />
+            <Style.Triggers><DataTrigger Binding="{Binding DataContext.IsCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                <Setter Property="Padding" Value="8,6" />
+            </DataTrigger></Style.Triggers>
         </Style>
     </Grid.Resources>
     <Grid.RowDefinitions>
@@ -51,34 +79,47 @@
     <Border Grid.Row="0" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
         <Grid>
             <Grid.Style><Style TargetType="Grid"><Setter Property="Margin" Value="24,20,24,18" /><Style.Triggers>
-                <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="16,12" /></DataTrigger>
+                <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="10,8" /></DataTrigger>
             </Style.Triggers></Style></Grid.Style>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <Border Background="#E4F1ED" CornerRadius="6" Width="36" Height="36" Margin="0,0,12,0">
-                    <TextBlock Style="{StaticResource Icon}" Text="&#xE77F;" Foreground="#117466" FontSize="20" />
+                <Border Background="#E4F1ED" CornerRadius="5" Margin="0,0,8,0">
+                    <Border.Style><Style TargetType="Border"><Setter Property="Width" Value="36" /><Setter Property="Height" Value="36" />
+                        <Style.Triggers><DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Width" Value="28" /><Setter Property="Height" Value="28" /></DataTrigger></Style.Triggers>
+                    </Style></Border.Style>
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE77F;" Foreground="#117466" FontSize="18" />
                 </Border>
-                <TextBlock Text="剪贴板" FontSize="23" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <TextBlock Text="剪贴板" FontWeight="SemiBold" VerticalAlignment="Center">
+                    <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="FontSize" Value="23" /><Style.Triggers>
+                        <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="FontSize" Value="18" /></DataTrigger>
+                    </Style.Triggers></Style></TextBlock.Style>
+                </TextBlock>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                <Button Style="{StaticResource IconButton}" Command="{Binding ClearCommand}" ToolTip="清空全部历史记录"
-                        AutomationProperties.Name="清空全部历史记录" Margin="0,0,8,0">
+                <Button Style="{StaticResource WidgetIconButton}" Command="{Binding ClearCommand}" ToolTip="清空全部历史记录"
+                        AutomationProperties.Name="清空全部历史记录" Margin="0,0,4,0">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
                 </Button>
-                <Button Style="{StaticResource IconButton}" Command="{Binding SettingsCommand}" ToolTip="设置" AutomationProperties.Name="设置">
+                <Button Style="{StaticResource WidgetIconButton}" Command="{Binding SettingsCommand}" ToolTip="设置" AutomationProperties.Name="设置">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE713;" />
                 </Button>
             </StackPanel>
             <Grid Grid.Row="1" Grid.ColumnSpan="2">
                 <Grid.Style><Style TargetType="Grid"><Setter Property="Margin" Value="0,18,0,0" /><Style.Triggers>
-                    <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="0,10,0,0" /></DataTrigger>
+                    <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="0,6,0,0" /></DataTrigger>
                 </Style.Triggers></Style></Grid.Style>
-                <TextBox Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged}" Padding="38,10,38,10" MinHeight="42"
-                         AutomationProperties.Name="搜索文本内容" />
-                <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" HorizontalAlignment="Left" Margin="13,0,0,0"
+                <TextBox x:Name="SearchBox" Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="搜索文本内容">
+                    <TextBox.Style><Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                        <Setter Property="Padding" Value="32,10,32,10" /><Setter Property="MinHeight" Value="42" />
+                        <Style.Triggers><DataTrigger Binding="{Binding IsCompact}" Value="True">
+                            <Setter Property="Padding" Value="30,5,32,5" /><Setter Property="MinHeight" Value="32" /><Setter Property="FontSize" Value="13" />
+                        </DataTrigger></Style.Triggers>
+                    </Style></TextBox.Style>
+                </TextBox>
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" HorizontalAlignment="Left" Margin="10,0,0,0"
                            Foreground="#7B8390" IsHitTestVisible="False" />
-                <TextBlock Text="搜索文本内容" Foreground="#8A919D" Margin="38,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False">
+                <TextBlock Text="搜索文本内容" Foreground="#8A919D" Margin="32,0,0,0" VerticalAlignment="Center" IsHitTestVisible="False" FontSize="13">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers><DataTrigger Binding="{Binding HasSearch}" Value="False"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
@@ -86,7 +127,7 @@
                     </TextBlock.Style>
                 </TextBlock>
                 <Button Style="{StaticResource IconButton}" Command="{Binding ClearSearchCommand}" ToolTip="清除搜索" AutomationProperties.Name="清除搜索"
-                        HorizontalAlignment="Right" Margin="0,0,3,0" Width="32" Height="32" MinHeight="32" BorderThickness="0" Background="Transparent"
+                        HorizontalAlignment="Right" Margin="0,0,2,0" Width="28" Height="28" MinHeight="28" BorderThickness="0" Background="Transparent"
                         Visibility="{Binding HasSearch, Converter={StaticResource BoolVisibility}}">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE711;" FontSize="12" />
                 </Button>
@@ -96,7 +137,7 @@
 
     <Grid Grid.Row="1">
         <Grid.Style><Style TargetType="Grid"><Setter Property="Margin" Value="24,14,24,10" /><Style.Triggers>
-            <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="16,8" /></DataTrigger>
+            <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="8,6" /></DataTrigger>
         </Style.Triggers></Style></Grid.Style>
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <ListBox BorderThickness="0" Background="Transparent" SelectedIndex="{Binding FilterIndex, Mode=TwoWay}"
@@ -107,17 +148,25 @@
             <ListBoxItem><TextBlock Text="{Binding TextLabel}" /></ListBoxItem>
             <ListBoxItem><TextBlock Text="{Binding ImageLabel}" /></ListBoxItem>
         </ListBox>
-        <TextBlock Grid.Column="1" Text="最新在前" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="8,0,0,0" />
+        <TextBlock Grid.Column="1" Text="最新在前" VerticalAlignment="Center" Margin="8,0,0,0">
+            <TextBlock.Style><Style TargetType="TextBlock" BasedOn="{StaticResource SecondaryText}"><Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+            </Style.Triggers></Style></TextBlock.Style>
+        </TextBlock>
     </Grid>
 
     <Border Grid.Row="2" Background="#FFF3D9" BorderBrush="#F0D69E" BorderThickness="1" CornerRadius="6"
             Visibility="{Binding HasNotice, Converter={StaticResource BoolVisibility}}">
         <Border.Style><Style TargetType="Border"><Setter Property="Margin" Value="24,0,24,12" /><Style.Triggers>
-            <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="16,0,16,8" /></DataTrigger>
+            <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="8,0,8,6" /></DataTrigger>
         </Style.Triggers></Style></Border.Style>
-        <Grid Margin="12,8">
+        <Grid Margin="8,5">
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" Foreground="#704E13" VerticalAlignment="Center" Margin="0,0,10,0" MaxHeight="110" TextTrimming="CharacterEllipsis" ToolTip="{Binding Notice}" />
+            <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" Foreground="#704E13" VerticalAlignment="Center" Margin="0,0,6,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Notice}">
+                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="MaxHeight" Value="110" /><Style.Triggers>
+                    <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="MaxHeight" Value="48" /><Setter Property="FontSize" Value="12" /></DataTrigger>
+                </Style.Triggers></Style></TextBlock.Style>
+            </TextBlock>
             <Button Grid.Column="1" Style="{StaticResource IconButton}" Command="{Binding DismissNoticeCommand}" Background="Transparent"
                     BorderThickness="0" Width="28" Height="28" MinHeight="28" ToolTip="关闭提示" AutomationProperties.Name="关闭提示">
                 <TextBlock Style="{StaticResource Icon}" Text="&#xE711;" FontSize="12" />
@@ -126,71 +175,84 @@
     </Border>
 
     <Grid Grid.Row="3">
-        <ListBox ItemsSource="{Binding VisibleRecords}" Background="Transparent" BorderThickness="0"
+        <ListBox x:Name="HistoryList" ItemsSource="{Binding VisibleRecords}" SelectedItem="{Binding SelectedRecord, Mode=TwoWay}"
+                 SelectionMode="Single" Background="Transparent" BorderThickness="0" KeyboardNavigation.TabNavigation="Once"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto"
                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                 VirtualizingPanel.ScrollUnit="Pixel"
                  ScrollViewer.CanContentScroll="True" HorizontalContentAlignment="Stretch" AutomationProperties.Name="剪贴板历史记录">
             <ListBox.Style><Style TargetType="ListBox"><Setter Property="Padding" Value="24,0,24,12" /><Style.Triggers><DataTrigger Binding="{Binding IsCompact}" Value="True">
-                <Setter Property="Padding" Value="16,0,16,8" />
+                <Setter Property="Padding" Value="8,0,8,6" />
             </DataTrigger></Style.Triggers></Style></ListBox.Style>
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                    <Setter Property="Margin" Value="0,0,0,10" />
+                    <Setter Property="MaxWidth" Value="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollContentPresenter}}" />
+                    <Setter Property="Margin" Value="0,0,0,8" />
                     <Setter Property="Padding" Value="0" />
-                    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><ContentPresenter /></ControlTemplate></Setter.Value></Setter>
+                    <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="RecordChrome" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5">
+                            <ContentPresenter HorizontalAlignment="Stretch" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="RecordChrome" Property="BorderBrush" Value="{StaticResource AccentBrush}" /><Setter TargetName="RecordChrome" Property="Background" Value="#F0F8F5" /></Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True"><Setter TargetName="RecordChrome" Property="BorderBrush" Value="{StaticResource AccentBrush}" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate></Setter.Value></Setter>
+                    <Style.Triggers><DataTrigger Binding="{Binding DataContext.IsCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"><Setter Property="Margin" Value="0,0,0,6" /></DataTrigger></Style.Triggers>
                 </Style>
             </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="White" CornerRadius="6">
                         <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="48" /></Grid.ColumnDefinitions>
-                            <Button Command="{Binding CopyCommand}" Style="{StaticResource CopySurface}" ToolTip="{Binding CopyToolTip}">
+                            <Button Command="{Binding CopyCommand}" Style="{StaticResource RecordCopySurface}" ToolTip="{Binding CopyToolTip}">
                                 <Grid>
-                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                    <Grid Margin="0,0,0,10">
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                        <Border CornerRadius="3" Padding="7,3">
+                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                    <Grid Margin="0,0,0,4">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Border CornerRadius="3" Padding="4,1">
                                             <Border.Style><Style TargetType="Border"><Setter Property="Background" Value="#ECF1FA" /><Style.Triggers><DataTrigger Binding="{Binding IsImage}" Value="True"><Setter Property="Background" Value="#FAEDDF" /></DataTrigger></Style.Triggers></Style></Border.Style>
                                             <TextBlock Text="{Binding TypeLabel}" FontSize="11" Foreground="#485666" />
                                         </Border>
-                                        <TextBlock Grid.Column="1" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="12" Foreground="#117466" Margin="8,0,0,0"
+                                        <TextBlock Grid.Column="1" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="11" Foreground="#117466" Margin="5,0,0,0"
                                                    Visibility="{Binding IsPinned, Converter={StaticResource BoolVisibility}}" ToolTip="已固定" />
-                                        <TextBlock Grid.Column="2" Text="{Binding TimeLabel}" Style="{StaticResource SecondaryText}" HorizontalAlignment="Right"
-                                                   VerticalAlignment="Center" ToolTip="{Binding FullTime}" Margin="8,0,0,0" />
+                                        <TextBlock Grid.Column="2" Text="{Binding ShortTimeLabel}" Style="{StaticResource SecondaryText}" FontSize="11"
+                                                   VerticalAlignment="Center" ToolTip="{Binding FullTime}" Margin="6,0,0,0" />
+                                        <TextBlock Grid.Column="3" Text="{Binding ContentInfo}" Style="{StaticResource SecondaryText}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" ToolTip="{Binding ContentInfo}" Margin="6,0,0,0" HorizontalAlignment="Stretch" TextAlignment="Right" />
                                     </Grid>
-                                    <ContentControl Grid.Row="1" Content="{Binding}" HorizontalContentAlignment="Stretch">
+                                    <ContentControl Grid.Row="1" Content="{Binding}" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Top" MinHeight="64" Margin="0,0,70,0">
                                         <ContentControl.Style><Style TargetType="ContentControl"><Setter Property="ContentTemplate" Value="{StaticResource TextContent}" />
                                             <Style.Triggers><DataTrigger Binding="{Binding IsImage}" Value="True"><Setter Property="ContentTemplate" Value="{StaticResource ImageContent}" /></DataTrigger></Style.Triggers>
                                         </Style></ContentControl.Style>
                                     </ContentControl>
-                                    <TextBlock Grid.Row="2" Text="{Binding ContentInfo}" Style="{StaticResource SecondaryText}" Margin="0,10,0,0" />
                                 </Grid>
                             </Button>
-                            <StackPanel Grid.Column="1" Margin="0,10,10,10" VerticalAlignment="Top">
-                                <Button Command="{Binding PinCommand}" ToolTip="{Binding PinToolTip}" AutomationProperties.Name="{Binding PinToolTip}" Margin="0,0,0,4">
-                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource IconButton}"><Setter Property="BorderThickness" Value="0" /><Setter Property="Background" Value="Transparent" />
+                            <UniformGrid Rows="2" Columns="2" Width="64" Height="64" Margin="0,0,6,6" HorizontalAlignment="Right" VerticalAlignment="Bottom">
+                                <Button Command="{Binding CopyCommand}" Style="{StaticResource RecordAction}" ToolTip="{Binding CopyToolTip}" AutomationProperties.Name="复制记录" Foreground="#117466">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8C8;" />
+                                </Button>
+                                <Button Command="{Binding PinCommand}" ToolTip="{Binding PinToolTip}" AutomationProperties.Name="{Binding PinToolTip}">
+                                    <Button.Style><Style TargetType="Button" BasedOn="{StaticResource RecordAction}">
                                         <Style.Triggers><DataTrigger Binding="{Binding IsPinned}" Value="True"><Setter Property="Background" Value="#E4F1ED" /><Setter Property="Foreground" Value="#117466" /></DataTrigger></Style.Triggers>
                                     </Style></Button.Style>
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE718;" />
                                 </Button>
-                                <Button Command="{Binding DetailsCommand}" Style="{StaticResource IconButton}" ToolTip="查看完整内容" AutomationProperties.Name="查看完整内容" BorderThickness="0" Margin="0,0,0,4">
+                                <Button Command="{Binding DetailsCommand}" Style="{StaticResource RecordAction}" ToolTip="查看完整内容" AutomationProperties.Name="查看完整内容">
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE8A7;" />
                                 </Button>
-                                <Button Command="{Binding DeleteCommand}" Style="{StaticResource IconButton}" ToolTip="删除记录" AutomationProperties.Name="删除记录" BorderThickness="0" Foreground="#A53A3A">
+                                <Button Command="{Binding DeleteCommand}" Style="{StaticResource RecordAction}" ToolTip="删除记录" AutomationProperties.Name="删除记录" Foreground="#A53A3A">
                                     <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
                                 </Button>
-                            </StackPanel>
+                            </UniformGrid>
                         </Grid>
-                    </Border>
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="24" Visibility="{Binding IsEmpty, Converter={StaticResource BoolVisibility}}">
-            <TextBlock Style="{StaticResource Icon}" Text="&#xE8F1;" FontSize="36" Foreground="#9BA4AE" Margin="0,0,0,16" />
-            <TextBlock Text="{Binding EmptyTitle}" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" />
-            <TextBlock Text="{Binding EmptySubtitle}" Foreground="#7B8390" Margin="0,10,0,0" TextWrapping="Wrap" TextAlignment="Center" />
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12,6" Visibility="{Binding IsEmpty, Converter={StaticResource BoolVisibility}}">
+            <TextBlock Style="{StaticResource Icon}" Text="&#xE8F1;" FontSize="24" Foreground="#9BA4AE" Margin="0,0,0,8" />
+            <TextBlock Text="{Binding EmptyTitle}" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Center" />
+            <TextBlock Text="{Binding EmptySubtitle}" Foreground="#7B8390" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap" TextAlignment="Center" />
             <Button Content="重试" Command="{Binding RetryCommand}" HorizontalAlignment="Center" Margin="0,16,0,0" MinWidth="90"
                     Visibility="{Binding CanRetry, Converter={StaticResource BoolVisibility}}" />
         </StackPanel>
@@ -201,9 +263,12 @@
     </Grid>
 
     <Border Grid.Row="4" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-        <Grid Margin="24,10">
+        <Grid>
+            <Grid.Style><Style TargetType="Grid"><Setter Property="Margin" Value="24,10" /><Style.Triggers>
+                <DataTrigger Binding="{Binding IsCompact}" Value="True"><Setter Property="Margin" Value="10,5" /></DataTrigger>
+            </Style.Triggers></Style></Grid.Style>
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="{Binding MonitorStatus}" FontSize="12" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
                 <Button Style="{StaticResource IconButton}" Command="{Binding PauseCommand}" ToolTip="{Binding PauseToolTip}" AutomationProperties.Name="{Binding PauseToolTip}"
@@ -215,8 +280,8 @@
                     </TextBlock>
                 </Button>
             </StackPanel>
-            <TextBlock Grid.Column="1" Text="{Binding CountLabel}" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="12,0,0,0" />
-            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Status}" Style="{StaticResource SecondaryText}" TextTrimming="CharacterEllipsis" Margin="0,3,0,0" />
+            <TextBlock Grid.Column="1" Text="{Binding CountLabel}" Style="{StaticResource SecondaryText}" VerticalAlignment="Center" Margin="6,0,0,0" TextAlignment="Right" TextTrimming="CharacterEllipsis" ToolTip="{Binding CountLabel}" />
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Status}" Style="{StaticResource SecondaryText}" TextTrimming="CharacterEllipsis" Margin="0,1,0,0" ToolTip="{Binding Status}" />
         </Grid>
     </Border>
 </Grid>

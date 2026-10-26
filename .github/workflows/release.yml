@@ -1,0 +1,67 @@
+name: Windows Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, for example 0.0.1'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Validate version
+        id: version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:INPUT_VERSION) { $env:INPUT_VERSION } else { $env:GITHUB_REF_NAME -replace '^v', '' }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
+          "value=$version" >> $env:GITHUB_OUTPUT
+          $tag = "v$version"
+          $existing = git rev-parse --verify --quiet "refs/tags/$tag^{commit}"
+          if ($LASTEXITCODE -eq 0 -and $existing -ne (git rev-parse HEAD)) { throw 'Release tag points to a different commit.' }
+          $global:LASTEXITCODE = 0
+      - name: Package self-contained Windows application
+        shell: pwsh
+        run: ./package.ps1 -Version '${{ steps.version.outputs.value }}'
+      - name: Keep build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipboardManager-${{ steps.version.outputs.value }}-win-x64
+          path: dist/*
+          if-no-files-found: error
+      - name: Publish GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.value }}
+        run: |
+          $tag = "v$env:VERSION"
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; refusing to overwrite it.' }
+          $assets = @(Get-ChildItem -LiteralPath dist -File | Select-Object -ExpandProperty FullName)
+          if ($assets.Count -ne 2) { throw 'Expected one ZIP and one SHA256 file.' }
+          gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "剪贴板 $tag" --notes-file RELEASE_NOTES.md --draft
+          if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed; any partial release remains a draft.' }
+          gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false
+          if ($LASTEXITCODE -ne 0) { throw 'Could not publish the draft release.' }

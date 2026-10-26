@@ -7,12 +7,16 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClipboardManager</RootNamespace>
     <AssemblyName>ClipboardManager</AssemblyName>
+    <Version>0.0.1</Version>
+    <Product>ClipboardManager</Product>
+    <Description>Windows clipboard history manager with text, images, search, and pinning.</Description>
+    <ApplicationIcon>Assets\Clipboard.ico</ApplicationIcon>
     <LangVersion>latest</LangVersion>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
     <StartupObject>ClipboardManager.App</StartupObject>
   </PropertyGroup>
   <ItemGroup>
-    <EmbeddedResource Include="App.xaml;Views\*.xaml" />
+    <EmbeddedResource Include="App.xaml;Views\*.xaml;Assets\Clipboard.ico" />
   </ItemGroup>
 </Project>

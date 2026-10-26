@@ -29,7 +29,8 @@ public sealed class MainViewModel : ObservableObject
     private bool _isBusy;
     private bool _isPaused;
     private bool _isClosing;
-    private bool _isCompact;
+    private bool _isCompact = true;
+    private RecordViewModel? _selectedRecord;
     private int _filterIndex;
     private string _searchTerm = string.Empty;
     private string _notice = string.Empty;
@@ -47,6 +48,7 @@ public sealed class MainViewModel : ObservableObject
         _searchTimer.Tick += OnSearchTimer;
         ClearCommand = new AsyncRelayCommand(ClearAsync, () => CanAct && _allRecords.Count > 0);
         SettingsCommand = new AsyncRelayCommand(ShowSettingsAsync, () => CanAct);
+        ToggleAlwaysOnTopCommand = new AsyncRelayCommand(ToggleAlwaysOnTopAsync, () => CanAct);
         RetryCommand = new AsyncRelayCommand(InitializeAsync, () => !IsLoading && !IsClosing);
         PauseCommand = new RelayCommand(() =>
         {
@@ -61,17 +63,21 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<RecordViewModel> VisibleRecords { get; } = [];
     public ICommand ClearCommand { get; }
     public ICommand SettingsCommand { get; }
+    public ICommand ToggleAlwaysOnTopCommand { get; }
     public ICommand RetryCommand { get; }
     public ICommand PauseCommand { get; }
     public ICommand DismissNoticeCommand { get; }
     public ICommand ClearSearchCommand { get; }
     public bool CanAct => IsReady && !IsBusy && !IsClosing;
     public bool IsCompact => _isCompact;
-    public double ThumbnailHeight => IsCompact ? 128 : 196;
+    public bool IsAlwaysOnTop => _owner.Topmost;
+    public string AlwaysOnTopToolTip => IsAlwaysOnTop ? "取消窗口置顶" : "窗口置顶";
+    public double ThumbnailHeight => IsCompact ? 104 : 196;
+    public RecordViewModel? SelectedRecord { get => _selectedRecord; set => Set(ref _selectedRecord, value); }
 
     public void UpdateWindowSize()
     {
-        bool compact = _owner.ActualHeight < 600;
+        bool compact = _owner.ActualWidth < 600 || _owner.ActualHeight < 620;
         if (Set(ref _isCompact, compact, nameof(IsCompact))) Raise(nameof(ThumbnailHeight));
     }
     public bool IsLoading { get => _isLoading; private set { if (Set(ref _isLoading, value)) RaiseState(); } }
@@ -120,6 +126,7 @@ public sealed class MainViewModel : ObservableObject
             var warning = await Task.Run(() => _history.LoadAsync(_lifetime.Token));
             if (IsClosing) return;
             RefreshRecords();
+            ApplyWindowSettings();
             _monitor.Start();
             IsReady = true;
             Status = "历史记录已加载";
@@ -208,12 +215,35 @@ public sealed class MainViewModel : ObservableObject
             await RunOperationAsync(async () =>
             {
                 string? warning = await _history.UpdateSettingsAsync(dialog.Settings, _lifetime.Token);
+                ApplyWindowSettings();
                 RefreshRecords();
                 Status = "设置已保存";
                 if (warning is not null) Notice = warning;
             }, "保存设置失败");
         }
         catch (Exception exception) { Report("打开设置失败", exception); }
+    }
+
+    private async Task ToggleAlwaysOnTopAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var settings = _history.Settings;
+            settings.AlwaysOnTop = !settings.AlwaysOnTop;
+            string? warning = await _history.UpdateSettingsAsync(settings, _lifetime.Token);
+            ApplyWindowSettings();
+            Status = IsAlwaysOnTop ? "窗口已置顶" : "已取消窗口置顶";
+            if (warning is not null) Notice = warning;
+        }, "切换窗口置顶失败");
+        // Reset the toggle to the committed value even when persistence fails.
+        Raise(nameof(IsAlwaysOnTop));
+    }
+
+    private void ApplyWindowSettings()
+    {
+        _owner.Topmost = _history.Settings.AlwaysOnTop;
+        Raise(nameof(IsAlwaysOnTop));
+        Raise(nameof(AlwaysOnTopToolTip));
     }
 
     private void OnClipboardChanged(object? sender, EventArgs args) => ScheduleCapture();
@@ -286,11 +316,15 @@ public sealed class MainViewModel : ObservableObject
 
     private void ApplyFilter()
     {
+        Guid? selectedId = SelectedRecord?.Record.Id;
+        int selectedIndex = SelectedRecord is null ? -1 : VisibleRecords.IndexOf(SelectedRecord);
         string query = SearchTerm.Trim();
         var filtered = _allRecords.Where(item => (FilterIndex == 0 || FilterIndex == 1 && !item.IsImage || FilterIndex == 2 && item.IsImage)
             && (query.Length == 0 || !item.IsImage && item.Record.Text!.Contains(query, StringComparison.CurrentCultureIgnoreCase))).ToList();
         VisibleRecords.Clear();
         foreach (var item in filtered) VisibleRecords.Add(item);
+        SelectedRecord = filtered.FirstOrDefault(item => item.Record.Id == selectedId)
+            ?? (selectedIndex < 0 || filtered.Count == 0 ? null : filtered[Math.Min(selectedIndex, filtered.Count - 1)]);
         Raise(nameof(CountLabel)); Raise(nameof(IsEmpty)); Raise(nameof(EmptyTitle)); Raise(nameof(EmptySubtitle));
     }
 
@@ -300,9 +334,17 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(EmptyTitle)); Raise(nameof(EmptySubtitle));
         (ClearCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (SettingsCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        (ToggleAlwaysOnTopCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (RetryCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (PauseCommand as RelayCommand)?.RaiseCanExecuteChanged();
         foreach (var item in _allRecords) item.RefreshCommands();
+    }
+
+    public void ReportHotKeyFailure(Exception exception)
+    {
+        string previousNotice = Notice;
+        Report("全局快捷键 Ctrl+Shift+Space 注册失败，可能已被其他程序占用；仍可从任务栏打开窗口", exception);
+        if (!string.IsNullOrEmpty(previousNotice)) Notice = previousNotice + " " + Notice;
     }
 
     private void Report(string context, Exception exception)

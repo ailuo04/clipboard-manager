@@ -6,12 +6,15 @@ public sealed class AppSettings
 
     public int MaxStorageMb { get; set; } = 512;
 
+    public bool AlwaysOnTop { get; set; } = false;
+
     public AppSettings Clone()
     {
         return new AppSettings
         {
             MaxRecords = MaxRecords,
-            MaxStorageMb = MaxStorageMb
+            MaxStorageMb = MaxStorageMb,
+            AlwaysOnTop = AlwaysOnTop
         };
     }
 

@@ -14,9 +14,9 @@ public sealed class SettingsWindow : Window
         Owner = owner;
         Title = "设置";
         Width = 510;
-        Height = 490;
+        Height = 540;
         MinWidth = 460;
-        MinHeight = 460;
+        MinHeight = 510;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Settings = settings.Clone();
         var view = ViewLoader.Load<Grid>("Views/SettingsView.xaml");
@@ -24,8 +24,10 @@ public sealed class SettingsWindow : Window
         var records = (TextBox)view.FindName("MaxRecordsBox");
         var storage = (TextBox)view.FindName("MaxStorageBox");
         var validation = (TextBlock)view.FindName("ValidationText");
+        var alwaysOnTop = (CheckBox)view.FindName("AlwaysOnTopCheckBox");
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
+        alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
         ((TextBox)view.FindName("DirectoryBox")).Text = dataDirectory;
         ((Button)view.FindName("CancelButton")).Click += (_, _) => DialogResult = false;
         ((Button)view.FindName("SaveButton")).Click += (_, _) =>
@@ -45,7 +47,10 @@ public sealed class SettingsWindow : Window
             if ((count < settings.MaxRecords || megabytes < settings.MaxStorageMb)
                 && MessageBox.Show(this, "降低上限可能立即清理最早的未固定记录，确定保存吗？", "调整保留上限",
                     MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-            Settings = new AppSettings { MaxRecords = count, MaxStorageMb = megabytes };
+            Settings = Settings.Clone();
+            Settings.MaxRecords = count;
+            Settings.MaxStorageMb = megabytes;
+            Settings.AlwaysOnTop = alwaysOnTop.IsChecked == true;
             DialogResult = true;
         };
         ((Button)view.FindName("OpenDirectoryButton")).Click += (_, _) => OpenPath(dataDirectory, validation);

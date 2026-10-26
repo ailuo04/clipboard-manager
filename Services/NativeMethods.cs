@@ -10,6 +10,27 @@ internal static class NativeMethods
     internal const uint CfUnicodeText = 13;
     internal const uint CfHdrop = 15;
     internal const uint CfDibV5 = 17;
+    internal const int DwmwaCaptionButtonBounds = 5;
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct NativeRect
+    {
+        internal int Left;
+        internal int Top;
+        internal int Right;
+        internal int Bottom;
+    }
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out NativeRect value, int size);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool RegisterHotKey(IntPtr hwnd, int id, uint modifiers, uint virtualKey);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool UnregisterHotKey(IntPtr hwnd, int id);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

@@ -19,6 +19,7 @@ public sealed class App : Application
         {
             var app = new App { ShutdownMode = ShutdownMode.OnMainWindowClose };
             app.Resources = ViewLoader.Load<ResourceDictionary>("App.xaml");
+            app.Resources["AppIcon"] = ViewLoader.LoadIcon();
             app.DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             {

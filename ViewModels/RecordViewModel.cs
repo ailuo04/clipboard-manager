@@ -24,6 +24,7 @@ public sealed class RecordViewModel
     public string PinToolTip => IsPinned ? "取消固定" : "固定记录";
     public string CopyToolTip => IsImage ? "复制图片到系统剪贴板" : "复制完整文本到系统剪贴板";
     public string TimeLabel => Record.CopiedAtUtc.ToLocalTime().ToString("MM-dd HH:mm:ss");
+    public string ShortTimeLabel => Record.CopiedAtUtc.ToLocalTime().ToString("MM-dd HH:mm");
     public string FullTime => Record.CopiedAtUtc.ToLocalTime().ToString("yyyy年MM月dd日 HH:mm:ss");
     public string ContentInfo => IsImage ? $"{Record.ImageWidth} × {Record.ImageHeight} · {FormatSize(Record.ByteLength)}" : $"{Record.Text?.Length:N0} 字符";
     public string Preview
