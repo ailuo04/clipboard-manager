@@ -1,6 +1,6 @@
 # 剪贴板 v0.0.1
 
-面向 Windows 11 x64 的中文剪贴板管理器，提供解压即用的便携版。
+面向 Windows 11 x64 的中文剪贴板管理器，提供中文安装版和解压即用的便携版。
 
 ## 功能与作用
 
@@ -15,9 +15,11 @@
 
 ## 下载与使用
 
-1. 下载 `ClipboardManager-0.0.1-win-x64.zip` 及同版本 `.sha256` 文件。
-2. 完整解压 ZIP，双击 `ClipboardManager.exe`，无需管理员权限，也无需另装 .NET。
-3. 复制文本或图片后，点击历史记录，再在目标软件中粘贴。
+推荐安装版：下载 `ClipboardManager-0.0.1-win-x64-setup.exe` 和 `ClipboardManager-0.0.1-win-x64-setup.sha256`，运行中文安装向导，从开始菜单打开“剪贴板”。支持可选桌面快捷方式、覆盖升级及系统设置中的卸载入口，默认仅为当前用户安装。
+
+便携版：下载 `ClipboardManager-0.0.1-win-x64.zip` 和 `ClipboardManager-0.0.1-win-x64.sha256`，完整解压后双击 `ClipboardManager.exe`。
+
+两种方式均不需要管理员权限，也无需另装 .NET。安装版复用同版本正式 ZIP 中的程序和运行环境，不改变已经发布的便携包或版本标签。安装、升级和卸载均保留 `%LOCALAPPDATA%\ClipboardManager` 中的历史；两种版本不能同时运行。复制文本或图片后，点击历史记录，再在目标软件中粘贴。
 
 程序未进行代码签名，首次运行可能出现 Windows 发布者提示。请确认来源并核对 SHA256，不要关闭安全防护。使用说明与运行环境版本分别见包内 `USAGE.md`、`release.json`。
 

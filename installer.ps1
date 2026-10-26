@@ -1,0 +1,124 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)]
+    [string]$Archive,
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version = '0.0.1',
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
+    [string]$CompilerPath,
+    [switch]$VerifyInstall
+)
+
+$ErrorActionPreference = 'Stop'
+if (-not $IsWindows) { throw 'Installer packaging requires Windows and PowerShell 7.' }
+if ($VerifyInstall -and $env:GITHUB_ACTIONS -ne 'true') { throw 'Installation verification is restricted to disposable GitHub Actions runners.' }
+$archivePath = (Resolve-Path -LiteralPath $Archive -ErrorAction Stop).Path
+$checksumPath = [IO.Path]::ChangeExtension($archivePath, '.sha256')
+$checksumParts = (Get-Content -LiteralPath $checksumPath -Raw).Trim() -split '\s+', 2
+if ($checksumParts.Count -ne 2 -or $checksumParts[0] -notmatch '^[0-9a-fA-F]{64}$' -or $checksumParts[1] -ne [IO.Path]::GetFileName($archivePath)) {
+    throw 'The input ZIP checksum file is invalid.'
+}
+if ((Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash -ne $checksumParts[0]) { throw 'The input ZIP failed SHA256 verification.' }
+if (-not $CompilerPath) {
+    $command = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+    if ($command) { $CompilerPath = $command.Source }
+    else { $CompilerPath = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe' }
+}
+if (-not (Test-Path -LiteralPath $CompilerPath -PathType Leaf)) { throw 'Inno Setup is not installed. Use the GitHub installer workflow, which uses its preinstalled compiler.' }
+$output = [IO.Path]::GetFullPath($OutputDirectory)
+$name = "ClipboardManager-$Version-win-x64-setup"
+$installerPath = Join-Path $output "$name.exe"
+$checksumOutput = Join-Path $output "$name.sha256"
+foreach ($path in @($installerPath, $checksumOutput)) {
+    if (Test-Path -LiteralPath $path) { throw "Refusing to overwrite an existing release file: $path" }
+}
+$bin = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'bin'))
+$staging = Join-Path $bin ('.installer-' + [guid]::NewGuid().ToString('N'))
+$payload = Join-Path $staging 'payload'
+try {
+    [IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $payload)
+    $manifest = Get-Content -LiteralPath (Join-Path $payload 'release.json') -Raw | ConvertFrom-Json
+    if ($manifest.version -ne $Version -or $manifest.platform -ne 'win-x64') { throw 'The ZIP version or platform does not match the requested installer.' }
+    foreach ($file in @('ClipboardManager.exe', 'ClipboardManager.dll', 'ClipboardManager.runtimeconfig.json')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $payload $file) -PathType Leaf)) { throw "Missing application file: $file" }
+    }
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'docs\USAGE.md') -Destination (Join-Path $payload 'USAGE.md')
+    & $CompilerPath /Qp "/DAppVersion=$Version" "/DSourceDir=$payload" "/DOutputDir=$staging" (Join-Path $PSScriptRoot 'installer\ClipboardManager.iss')
+    if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed: $LASTEXITCODE" }
+    $builtInstaller = Join-Path $staging "$name.exe"
+    if (-not (Test-Path -LiteralPath $builtInstaller -PathType Leaf)) { throw 'The compiler did not produce the installer.' }
+
+    if ($VerifyInstall) {
+        $installDirectory = Join-Path $staging 'installed-app'
+        $dataRoot = Join-Path $env:LOCALAPPDATA 'ClipboardManager'
+        $dataRootExisted = Test-Path -LiteralPath $dataRoot
+        [IO.Directory]::CreateDirectory($dataRoot) | Out-Null
+        $sentinel = Join-Path $dataRoot ('installer-check-' + [guid]::NewGuid().ToString('N') + '.txt')
+        [IO.File]::WriteAllText($sentinel, 'Preserve clipboard history during install and uninstall.')
+        $registryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1'
+        if (Test-Path -LiteralPath $registryPath) { throw 'Refusing to overwrite an existing installation in the verification runner.' }
+        $appProcess = $null
+        function Invoke-Setup([string]$Path, [string[]]$SetupArguments) {
+            $start = [Diagnostics.ProcessStartInfo]::new($Path)
+            $start.UseShellExecute = $false
+            $start.CreateNoWindow = $true
+            foreach ($argument in $SetupArguments) { $start.ArgumentList.Add($argument) }
+            $process = [Diagnostics.Process]::Start($start)
+            if (-not $process.WaitForExit(120000)) { $process.Kill($true); throw 'Installer operation timed out.' }
+            if ($process.ExitCode -ne 0) { throw "Installer operation failed: $($process.ExitCode)" }
+        }
+        try {
+            $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/DIR=$installDirectory", '/TASKS=desktopicon', "/LOG=$(Join-Path $staging 'install.log')")
+            Invoke-Setup $builtInstaller $arguments
+            $registration = Get-ItemProperty -LiteralPath $registryPath
+            if ($registration.DisplayVersion -ne $Version -or $registration.InstallLocation.TrimEnd('\') -ne $installDirectory) { throw 'The per-user uninstall registration is incorrect.' }
+            $shortcut = Join-Path ([Environment]::GetFolderPath('Programs')) '剪贴板\剪贴板.lnk'
+            $desktopShortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) '剪贴板.lnk'
+            foreach ($path in @($shortcut, $desktopShortcut)) {
+                if (-not (Test-Path -LiteralPath $path)) { throw "Missing installed shortcut: $path" }
+                $shell = New-Object -ComObject WScript.Shell
+                if ($shell.CreateShortcut($path).TargetPath -ne (Join-Path $installDirectory 'ClipboardManager.exe')) { throw 'A shortcut targets the wrong executable.' }
+            }
+            foreach ($file in Get-ChildItem -LiteralPath $payload -Recurse -File) {
+                $relative = [IO.Path]::GetRelativePath($payload, $file.FullName)
+                if ((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath (Join-Path $installDirectory $relative) -Algorithm SHA256).Hash) { throw "Installed file changed: $relative" }
+            }
+            $appStart = [Diagnostics.ProcessStartInfo]::new((Join-Path $installDirectory 'ClipboardManager.exe'))
+            $appStart.WorkingDirectory = $installDirectory
+            $appStart.UseShellExecute = $false
+            $appStart.CreateNoWindow = $true
+            $appProcess = [Diagnostics.Process]::Start($appStart)
+            if (-not $appProcess.WaitForInputIdle(15000)) { throw 'The installed application did not initialize.' }
+            Start-Sleep -Seconds 3
+            $appProcess.Refresh()
+            if ($appProcess.HasExited -or $appProcess.MainWindowHandle -eq [IntPtr]::Zero) { throw 'The installed application did not open its main window.' }
+            if (-not $appProcess.CloseMainWindow() -or -not $appProcess.WaitForExit(15000) -or $appProcess.ExitCode -ne 0) { throw 'The installed application did not exit cleanly.' }
+            $appProcess = $null
+            Invoke-Setup $builtInstaller $arguments
+            if (-not (Test-Path -LiteralPath $sentinel)) { throw 'Reinstallation removed user data.' }
+            Invoke-Setup (Join-Path $installDirectory 'unins000.exe') @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/LOG=$(Join-Path $staging 'uninstall.log')")
+            if ((Test-Path -LiteralPath $registryPath) -or (Test-Path -LiteralPath $shortcut) -or (Test-Path -LiteralPath $desktopShortcut) -or (Test-Path -LiteralPath (Join-Path $installDirectory 'ClipboardManager.exe'))) { throw 'Uninstall left registered application files or shortcuts.' }
+            if (-not (Test-Path -LiteralPath $sentinel)) { throw 'Uninstall removed user data.' }
+            Write-Host 'Installer verification passed: per-user registration, file hashes, shortcuts, application startup, reinstallation, uninstall, and data preservation.'
+        }
+        finally {
+            if ($appProcess -and -not $appProcess.HasExited) { $appProcess.Kill($true); $appProcess.WaitForExit() }
+            if (Test-Path -LiteralPath $sentinel) { Remove-Item -LiteralPath $sentinel }
+            if (-not $dataRootExisted -and @(Get-ChildItem -LiteralPath $dataRoot -Force).Count -eq 0) { Remove-Item -LiteralPath $dataRoot }
+        }
+    }
+
+    $hash = (Get-FileHash -LiteralPath $builtInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+    $builtChecksum = Join-Path $staging "$name.sha256"
+    [IO.File]::WriteAllText($builtChecksum, "$hash  $name.exe`n", [Text.UTF8Encoding]::new($false))
+    [IO.Directory]::CreateDirectory($output) | Out-Null
+    [IO.File]::Move($builtInstaller, $installerPath, $false)
+    [IO.File]::Move($builtChecksum, $checksumOutput, $false)
+    Write-Host "Installer: $installerPath"
+    Write-Host "SHA256: $hash"
+}
+finally {
+    $resolved = [IO.Path]::GetFullPath($staging)
+    if ((Split-Path $resolved) -ne $bin -or (Split-Path $resolved -Leaf) -notmatch '^\.installer-[0-9a-f]{32}$') { throw 'Unexpected installer staging path.' }
+    if (Test-Path -LiteralPath $resolved) { Remove-Item -LiteralPath $resolved -Recurse -Force }
+}

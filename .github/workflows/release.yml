@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,6 +44,9 @@ jobs:
       - name: Package self-contained Windows application
         shell: pwsh
         run: ./package.ps1 -Version '${{ steps.version.outputs.value }}'
+      - name: Build and verify Chinese per-user installer
+        shell: pwsh
+        run: ./installer.ps1 -Archive 'dist/ClipboardManager-${{ steps.version.outputs.value }}-win-x64.zip' -Version '${{ steps.version.outputs.value }}' -VerifyInstall
       - name: Keep build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -60,7 +63,7 @@ jobs:
           gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists; refusing to overwrite it.' }
           $assets = @(Get-ChildItem -LiteralPath dist -File | Select-Object -ExpandProperty FullName)
-          if ($assets.Count -ne 2) { throw 'Expected one ZIP and one SHA256 file.' }
+          if ($assets.Count -ne 4) { throw 'Expected the portable ZIP, setup EXE, and their SHA256 files.' }
           gh release create $tag @assets --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "剪贴板 $tag" --notes-file RELEASE_NOTES.md --draft
           if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed; any partial release remains a draft.' }
           gh release edit $tag --repo $env:GITHUB_REPOSITORY --draft=false

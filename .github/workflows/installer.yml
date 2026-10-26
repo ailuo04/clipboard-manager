@@ -1,0 +1,63 @@
+name: Add Windows Installer
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing release version, for example 0.0.1'
+        required: true
+        default: '0.0.1'
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  installer:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download and verify existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid release version.' }
+          $tag = "v$env:VERSION"
+          $json = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot read the existing release.' }
+          $release = $json | ConvertFrom-Json
+          if ($release.draft) { throw 'This workflow only adds installers to published releases.' }
+          $installerName = "ClipboardManager-$env:VERSION-win-x64-setup"
+          if ($release.assets | Where-Object { $_.name -in @("$installerName.exe", "$installerName.sha256") }) { throw 'Installer assets already exist; refusing to overwrite them.' }
+          if ((Get-Content RELEASE_NOTES.md -First 1).Trim() -ne "# 剪贴板 $tag") { throw 'Release notes do not match the requested version.' }
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "ClipboardManager-$env:VERSION-win-x64.zip" --pattern "ClipboardManager-$env:VERSION-win-x64.sha256" --dir published
+          if ($LASTEXITCODE -ne 0) { throw 'Release download failed.' }
+      - name: Build and verify Chinese per-user installer
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: ./installer.ps1 -Archive "published/ClipboardManager-$env:VERSION-win-x64.zip" -Version $env:VERSION -VerifyInstall
+      - name: Keep installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipboardManager-${{ inputs.version }}-installer
+          path: dist/*
+          if-no-files-found: error
+      - name: Append installer to existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          $assets = @(Get-ChildItem -LiteralPath dist -File | Select-Object -ExpandProperty FullName)
+          if ($assets.Count -ne 2) { throw 'Expected the setup EXE and its SHA256 file.' }
+          gh release upload "v$env:VERSION" @assets --repo $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { throw 'Installer upload failed.' }
+          gh release edit "v$env:VERSION" --repo $env:GITHUB_REPOSITORY --notes-file RELEASE_NOTES.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release notes update failed.' }

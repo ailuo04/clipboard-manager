@@ -4,13 +4,20 @@ Windows 11 中文桌面剪贴板管理器。自动保存文本、截图和图片
 
 ## 下载与使用
 
-在仓库的 [Releases](../../releases) 页面下载 `ClipboardManager-0.0.1-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。发行包自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。当前仓库若为私有，下载者也需要仓库访问权限；发布 Release 不会自动将仓库公开。
+在仓库的 [Releases](../../releases) 页面选择 Windows 11 x64 版本：
+
+- 安装版：下载 `ClipboardManager-0.0.1-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式，可选桌面快捷方式，支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
+- 便携版：下载 `ClipboardManager-0.0.1-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
+
+两种版本均自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。安装版与便携版共用历史数据，不能同时运行；安装、升级和卸载均不删除历史。当前仓库若为私有，下载者也需要仓库访问权限；发布 Release 不会自动将仓库公开。
 
 首次运行可能出现 Windows 未知发布者提示，应用尚未代码签名。请确认来源并核对同版本 `.sha256` 文件，不要关闭系统安全防护。在 PowerShell 中校验：
 
 ```powershell
 Get-FileHash .\ClipboardManager-0.0.1-win-x64.zip -Algorithm SHA256
 Get-Content .\ClipboardManager-0.0.1-win-x64.sha256
+Get-FileHash .\ClipboardManager-0.0.1-win-x64-setup.exe -Algorithm SHA256
+Get-Content .\ClipboardManager-0.0.1-win-x64-setup.sha256
 ```
 
 完整操作、升级和卸载说明见 [使用说明](docs/USAGE.md)，当前版本介绍见 [发行说明](RELEASE_NOTES.md)。
@@ -64,13 +71,16 @@ dotnet run --project .\ClipboardManager.csproj
 
 ```powershell
 .\package.ps1 -Version 0.0.1
+.\installer.ps1 -Archive .\dist\ClipboardManager-0.0.1-win-x64.zip -Version 0.0.1
 ```
 
 在 `dist` 生成 Windows x64 便携 ZIP 和 SHA256 校验文件。有 SDK 时使用标准 `dotnet publish --self-contained true`；没有 SDK 时，编译应用并将本机匹配版本的 .NET 8 Core、Windows Desktop 和 hostfxr 复制到包内私有 `runtime` 目录，保留 .NET 许可声明，不安装或修改系统运行环境。包内 `release.json` 记录应用版本、运行环境版本和构建方式；离线打包不会下载最新安全补丁，正式维护应定期重发包含更新运行环境的版本。
 
 脚本拒绝覆盖同版本文件，避免误替换已发布附件。打包临时目录在完成或失败后清理；用户的历史与图片不会进入发行包。发行包无需依赖用户机器上的全局 .NET，但不能只复制其中的 EXE。
 
-GitHub Actions 工作流 `.github/workflows/release.yml` 支持推送 `v0.0.1` 形式的标签或在 Actions 手动填写版本号。工作流在 Windows 上安装 .NET 8 SDK、构建标准自包含版本，上传 ZIP 与 SHA256，在附件上传完成后才公开 Release；已存在的版本不会被覆盖。工作流使用 GitHub 自动提供的令牌，不需要在源码中保存密钥。发布新版本前请同步更新项目版本、默认脚本版本和 `RELEASE_NOTES.md`；仓库可见性不会被工作流修改。
+`installer.ps1` 校验输入 ZIP 和版本后，使用已有 Inno Setup 编译器构建中文安装版，同时生成独立 SHA256 文件；不会下载或安装构建工具。当前本机没有 Inno Setup，可使用预装该工具的 GitHub Windows 构建环境。安装包使用固定应用标识，支持原目录覆盖升级；程序正在运行时要求先退出。卸载只移除安装文件、快捷方式和卸载注册信息，不删除用户历史。
+
+GitHub Actions 工作流 `.github/workflows/release.yml` 支持推送 `v0.0.1` 形式的标签或在 Actions 手动填写版本号。工作流在 Windows 上构建标准自包含版本和中文安装包，验证安装、重装、启动、卸载及数据保留，再上传 ZIP、安装 EXE 和各自的 SHA256；附件上传完成后才公开 Release，已存在的版本不会被覆盖。给既有版本补充安装包可运行 `.github/workflows/installer.yml`，它复用该版本已经发布的 ZIP，不移动标签、不替换已有附件。工作流使用 GitHub 自动提供的令牌，不需要在源码中保存密钥。发布新版本前请同步更新项目版本、默认脚本版本和 `RELEASE_NOTES.md`；仓库可见性不会被工作流修改。
 
 ## 功能与规则
 
