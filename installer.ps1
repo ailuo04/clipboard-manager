@@ -67,6 +67,16 @@ try {
             if (-not $process.WaitForExit(120000)) { $process.Kill($true); throw 'Installer operation timed out.' }
             if ($process.ExitCode -ne 0) { throw "Installer operation failed: $($process.ExitCode)" }
         }
+        if (-not ('ClipboardInstallerPaths' -as [type])) {
+            Add-Type -TypeDefinition @"
+using System.Runtime.InteropServices;
+using System.Text;
+public static class ClipboardInstallerPaths {
+    [DllImport("kernel32.dll", EntryPoint = "GetLongPathNameW", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern uint Expand(string path, StringBuilder buffer, uint capacity);
+}
+"@
+        }
         try {
             $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/DIR=$installDirectory", '/TASKS=desktopicon', "/LOG=$(Join-Path $staging 'install.log')")
             Invoke-Setup $builtInstaller $arguments
@@ -77,7 +87,12 @@ try {
             foreach ($path in @($shortcut, $desktopShortcut)) {
                 if (-not (Test-Path -LiteralPath $path)) { throw "Missing installed shortcut: $path" }
                 $shell = New-Object -ComObject WScript.Shell
-                if ($shell.CreateShortcut($path).TargetPath -ne (Join-Path $installDirectory 'ClipboardManager.exe')) { throw 'A shortcut targets the wrong executable.' }
+                $actualTarget = $shell.CreateShortcut($path).TargetPath
+                $expectedTarget = Join-Path $installDirectory 'ClipboardManager.exe'
+                Write-Host "Shortcut: $path; target: $actualTarget; expected: $expectedTarget"
+                $longPath = [Text.StringBuilder]::new(32768)
+                $length = [ClipboardInstallerPaths]::Expand($actualTarget, $longPath, $longPath.Capacity)
+                if ($length -eq 0 -or $length -ge $longPath.Capacity -or $longPath.ToString() -ne $expectedTarget) { throw "A shortcut targets the wrong executable: $actualTarget (expected $expectedTarget)." }
             }
             foreach ($file in Get-ChildItem -LiteralPath $payload -Recurse -File) {
                 $relative = [IO.Path]::GetRelativePath($payload, $file.FullName)
