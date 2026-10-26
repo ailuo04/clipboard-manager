@@ -151,5 +151,13 @@ public static class ClipboardInstallerPaths {
 finally {
     $resolved = [IO.Path]::GetFullPath($staging)
     if ((Split-Path $resolved) -ne $bin -or (Split-Path $resolved -Leaf) -notmatch '^\.installer-[0-9a-f]{32}$') { throw 'Unexpected installer staging path.' }
-    if (Test-Path -LiteralPath $resolved) { Remove-Item -LiteralPath $resolved -Recurse -Force }
+    # Inno's copied uninstaller can briefly retain its log after the launcher exits.
+    for ($attempt = 0; $attempt -lt 20 -and (Test-Path -LiteralPath $resolved); $attempt++) {
+        try { Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction Stop }
+        catch {
+            $code = $_.Exception.HResult -band 0xFFFF
+            if ($code -notin @(32, 33, 145) -or $attempt -eq 19) { throw }
+            Start-Sleep -Milliseconds 500
+        }
+    }
 }
