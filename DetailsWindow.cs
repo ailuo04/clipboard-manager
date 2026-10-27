@@ -21,6 +21,7 @@ public sealed class DetailsWindow : Window
         MinWidth = 500;
         MinHeight = 420;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ThemeManager.RegisterWindow(this);
         var view = ViewLoader.Load<Grid>("Views/DetailsView.xaml");
         Content = view;
         DataContext = item;

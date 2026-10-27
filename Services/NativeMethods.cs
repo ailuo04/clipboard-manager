@@ -11,6 +11,10 @@ internal static class NativeMethods
     internal const uint CfHdrop = 15;
     internal const uint CfDibV5 = 17;
     internal const int DwmwaCaptionButtonBounds = 5;
+    internal const int DwmwaUseImmersiveDarkMode = 20;
+    internal const int DwmwaWindowCornerPreference = 33;
+    internal const int DwmwaSystemBackdropType = 38;
+    internal const int DwmsbtTransientWindow = 3;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct NativeRect
@@ -23,6 +27,9 @@ internal static class NativeMethods
 
     [DllImport("dwmapi.dll")]
     internal static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out NativeRect value, int size);
+
+    [DllImport("dwmapi.dll")]
+    internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

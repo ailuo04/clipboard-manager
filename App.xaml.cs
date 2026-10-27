@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using ClipboardManager.Services;
 using ClipboardManager.Utilities;
 
 namespace ClipboardManager;
@@ -19,6 +20,7 @@ public sealed class App : Application
         {
             var app = new App { ShutdownMode = ShutdownMode.OnMainWindowClose };
             app.Resources = ViewLoader.Load<ResourceDictionary>("App.xaml");
+            ThemeManager.Initialize();
             app.Resources["AppIcon"] = ViewLoader.LoadIcon();
             app.DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>

@@ -17,7 +17,7 @@
         <StackPanel>
             <TextBlock x:Name="UpdateStatusText" Text="正在检查更新" FontSize="15" TextWrapping="Wrap" />
             <TextBlock x:Name="UpdateDetailsText" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,8,0,0" />
-            <ProgressBar x:Name="UpdateProgressBar" Height="4" Minimum="0" Maximum="100" Foreground="{StaticResource AccentBrush}" Margin="0,16,0,0" Visibility="Collapsed" />
+            <ProgressBar x:Name="UpdateProgressBar" Height="4" Minimum="0" Maximum="100" Foreground="{DynamicResource AccentBrush}" Margin="0,16,0,0" Visibility="Collapsed" />
             <Button x:Name="CancelDownloadButton" Style="{StaticResource IconButton}" ToolTip="取消下载" AutomationProperties.Name="取消下载" HorizontalAlignment="Right" Margin="0,8,0,0" Visibility="Collapsed">
                 <TextBlock Style="{StaticResource Icon}" Text="&#xE711;" />
             </Button>

@@ -33,6 +33,7 @@ public sealed class UpdateWindow : Window
         Title = "应用更新";
         Width = 510; Height = 510; MinWidth = 430; MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        ThemeManager.RegisterWindow(this);
         var view = ViewLoader.Load<Grid>("Views/UpdateView.xaml");
         Content = view;
         _status = (TextBlock)view.FindName("UpdateStatusText");

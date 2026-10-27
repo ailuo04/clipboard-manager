@@ -20,29 +20,51 @@ public sealed class MainWindow : Window
     private readonly GlobalHotKey _hotKey;
     private readonly Grid _windowFrame;
     private readonly Grid _titleBar;
-    private readonly ColumnDefinition _captionButtonsSpace;
+    private readonly TextBlock _maximizeGlyph;
+    private readonly SystemTrayIcon _trayIcon;
     private bool _allowClose;
+    private bool _exitRequested;
+    private bool _closeToTray;
+    private bool _backdropAttempted;
 
     public MainWindow(HistoryService? history = null)
     {
         SetResourceReference(StyleProperty, typeof(Window));
         Title = "剪贴板";
-        Width = 360;
-        Height = 520;
+        Width = 340;
+        Height = 500;
         MinWidth = 320;
-        MinHeight = 360;
+        MinHeight = 400;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = Brushes.Transparent;
-        WindowChrome.SetWindowChrome(this, new WindowChrome { UseAeroCaptionButtons = true });
+        SetResourceReference(ForegroundProperty, "TextPrimaryBrush");
+        WindowStyle = WindowStyle.None;
+        WindowChrome.SetWindowChrome(this, new WindowChrome
+        {
+            UseAeroCaptionButtons = false,
+            CaptionHeight = 40,
+            ResizeBorderThickness = new Thickness(6),
+            GlassFrameThickness = new Thickness(-1),
+            CornerRadius = new CornerRadius(16)
+        });
         _windowFrame = ViewLoader.Load<Grid>("Views/WindowFrame.xaml");
         _titleBar = (Grid)_windowFrame.FindName("TitleBar");
-        _captionButtonsSpace = (ColumnDefinition)_windowFrame.FindName("CaptionButtonsSpace");
+        _maximizeGlyph = (TextBlock)_windowFrame.FindName("MaximizeGlyph");
+        ((Button)_windowFrame.FindName("MinimizeButton")).Click += (_, _) => WindowState = WindowState.Minimized;
+        ((Button)_windowFrame.FindName("MaximizeButton")).Click += (_, _) =>
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        ((Button)_windowFrame.FindName("CloseButton")).Click += (_, _) => Close();
         var view = ViewLoader.Load<Grid>("Views/MainView.xaml");
         ((Grid)_windowFrame.FindName("WindowContent")).Children.Add(view);
         Content = _windowFrame;
         _historyList = (ListBox)view.FindName("HistoryList");
         _searchBox = (TextBox)view.FindName("SearchBox");
-        _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()));
+        _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()), UpdateTrayMode);
+        _trayIcon = new SystemTrayIcon(this);
+        _trayIcon.OpenRequested += (_, _) => OnHotKeyPressed(this, EventArgs.Empty);
+        _trayIcon.PauseRequested += (_, _) => _viewModel.PauseCommand.Execute(null);
+        _trayIcon.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         DataContext = _viewModel;
         _hotKey = new GlobalHotKey(this);
         _hotKey.Pressed += OnHotKeyPressed;
@@ -65,9 +87,17 @@ public sealed class MainWindow : Window
         StateChanged += (_, _) => UpdateWindowFrame();
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(UpdateWindowFrame));
         ContentRendered += (_, _) => UpdateWindowFrame();
+        SourceInitialized += (_, _) => ApplyWindowBackdrop();
+        ThemeManager.RegisterWindow(this);
         Loaded += OnLoaded;
         Closing += OnClosing;
-        Closed += (_, _) => _hotKey.Dispose();
+        Application.Current.SessionEnding += OnSessionEnding;
+        Closed += (_, _) =>
+        {
+            _hotKey.Dispose();
+            Application.Current.SessionEnding -= OnSessionEnding;
+            _trayIcon.Dispose();
+        };
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs args)
@@ -86,21 +116,29 @@ public sealed class MainWindow : Window
         if (WindowState == WindowState.Minimized) return;
         Thickness resizeBorder = SystemParameters.WindowResizeBorderThickness;
         _windowFrame.Margin = WindowState == WindowState.Maximized ? resizeBorder : new Thickness();
-        double captionHeight = Math.Max(32, SystemParameters.CaptionHeight + resizeBorder.Top);
+        const double captionHeight = 40;
         _titleBar.Height = captionHeight;
         var chrome = WindowChrome.GetWindowChrome(this);
-        chrome.CaptionHeight = captionHeight + _windowFrame.Margin.Top - resizeBorder.Top;
-        chrome.GlassFrameThickness = new Thickness(0, captionHeight + _windowFrame.Margin.Top, 0, 0);
+        chrome.CaptionHeight = captionHeight;
+        chrome.GlassFrameThickness = new Thickness(-1);
+        _maximizeGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+    }
 
-        // DWM reports physical pixels; reserve its actual button bounds at this window's DPI.
-        double reservedWidth = 146;
+    private void ApplyWindowBackdrop()
+    {
+        if (_backdropAttempted) return;
+        _backdropAttempted = true;
         IntPtr handle = new WindowInteropHelper(this).Handle;
-        if (handle != IntPtr.Zero && NativeMethods.DwmGetWindowAttribute(handle, NativeMethods.DwmwaCaptionButtonBounds, out var bounds,
-                System.Runtime.InteropServices.Marshal.SizeOf<NativeMethods.NativeRect>()) == 0 && bounds.Right > bounds.Left)
-        {
-            reservedWidth = Math.Max(0, ActualWidth - _windowFrame.Margin.Right - bounds.Left / VisualTreeHelper.GetDpi(this).DpiScaleX);
-        }
-        _captionButtonsSpace.Width = new GridLength(reservedWidth);
+        if (handle == IntPtr.Zero) return;
+        int backdropType = NativeMethods.DwmsbtTransientWindow;
+        _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaSystemBackdropType, ref backdropType,
+            System.Runtime.InteropServices.Marshal.SizeOf<int>());
+        int cornerPreference = 2;
+        _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaWindowCornerPreference, ref cornerPreference,
+            System.Runtime.InteropServices.Marshal.SizeOf<int>());
+        int darkMode = ThemeManager.IsDark ? 1 : 0;
+        _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaUseImmersiveDarkMode, ref darkMode,
+            System.Runtime.InteropServices.Marshal.SizeOf<int>());
     }
 
     private void OnHistoryMouseDown(object sender, MouseButtonEventArgs args)
@@ -163,8 +201,41 @@ public sealed class MainWindow : Window
         }));
     }
 
+    public void ExitApplication()
+    {
+        _exitRequested = true;
+        Close();
+    }
+
+    private void UpdateTrayMode(bool enabled)
+    {
+        try
+        {
+            _trayIcon.SetEnabled(enabled, _viewModel.IsPaused);
+            _closeToTray = enabled && _trayIcon.IsEnabled;
+        }
+        catch (Exception exception)
+        {
+            _closeToTray = false;
+            _viewModel.ReportTrayFailure(exception);
+        }
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(MainViewModel.IsPaused)) _trayIcon.UpdatePausedState(_viewModel.IsPaused);
+    }
+
+    private void OnSessionEnding(object? sender, SessionEndingCancelEventArgs args) => _exitRequested = true;
+
     private async void OnClosing(object? sender, CancelEventArgs args)
     {
+        if (!_exitRequested && _closeToTray && _viewModel.IsReady)
+        {
+            args.Cancel = true;
+            Hide();
+            return;
+        }
         if (_allowClose) return;
         args.Cancel = true;
         if (_viewModel.IsClosing) return;

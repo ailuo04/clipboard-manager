@@ -10,6 +10,8 @@ public static class AppPaths
 
     public static string HistoryFilePath => Path.Combine(RootDirectory, "history.json");
 
+    public static string ThemeFilePath => Path.Combine(RootDirectory, "theme.json");
+
     public static string LogFilePath => Path.Combine(RootDirectory, "app.log");
 
     public static void EnsureDirectories()

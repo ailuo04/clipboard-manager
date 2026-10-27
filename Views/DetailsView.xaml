@@ -19,12 +19,12 @@
     </TextBox>
     <Grid Grid.Row="1" Visibility="{Binding IsImage, Converter={StaticResource BoolVisibility}}">
         <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-        <Border Background="#E9ECEF" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4">
+        <Border Background="{DynamicResource ImageWellBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
             <Grid>
                 <ScrollViewer x:Name="ImageScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" Padding="10">
                     <Image x:Name="FullImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
                 </ScrollViewer>
-                <TextBlock x:Name="ImageStatus" Text="正在加载原图…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="#6B7280" TextWrapping="Wrap" Margin="16" />
+                <TextBlock x:Name="ImageStatus" Text="正在加载原图…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="16" />
             </Grid>
         </Border>
         <Grid Grid.Row="1" Margin="0,12,0,0">

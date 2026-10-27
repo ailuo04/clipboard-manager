@@ -2,14 +2,18 @@ using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using ClipboardManager.Models;
+using ClipboardManager.Services;
 using ClipboardManager.Utilities;
 
 namespace ClipboardManager;
 
 public sealed class SettingsWindow : Window
 {
+    private readonly AppTheme _openedTheme;
+
     public SettingsWindow(Window owner, AppSettings settings, string dataDirectory, Action? showUpdates = null)
     {
+        _openedTheme = ThemeManager.Preference;
         SetResourceReference(StyleProperty, typeof(Window));
         Owner = owner;
         Title = "设置";
@@ -21,12 +25,30 @@ public sealed class SettingsWindow : Window
         Settings = settings.Clone();
         var view = ViewLoader.Load<Grid>("Views/SettingsView.xaml");
         Content = view;
+        ThemeManager.RegisterWindow(this);
         var records = (TextBox)view.FindName("MaxRecordsBox");
         var storage = (TextBox)view.FindName("MaxStorageBox");
         var validation = (TextBlock)view.FindName("ValidationText");
+        var themeDark = (RadioButton)view.FindName("ThemeDarkRadio");
+        var themeLight = (RadioButton)view.FindName("ThemeLightRadio");
+        var themeSystem = (RadioButton)view.FindName("ThemeSystemRadio");
+        switch (ThemeManager.Preference)
+        {
+            case AppTheme.Light: themeLight.IsChecked = true; break;
+            case AppTheme.System: themeSystem.IsChecked = true; break;
+            default: themeDark.IsChecked = true; break;
+        }
+        AppTheme SelectedThemeValue() => themeSystem.IsChecked == true ? AppTheme.System
+            : themeLight.IsChecked == true ? AppTheme.Light : AppTheme.Dark;
+        void PreviewTheme(object? sender, RoutedEventArgs args) => ThemeManager.Apply(SelectedThemeValue());
+        themeDark.Checked += PreviewTheme;
+        themeLight.Checked += PreviewTheme;
+        themeSystem.Checked += PreviewTheme;
         var alwaysOnTop = (CheckBox)view.FindName("AlwaysOnTopCheckBox");
         var autoUpdates = (CheckBox)view.FindName("AutoCheckUpdatesCheckBox");
+        var minimizeToTray = (CheckBox)view.FindName("MinimizeToTrayCheckBox");
         autoUpdates.IsChecked = Settings.AutoCheckUpdates;
+        minimizeToTray.IsChecked = Settings.MinimizeToTray;
         var updateButton = (Button)view.FindName("OpenUpdatesButton");
         updateButton.IsEnabled = showUpdates is not null;
         updateButton.Click += (_, _) => showUpdates?.Invoke();
@@ -36,6 +58,10 @@ public sealed class SettingsWindow : Window
         alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
         ((TextBox)view.FindName("DirectoryBox")).Text = dataDirectory;
         ((Button)view.FindName("CancelButton")).Click += (_, _) => DialogResult = false;
+        Closing += (_, _) =>
+        {
+            if (DialogResult != true) ThemeManager.Apply(_openedTheme);
+        };
         ((Button)view.FindName("SaveButton")).Click += (_, _) =>
         {
             if (!int.TryParse(records.Text, out int count) || count is < 50 or > 5000)
@@ -58,6 +84,8 @@ public sealed class SettingsWindow : Window
             Settings.MaxStorageMb = megabytes;
             Settings.AlwaysOnTop = alwaysOnTop.IsChecked == true;
             Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
+            Settings.MinimizeToTray = minimizeToTray.IsChecked == true;
+            SelectedTheme = SelectedThemeValue();
             DialogResult = true;
         };
         ((Button)view.FindName("OpenDirectoryButton")).Click += (_, _) => OpenPath(dataDirectory, validation);
@@ -69,6 +97,8 @@ public sealed class SettingsWindow : Window
     }
 
     public AppSettings Settings { get; private set; }
+
+    public AppTheme SelectedTheme { get; private set; } = ThemeManager.Preference;
 
     private static void OpenPath(string path, TextBlock validation)
     {

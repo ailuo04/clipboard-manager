@@ -28,7 +28,7 @@ public sealed class UpdateService : IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly string _root;
     private bool _prepared;
-    public static string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.2";
+    public static string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.3";
 
     public UpdateService(string? root = null, HttpMessageHandler? handler = null, Func<string?>? tokenProvider = null)
     {

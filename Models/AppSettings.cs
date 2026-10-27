@@ -10,6 +10,8 @@ public sealed class AppSettings
 
     public bool AutoCheckUpdates { get; set; } = true;
 
+    public bool MinimizeToTray { get; set; } = false;
+
     public AppSettings Clone()
     {
         return new AppSettings
@@ -17,7 +19,8 @@ public sealed class AppSettings
             MaxRecords = MaxRecords,
             MaxStorageMb = MaxStorageMb,
             AlwaysOnTop = AlwaysOnTop,
-            AutoCheckUpdates = AutoCheckUpdates
+            AutoCheckUpdates = AutoCheckUpdates,
+            MinimizeToTray = MinimizeToTray
         };
     }
 

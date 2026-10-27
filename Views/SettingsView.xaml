@@ -7,24 +7,56 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-    <TextBlock Text="历史记录与存储" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,22" />
-    <Grid Grid.Row="1" Margin="0,0,0,16">
+    <TextBlock Grid.Row="0" Text="外观" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,16" />
+    <StackPanel Grid.Row="1" Margin="0,0,0,22">
+        <TextBlock Text="主题" Margin="0,0,0,8" />
+        <Border Background="{DynamicResource SoftSurfaceBrush}" BorderBrush="{DynamicResource GlassStrokeBrush}"
+                BorderThickness="1" CornerRadius="12" Padding="3" HorizontalAlignment="Left">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton x:Name="ThemeDarkRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}"
+                             ToolTip="深色" AutomationProperties.Name="深色主题">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE708;" FontSize="17" />
+                </RadioButton>
+                <RadioButton x:Name="ThemeLightRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}"
+                             ToolTip="浅色" AutomationProperties.Name="浅色主题">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE706;" FontSize="17" />
+                </RadioButton>
+                <RadioButton x:Name="ThemeSystemRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}"
+                             ToolTip="跟随系统" AutomationProperties.Name="跟随系统主题">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE7F4;" FontSize="17" />
+                </RadioButton>
+            </StackPanel>
+        </Border>
+        <TextBlock Text="跟随系统会根据 Windows 的应用主题自动切换。" Style="{StaticResource SecondaryText}"
+                   TextWrapping="Wrap" Margin="0,7,0,0" />
+    </StackPanel>
+    <Border Grid.Row="2" Height="1" Background="{DynamicResource CaptionSeparatorBrush}" Margin="0,0,0,18" />
+    <TextBlock Grid.Row="3" Text="历史记录与存储" FontSize="16" FontWeight="SemiBold" Margin="0,0,0,16" />
+    <Grid Grid.Row="4" Margin="0,0,0,16">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="132" /></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center"><TextBlock Text="记录数量上限" /><TextBlock Text="50–5000 条" Style="{StaticResource SecondaryText}" Margin="0,5,0,0" /></StackPanel>
         <TextBox Grid.Column="1" x:Name="MaxRecordsBox" AutomationProperties.Name="记录数量上限" MaxLength="4" />
     </Grid>
-    <Grid Grid.Row="2" Margin="0,0,0,24">
+    <Grid Grid.Row="5" Margin="0,0,0,24">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="132" /></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center"><TextBlock Text="内容空间上限" /><TextBlock Text="64–4096 MB" Style="{StaticResource SecondaryText}" Margin="0,5,0,0" /></StackPanel>
         <TextBox Grid.Column="1" x:Name="MaxStorageBox" AutomationProperties.Name="内容空间上限（MB）" MaxLength="4" />
     </Grid>
-    <CheckBox Grid.Row="3" x:Name="AlwaysOnTopCheckBox" Content="窗口置顶" AutomationProperties.Name="窗口置顶" Margin="0,0,0,22" />
-    <StackPanel Grid.Row="4">
+    <CheckBox Grid.Row="6" x:Name="AlwaysOnTopCheckBox" Content="窗口置顶" AutomationProperties.Name="窗口置顶" Margin="0,0,0,22" />
+    <StackPanel Grid.Row="7" Margin="0,0,0,18">
+        <CheckBox x:Name="MinimizeToTrayCheckBox" Content="关闭窗口时最小化到系统托盘"
+                  AutomationProperties.Name="关闭窗口时最小化到系统托盘" />
+        <TextBlock Text="启用后，关闭窗口不会退出程序；除非暂停，剪贴板仍会继续监听。可从托盘菜单重新打开或退出。"
+                   Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,5,0,0" />
+    </StackPanel>
+    <StackPanel Grid.Row="8">
         <TextBlock Text="数据目录" Margin="0,0,0,8" />
         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-            <TextBox x:Name="DirectoryBox" IsReadOnly="True" TextWrapping="Wrap" Background="#ECEFF2" FontSize="12" BorderThickness="0" />
+            <TextBox x:Name="DirectoryBox" IsReadOnly="True" TextWrapping="Wrap" Background="{DynamicResource ReadOnlyBackgroundBrush}" FontSize="12" BorderThickness="0" />
             <Button x:Name="OpenDirectoryButton" Grid.Column="1" Style="{StaticResource IconButton}" ToolTip="打开数据目录" AutomationProperties.Name="打开数据目录" Margin="8,0,0,0">
                 <TextBlock Style="{StaticResource Icon}" Text="&#xED25;" />
             </Button>
@@ -33,7 +65,7 @@
             <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8A5;" Margin="0,0,8,0" /><TextBlock Text="查看日志" /></StackPanel>
         </Button>
     </StackPanel>
-    <StackPanel Grid.Row="5" Margin="0,16,0,0">
+    <StackPanel Grid.Row="9" Margin="0,16,0,0">
         <Separator Margin="0,0,0,14" />
         <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -44,7 +76,7 @@
         </Grid>
         <CheckBox x:Name="AutoCheckUpdatesCheckBox" Content="自动检查更新" AutomationProperties.Name="自动检查更新" Margin="0,14,0,0" />
     </StackPanel>
-    <TextBlock Grid.Row="6" x:Name="ValidationText" Foreground="#A53A3A" TextWrapping="Wrap" Margin="0,16,0,0" />
+    <TextBlock Grid.Row="10" x:Name="ValidationText" Foreground="{DynamicResource ErrorTextBrush}" TextWrapping="Wrap" Margin="0,16,0,0" />
     </Grid>
     </ScrollViewer>
     <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">

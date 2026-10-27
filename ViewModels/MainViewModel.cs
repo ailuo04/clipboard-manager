@@ -12,6 +12,7 @@ public sealed class MainViewModel : ObservableObject
 {
     private readonly Window _owner;
     private readonly HistoryService _history;
+    private readonly Action<bool>? _trayModeChanged;
     private readonly ClipboardReader _clipboard = new();
     private readonly ClipboardMonitor _monitor;
     private readonly CancellationTokenSource _lifetime = new();
@@ -40,10 +41,11 @@ public sealed class MainViewModel : ObservableObject
     private string _notice = string.Empty;
     private string _status = "正在加载历史记录…";
 
-    public MainViewModel(Window owner, HistoryService history)
+    public MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged = null)
     {
         _owner = owner;
         _history = history;
+        _trayModeChanged = trayModeChanged;
         _monitor = new ClipboardMonitor(owner);
         _monitor.ClipboardChanged += OnClipboardChanged;
         _captureTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -80,6 +82,7 @@ public sealed class MainViewModel : ObservableObject
     public bool IsCompact => _isCompact;
     public bool IsAlwaysOnTop => _owner.Topmost;
     public string AlwaysOnTopToolTip => IsAlwaysOnTop ? "取消窗口置顶" : "窗口置顶";
+    public string AlwaysOnTopLabel => IsAlwaysOnTop ? "已置顶" : "置顶";
     public double ThumbnailHeight => IsCompact ? 104 : 196;
     public RecordViewModel? SelectedRecord { get => _selectedRecord; set => Set(ref _selectedRecord, value); }
 
@@ -136,6 +139,7 @@ public sealed class MainViewModel : ObservableObject
             RefreshRecords();
             ApplyWindowSettings();
             _monitor.Start();
+            ApplyTrayMode(_history.Settings.MinimizeToTray);
             IsReady = true;
             try { _updates.MarkStartupReady(); }
             catch (Exception exception) { AppLogger.LogException("标记更新启动状态失败", exception); }
@@ -233,7 +237,9 @@ public sealed class MainViewModel : ObservableObject
             await RunOperationAsync(async () =>
             {
                 string? warning = await _history.UpdateSettingsAsync(dialog.Settings, _lifetime.Token);
+                ThemeManager.SetPreference(dialog.SelectedTheme);
                 ApplyWindowSettings();
+                ApplyTrayMode(_history.Settings.MinimizeToTray);
                 _updateTimer.Interval = TimeSpan.FromSeconds(5);
                 RefreshRecords();
                 Status = "设置已保存";
@@ -250,7 +256,8 @@ public sealed class MainViewModel : ObservableObject
             if (new UpdateWindow(owner, _updates).ShowDialog() != true || IsClosing) return;
             _updates.LaunchPrepared();
             foreach (Window dialog in _owner.OwnedWindows.Cast<Window>().ToArray()) dialog.Close();
-            _owner.Close();
+            if (_owner is MainWindow mainWindow) mainWindow.ExitApplication();
+            else _owner.Close();
         }
         catch (Exception exception)
         {
@@ -307,6 +314,17 @@ public sealed class MainViewModel : ObservableObject
         _owner.Topmost = _history.Settings.AlwaysOnTop;
         Raise(nameof(IsAlwaysOnTop));
         Raise(nameof(AlwaysOnTopToolTip));
+        Raise(nameof(AlwaysOnTopLabel));
+    }
+
+    private void ApplyTrayMode(bool enabled)
+    {
+        try { _trayModeChanged?.Invoke(enabled); }
+        catch (Exception exception)
+        {
+            AppLogger.LogException("更新系统托盘状态失败", exception);
+            Notice = "系统托盘不可用；关闭窗口时程序将退出。";
+        }
     }
 
     private void OnClipboardChanged(object? sender, EventArgs args) => ScheduleCapture();
@@ -410,6 +428,8 @@ public sealed class MainViewModel : ObservableObject
         Report("全局快捷键 Ctrl+Shift+Space 注册失败，可能已被其他程序占用；仍可从任务栏打开窗口", exception);
         if (!string.IsNullOrEmpty(previousNotice)) Notice = previousNotice + " " + Notice;
     }
+
+    public void ReportTrayFailure(Exception exception) => Report("系统托盘不可用", exception);
 
     private void Report(string context, Exception exception)
     {
