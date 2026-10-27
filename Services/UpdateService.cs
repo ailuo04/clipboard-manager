@@ -55,15 +55,19 @@ public sealed class UpdateService : IDisposable
             string tag = data.GetProperty("tag_name").GetString() ?? "";
             if (!tag.StartsWith('v') || !Version.TryParse(tag[1..], out var nextVersion)) throw new InvalidDataException("发布版本号不正确。");
             if (nextVersion <= Version.Parse(current.Version)) return null;
-            var assets = new Dictionary<string, UpdateAsset>(StringComparer.Ordinal);
-            foreach (var asset in data.GetProperty("assets").EnumerateArray())
-            {
-                string name = asset.GetProperty("name").GetString() ?? "";
-                long id = asset.GetProperty("id").GetInt64();
-                long size = asset.GetProperty("size").GetInt64();
-                if (id <= 0 || size < 0 || !assets.TryAdd(name, new UpdateAsset(id, size))) throw new InvalidDataException("发行附件信息不正确。");
-            }
             string manifestName = $"ClipboardManager-{tag[1..]}-win-x64-update.json";
+            var assets = ReadAssets(data);
+            if (!assets.ContainsKey(manifestName))
+            {
+                string updateTag = "updates-" + tag;
+                byte[] updateMetadata = await GetMetadataAsync($"https://api.github.com/repos/{Repository}/releases/tags/{updateTag}", false, token);
+                using var updateRelease = JsonDocument.Parse(updateMetadata);
+                var updateData = updateRelease.RootElement;
+                if (updateData.GetProperty("tag_name").GetString() != updateTag || updateData.GetProperty("draft").GetBoolean()
+                    || !updateData.GetProperty("prerelease").GetBoolean())
+                    throw new InvalidDataException("独立更新数据区的版本或发布状态不正确。");
+                assets = ReadAssets(updateData);
+            }
             if (!assets.TryGetValue(manifestName, out var manifestAsset)) throw new InvalidDataException("此发行版没有增量更新清单，不会下载完整安装包。");
             if (manifestAsset.Size > 4 * 1024 * 1024) throw new InvalidDataException("更新清单过大。");
             byte[] manifestBytes = await GetMetadataAsync(AssetUrl(manifestAsset), true, token);
@@ -78,6 +82,20 @@ public sealed class UpdateService : IDisposable
             return new AvailableUpdate(manifest, manifestBytes, plan, assets);
         }
         finally { _gate.Release(); }
+    }
+
+    private static Dictionary<string, UpdateAsset> ReadAssets(JsonElement release)
+    {
+        var assets = new Dictionary<string, UpdateAsset>(StringComparer.Ordinal);
+        foreach (var asset in release.GetProperty("assets").EnumerateArray())
+        {
+            string name = asset.GetProperty("name").GetString() ?? "";
+            long id = asset.GetProperty("id").GetInt64();
+            long size = asset.GetProperty("size").GetInt64();
+            if (id <= 0 || size < 0 || !assets.TryAdd(name, new UpdateAsset(id, size)))
+                throw new InvalidDataException("发行附件信息不正确。");
+        }
+        return assets;
     }
 
     private UpdateManifest LoadCurrentManifest()
