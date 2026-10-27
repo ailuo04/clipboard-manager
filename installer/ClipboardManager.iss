@@ -22,6 +22,7 @@ ArchitecturesAllowed=x64os
 ArchitecturesInstallIn64BitMode=x64os
 MinVersion=10.0.22000
 DisableProgramGroupPage=yes
+UsePreviousTasks=no
 AppMutex=Local\ClipboardManager.Desktop.v1
 CloseApplications=no
 RestartApplications=no
@@ -40,7 +41,7 @@ SetupLogging=yes
 Name: "chinesesimp"; MessagesFile: "Languages\ChineseSimplified.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -50,4 +51,7 @@ Name: "{autoprograms}\剪贴板\剪贴板"; Filename: "{app}\ClipboardManager.ex
 Name: "{autodesktop}\剪贴板"; Filename: "{app}\ClipboardManager.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\ClipboardManager.exe"; Description: "启动剪贴板"; Flags: nowait postinstall skipifsilent unchecked
+Filename: "{app}\ClipboardManager.exe"; Description: "启动剪贴板"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+Filename: "{app}\ClipboardManager.Update.exe"; Parameters: "--uninstall-managed"; RunOnceId: "RemoveIncrementalFiles"; Flags: runhidden waituntilterminated skipifdoesntexist

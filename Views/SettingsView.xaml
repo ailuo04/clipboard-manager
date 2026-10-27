@@ -1,9 +1,14 @@
 <Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Margin="24">
     <Grid.RowDefinitions>
-        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
+        <RowDefinition Height="*" /><RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
     <TextBlock Text="历史记录与存储" FontSize="20" FontWeight="SemiBold" Margin="0,0,0,22" />
     <Grid Grid.Row="1" Margin="0,0,0,16">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="132" /></Grid.ColumnDefinitions>
@@ -28,8 +33,21 @@
             <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE8A5;" Margin="0,0,8,0" /><TextBlock Text="查看日志" /></StackPanel>
         </Button>
     </StackPanel>
-    <TextBlock Grid.Row="5" x:Name="ValidationText" Foreground="#A53A3A" TextWrapping="Wrap" Margin="0,16,0,0" />
-    <StackPanel Grid.Row="7" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+    <StackPanel Grid.Row="5" Margin="0,16,0,0">
+        <Separator Margin="0,0,0,14" />
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+            <StackPanel><TextBlock Text="应用更新" /><TextBlock x:Name="SettingsVersionText" Style="{StaticResource SecondaryText}" Margin="0,5,0,0" /></StackPanel>
+            <Button x:Name="OpenUpdatesButton" Grid.Column="1" Style="{StaticResource IconButton}" ToolTip="检查应用更新" AutomationProperties.Name="检查应用更新">
+                <TextBlock Style="{StaticResource Icon}" Text="&#xE895;" />
+            </Button>
+        </Grid>
+        <CheckBox x:Name="AutoCheckUpdatesCheckBox" Content="自动检查更新" AutomationProperties.Name="自动检查更新" Margin="0,14,0,0" />
+    </StackPanel>
+    <TextBlock Grid.Row="6" x:Name="ValidationText" Foreground="#A53A3A" TextWrapping="Wrap" Margin="0,16,0,0" />
+    </Grid>
+    </ScrollViewer>
+    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
         <Button x:Name="CancelButton" Content="取消" IsCancel="True" MinWidth="84" Margin="0,0,10,0" />
         <Button x:Name="SaveButton" Content="保存" IsDefault="True" Style="{StaticResource PrimaryButton}" MinWidth="84" />
     </StackPanel>

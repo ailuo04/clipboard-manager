@@ -8,13 +8,13 @@ namespace ClipboardManager;
 
 public sealed class SettingsWindow : Window
 {
-    public SettingsWindow(Window owner, AppSettings settings, string dataDirectory)
+    public SettingsWindow(Window owner, AppSettings settings, string dataDirectory, Action? showUpdates = null)
     {
         SetResourceReference(StyleProperty, typeof(Window));
         Owner = owner;
         Title = "设置";
         Width = 510;
-        Height = 540;
+        Height = 660;
         MinWidth = 460;
         MinHeight = 510;
         WindowStartupLocation = WindowStartupLocation.CenterOwner;
@@ -25,6 +25,12 @@ public sealed class SettingsWindow : Window
         var storage = (TextBox)view.FindName("MaxStorageBox");
         var validation = (TextBlock)view.FindName("ValidationText");
         var alwaysOnTop = (CheckBox)view.FindName("AlwaysOnTopCheckBox");
+        var autoUpdates = (CheckBox)view.FindName("AutoCheckUpdatesCheckBox");
+        autoUpdates.IsChecked = Settings.AutoCheckUpdates;
+        var updateButton = (Button)view.FindName("OpenUpdatesButton");
+        updateButton.IsEnabled = showUpdates is not null;
+        updateButton.Click += (_, _) => showUpdates?.Invoke();
+        ((TextBlock)view.FindName("SettingsVersionText")).Text = "当前版本 " + Services.UpdateService.CurrentVersion;
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
         alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
@@ -51,6 +57,7 @@ public sealed class SettingsWindow : Window
             Settings.MaxRecords = count;
             Settings.MaxStorageMb = megabytes;
             Settings.AlwaysOnTop = alwaysOnTop.IsChecked == true;
+            Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
             DialogResult = true;
         };
         ((Button)view.FindName("OpenDirectoryButton")).Click += (_, _) => OpenPath(dataDirectory, validation);

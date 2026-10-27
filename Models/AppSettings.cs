@@ -8,13 +8,16 @@ public sealed class AppSettings
 
     public bool AlwaysOnTop { get; set; } = false;
 
+    public bool AutoCheckUpdates { get; set; } = true;
+
     public AppSettings Clone()
     {
         return new AppSettings
         {
             MaxRecords = MaxRecords,
             MaxStorageMb = MaxStorageMb,
-            AlwaysOnTop = AlwaysOnTop
+            AlwaysOnTop = AlwaysOnTop,
+            AutoCheckUpdates = AutoCheckUpdates
         };
     }
 

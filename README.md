@@ -6,18 +6,18 @@ Windows 11 中文桌面剪贴板管理器。自动保存文本、截图和图片
 
 在仓库的 [Releases](../../releases) 页面选择 Windows 11 x64 版本：
 
-- 安装版：下载 `ClipboardManager-0.0.1-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式，可选桌面快捷方式，支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
-- 便携版：下载 `ClipboardManager-0.0.1-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
+- 安装版：下载 `ClipboardManager-0.0.2-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
+- 便携版：下载 `ClipboardManager-0.0.2-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
 
-两种版本均自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。安装版与便携版共用历史数据，不能同时运行；安装、升级和卸载均不删除历史。当前仓库若为私有，下载者也需要仓库访问权限；发布 Release 不会自动将仓库公开。
+两种版本均自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。安装版与便携版共用历史数据，不能同时运行；安装、升级和卸载均不删除历史。仓库现已公开，任何人都可以下载正式发行版。
 
 首次运行可能出现 Windows 未知发布者提示，应用尚未代码签名。请确认来源并核对同版本 `.sha256` 文件，不要关闭系统安全防护。在 PowerShell 中校验：
 
 ```powershell
-Get-FileHash .\ClipboardManager-0.0.1-win-x64.zip -Algorithm SHA256
-Get-Content .\ClipboardManager-0.0.1-win-x64.sha256
-Get-FileHash .\ClipboardManager-0.0.1-win-x64-setup.exe -Algorithm SHA256
-Get-Content .\ClipboardManager-0.0.1-win-x64-setup.sha256
+Get-FileHash .\ClipboardManager-0.0.2-win-x64.zip -Algorithm SHA256
+Get-Content .\ClipboardManager-0.0.2-win-x64.sha256
+Get-FileHash .\ClipboardManager-0.0.2-win-x64-setup.exe -Algorithm SHA256
+Get-Content .\ClipboardManager-0.0.2-win-x64-setup.sha256
 ```
 
 完整操作、升级和卸载说明见 [使用说明](docs/USAGE.md)，当前版本介绍见 [发行说明](RELEASE_NOTES.md)。
@@ -69,9 +69,23 @@ dotnet run --project .\ClipboardManager.csproj
 
 ## 打包与发布
 
+### 应用内增量更新
+
+v0.0.2 是首个包含应用内增量更新器的版本；v0.0.1 不包含此功能，需要先手动升级一次。
+
+主界面新增“应用更新”图标，设置页也可打开。默认在启动约 5 秒后及运行期间每 6 小时检查一次正式发行版，可在设置中关闭。检查仅请求 GitHub 版本信息和文件清单；发现新版后显示下载量，用户确认后才下载，校验完成后保存当前操作、退出并更新，再自动启动。
+
+更新是**文件级增量**，不是完整 ZIP 或安装包替换：逐个比较本地文件的 SHA256，只获取新增或改变文件对应的 GZip 附件，删除新版不再包含且未被手动修改的旧发行文件。未变化的 .NET 运行环境不下载、不复制、不改写。若某个 DLL 改动，会下载该 DLL 的完整压缩内容，不是二进制字节差分；运行环境真正升级时，其变化文件也需要下载。
+
+压缩数据直接解压写入程序目录内的临时工作区，不额外保存压缩包。只暂存本次变动，原文件在同盘移动备份；新版成功打开后删除备份和临时文件，不保留整份旧版本。断网、取消或校验失败不修改原程序；应用替换中断时，独立启动器根据事务记录恢复。仅管理发行清单中的程序文件，不更新历史数据、图片、设置、卸载器或用户自行添加的文件。安装版的卸载入口版本会同步更新，卸载时也会清理增量新增的发行文件。
+
+更新源固定为本项目 GitHub Releases，公开仓库不需要令牌。私有仓库可在更新窗口的“私有仓库访问”中保存访问令牌；建议使用只授权此仓库且 **Contents: Read-only** 的细粒度令牌。令牌保存在 Windows 凭据管理器，可在同一窗口删除，不写入历史 JSON、发行包或日志。请求 GitHub 会产生常规网络访问记录，但不上传剪贴板内容。下载经 HTTPS 和逐文件 SHA256 校验，尚无独立发行签名，仍需信任 GitHub 仓库及发布权限的管理。
+
+旧发行版不含更新器，必须先手动升级一次到含本功能的发行版。此后新发行版必须由新版发布流程生成更新清单和文件附件，且打包方式保持一致；缺少附件、无权限或打包方式改变时明确报错，**绝不退回全量更新**。自动更新需要程序目录可写，不申请管理员权限。
+
 ```powershell
-.\package.ps1 -Version 0.0.1
-.\installer.ps1 -Archive .\dist\ClipboardManager-0.0.1-win-x64.zip -Version 0.0.1
+.\package.ps1 -Version 0.0.2
+.\installer.ps1 -Archive .\dist\ClipboardManager-0.0.2-win-x64.zip -Version 0.0.2
 ```
 
 在 `dist` 生成 Windows x64 便携 ZIP 和 SHA256 校验文件。有 SDK 时使用标准 `dotnet publish --self-contained true`；没有 SDK 时，编译应用并将本机匹配版本的 .NET 8 Core、Windows Desktop 和 hostfxr 复制到包内私有 `runtime` 目录，保留 .NET 许可声明，不安装或修改系统运行环境。包内 `release.json` 记录应用版本、运行环境版本和构建方式；离线打包不会下载最新安全补丁，正式维护应定期重发包含更新运行环境的版本。
@@ -80,7 +94,7 @@ dotnet run --project .\ClipboardManager.csproj
 
 `installer.ps1` 校验输入 ZIP 和版本后，使用已有 Inno Setup 编译器构建中文安装版，同时生成独立 SHA256 文件；不会下载或安装构建工具。当前本机没有 Inno Setup，可使用预装该工具的 GitHub Windows 构建环境。安装包使用固定应用标识，支持原目录覆盖升级；程序正在运行时要求先退出。卸载只移除安装文件、快捷方式和卸载注册信息，不删除用户历史。
 
-GitHub Actions 工作流 `.github/workflows/release.yml` 支持推送 `v0.0.1` 形式的标签或在 Actions 手动填写版本号。工作流在 Windows 上构建标准自包含版本和中文安装包，验证安装、重装、启动、卸载及数据保留，再上传 ZIP、安装 EXE 和各自的 SHA256；附件上传完成后才公开 Release，已存在的版本不会被覆盖。给既有版本补充安装包可运行 `.github/workflows/installer.yml`，它复用该版本已经发布的 ZIP，不移动标签、不替换已有附件。工作流使用 GitHub 自动提供的令牌，不需要在源码中保存密钥。发布新版本前请同步更新项目版本、默认脚本版本和 `RELEASE_NOTES.md`；仓库可见性不会被工作流修改。
+GitHub Actions 工作流 `.github/workflows/release.yml` 支持推送 `v0.0.2` 形式的标签或在 Actions 手动填写版本号。工作流在 Windows 上构建标准自包含版本和中文安装包，验证安装、重装、启动、卸载及数据保留，再上传 ZIP、安装 EXE 和各自的 SHA256；附件上传完成后才公开 Release，已存在的版本不会被覆盖。给既有版本补充安装包可运行 `.github/workflows/installer.yml`，它复用该版本已经发布的 ZIP，不移动标签、不替换已有附件。工作流使用 GitHub 自动提供的令牌，不需要在源码中保存密钥。发布新版本前请同步更新项目版本、默认脚本版本和 `RELEASE_NOTES.md`；仓库可见性不会被工作流修改。
 
 ## 功能与规则
 
@@ -141,11 +155,15 @@ GitHub Actions 工作流 `.github/workflows/release.yml` 支持推送 `v0.0.1` �
 
 ## 本次打包验证
 
+增量更新改造已通过 71 项隔离检查，覆盖仅下载改动文件、压缩流直接写入、取消及损坏下载清理、文件增删、未变化运行环境不重写、不覆盖用户文件、路径越界保护、设置兼容、卸载清理及大小窗口的 WPF 离屏渲染。另以真实 .NET Framework 更新进程和独立启动器验证了中断恢复、文件替换、新版启动就绪和临时文件清理；离线包内 476 个程序文件与 475 个唯一压缩附件逐一通过 SHA256 校验，包内外更新清单一致。测试源码、数据、截图和临时验证包在完成后清理，保留应用构建结果。
+
+本机未安装 .NET SDK 或 Inno Setup，标准自包含构建、中文安装包及安装生命周期检查由 GitHub Actions 的 Windows 环境执行；本地隔离检查不等同于线上更新已经验收。
+
 离线打包路径已完成 25 项运行和包检查：ZIP 内容与 SHA256、应用和启动器版本、私有 .NET 8.0.24 x64 运行环境、实际 EXE 启动、同版本防覆盖，以及隔离数据下的文本/图片去重、固定状态、图片保存与删除、设置往返、四个嵌入 XAML、主窗口初始化与渲染、置顶恢复、监听退出与清空。另外通过 PowerShell 脚本语法和差异空白检查。
 
-正式版 `v0.0.1` 已通过 GitHub Actions 的 Windows SDK 自包含构建、附件上传和 Release 发布。正式包使用 .NET 8.0.32，不是离线打包使用的 8.0.24。重新下载正式 ZIP 与校验文件后，已核对附件大小、SHA256 和 GitHub 服务器记录的摘要，并对该 ZIP 内的实际应用程序集完成 21 项隔离运行检查；原生 EXE 也验证了直接使用包内运行环境启动，不借助全局 dotnet 主机。测试不会改写系统剪贴板，临时测试源码、数据、日志与渲染图片在完成后删除。
+历史版 v0.0.1 曾通过 GitHub Actions 的标准自包含构建和发行验证，使用 .NET 8.0.32，并对正式 ZIP 完成 21 项隔离检查。该记录不代表 v0.0.2 的线上更新验收结果。
 
-这些检查不等同于在全新电脑上验证，也不代表已执行下面列出的外部软件端到端操作。应用未代码签名，当前仓库保持私有，下载需要仓库访问权限。
+这些检查不等同于在全新电脑上验证，也不代表已执行下面列出的外部软件端到端操作。应用尚未代码签名，公开发行版可直接下载；首次升级应核对 SHA256。
 
 ## 历史验证记录
 

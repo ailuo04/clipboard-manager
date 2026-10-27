@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory)]
     [string]$Archive,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.1',
+    [string]$Version = '0.0.2',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
     [string]$CompilerPath,
     [switch]$VerifyInstall
@@ -42,7 +42,9 @@ try {
     foreach ($file in @('ClipboardManager.exe', 'ClipboardManager.dll', 'ClipboardManager.runtimeconfig.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $payload $file) -PathType Leaf)) { throw "Missing application file: $file" }
     }
-    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'docs\USAGE.md') -Destination (Join-Path $payload 'USAGE.md')
+    if (-not (Test-Path -LiteralPath (Join-Path $payload 'USAGE.md'))) {
+        Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'docs\USAGE.md') -Destination (Join-Path $payload 'USAGE.md')
+    }
     & $CompilerPath /Qp "/DAppVersion=$Version" "/DSourceDir=$payload" "/DOutputDir=$staging" (Join-Path $PSScriptRoot 'installer\ClipboardManager.iss')
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed: $LASTEXITCODE" }
     $builtInstaller = Join-Path $staging "$name.exe"
@@ -58,6 +60,7 @@ try {
         $registryPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1'
         if (Test-Path -LiteralPath $registryPath) { throw 'Refusing to overwrite an existing installation in the verification runner.' }
         $appProcess = $null
+        $appWindowProcess = $null
         function Invoke-Setup([string]$Path, [string[]]$SetupArguments) {
             $start = [Diagnostics.ProcessStartInfo]::new($Path)
             $start.UseShellExecute = $false
@@ -94,7 +97,7 @@ public static class ClipboardInstallerPaths {
 "@
         }
         try {
-            $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/DIR=$installDirectory", '/TASKS=desktopicon', "/LOG=$(Join-Path $staging 'install.log')")
+            $arguments = @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/SP-', "/DIR=$installDirectory", "/LOG=$(Join-Path $staging 'install.log')")
             Invoke-Setup $builtInstaller $arguments
             $registration = Get-ItemProperty -LiteralPath $registryPath
             if ($registration.DisplayVersion -ne $Version -or $registration.InstallLocation.TrimEnd('\') -ne $installDirectory) { throw 'The per-user uninstall registration is incorrect.' }
@@ -119,11 +122,19 @@ public static class ClipboardInstallerPaths {
             $appStart.UseShellExecute = $false
             $appStart.CreateNoWindow = $true
             $appProcess = [Diagnostics.Process]::Start($appStart)
-            if (-not $appProcess.WaitForInputIdle(15000)) { throw 'The installed application did not initialize.' }
-            Start-Sleep -Seconds 3
-            $appProcess.Refresh()
-            if ($appProcess.HasExited -or $appProcess.MainWindowHandle -eq [IntPtr]::Zero) { throw 'The installed application did not open its main window.' }
-            if (-not $appProcess.CloseMainWindow() -or -not $appProcess.WaitForExit(15000) -or $appProcess.ExitCode -ne 0) { throw 'The installed application did not exit cleanly.' }
+            $expectedHost = if ($manifest.packaging -eq 'sdk-self-contained') {
+                if (Test-Path -LiteralPath (Join-Path $installDirectory 'ClipboardManager.App.exe')) { Join-Path $installDirectory 'ClipboardManager.App.exe' }
+                else { Join-Path $installDirectory 'ClipboardManager.exe' }
+            } else { Join-Path $installDirectory 'runtime\dotnet.exe' }
+            for ($attempt = 0; $attempt -lt 60; $attempt++) {
+                $appWindowProcess = Get-Process | Where-Object { $_.Path -eq $expectedHost -and $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+                if ($appWindowProcess) { break }
+                if ($appProcess.HasExited) { throw 'The installed launcher exited before opening the application.' }
+                Start-Sleep -Milliseconds 250
+            }
+            if (-not $appWindowProcess) { throw 'The installed application did not open its main window.' }
+            if (-not $appWindowProcess.CloseMainWindow() -or -not $appWindowProcess.WaitForExit(15000) -or $appWindowProcess.ExitCode -ne 0 -or -not $appProcess.WaitForExit(15000) -or $appProcess.ExitCode -ne 0) { throw 'The installed application did not exit cleanly.' }
+            $appWindowProcess = $null
             $appProcess = $null
             Invoke-Setup $builtInstaller $arguments
             if (-not (Test-Path -LiteralPath $sentinel)) { throw 'Reinstallation removed user data.' }
@@ -133,6 +144,7 @@ public static class ClipboardInstallerPaths {
             Write-Host 'Installer verification passed: per-user registration, file hashes, shortcuts, application startup, reinstallation, uninstall, and data preservation.'
         }
         finally {
+            if ($appWindowProcess -and -not $appWindowProcess.HasExited) { $appWindowProcess.Kill($true); $appWindowProcess.WaitForExit() }
             if ($appProcess -and -not $appProcess.HasExited) { $appProcess.Kill($true); $appProcess.WaitForExit() }
             if (Test-Path -LiteralPath $sentinel) { Remove-Item -LiteralPath $sentinel }
             if (-not $dataRootExisted -and @(Get-ChildItem -LiteralPath $dataRoot -Force).Count -eq 0) { Remove-Item -LiteralPath $dataRoot }

@@ -18,6 +18,10 @@ public sealed class MainViewModel : ObservableObject
     private readonly SemaphoreSlim _actionGate = new(1, 1);
     private readonly DispatcherTimer _captureTimer;
     private readonly DispatcherTimer _searchTimer;
+    private readonly DispatcherTimer _updateTimer;
+    private readonly UpdateService _updates = new();
+    private Task _updateTask = Task.CompletedTask;
+    private Task _updateCleanupTask = Task.CompletedTask;
     private List<RecordViewModel> _allRecords = [];
     private Task _captureTask = Task.CompletedTask;
     private Task _initializationTask = Task.CompletedTask;
@@ -46,8 +50,11 @@ public sealed class MainViewModel : ObservableObject
         _captureTimer.Tick += OnCaptureTimer;
         _searchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(160) };
         _searchTimer.Tick += OnSearchTimer;
+        _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _updateTimer.Tick += OnUpdateTimer;
         ClearCommand = new AsyncRelayCommand(ClearAsync, () => CanAct && _allRecords.Count > 0);
         SettingsCommand = new AsyncRelayCommand(ShowSettingsAsync, () => CanAct);
+        UpdateCommand = new RelayCommand(() => ShowUpdates(_owner), () => CanAct);
         ToggleAlwaysOnTopCommand = new AsyncRelayCommand(ToggleAlwaysOnTopAsync, () => CanAct);
         RetryCommand = new AsyncRelayCommand(InitializeAsync, () => !IsLoading && !IsClosing);
         PauseCommand = new RelayCommand(() =>
@@ -63,6 +70,7 @@ public sealed class MainViewModel : ObservableObject
     public ObservableCollection<RecordViewModel> VisibleRecords { get; } = [];
     public ICommand ClearCommand { get; }
     public ICommand SettingsCommand { get; }
+    public ICommand UpdateCommand { get; }
     public ICommand ToggleAlwaysOnTopCommand { get; }
     public ICommand RetryCommand { get; }
     public ICommand PauseCommand { get; }
@@ -129,6 +137,10 @@ public sealed class MainViewModel : ObservableObject
             ApplyWindowSettings();
             _monitor.Start();
             IsReady = true;
+            try { _updates.MarkStartupReady(); }
+            catch (Exception exception) { AppLogger.LogException("标记更新启动状态失败", exception); }
+            _updateCleanupTask = CleanUpdateFilesAsync();
+            _updateTimer.Start();
             Status = "历史记录已加载";
             if (warning is not null) Notice = warning;
         }
@@ -178,6 +190,8 @@ public sealed class MainViewModel : ObservableObject
         IsClosing = true;
         _captureTimer.Stop();
         _searchTimer.Stop();
+        _updateTimer.Stop();
+        _updateTimer.Tick -= OnUpdateTimer;
         _captureTimer.Tick -= OnCaptureTimer;
         _searchTimer.Tick -= OnSearchTimer;
         _monitor.ClipboardChanged -= OnClipboardChanged;
@@ -185,10 +199,13 @@ public sealed class MainViewModel : ObservableObject
         _lifetime.Cancel();
         await _initializationTask;
         await _captureTask;
+        await _updateTask;
+        await _updateCleanupTask;
         await _actionGate.WaitAsync();
         _actionGate.Release();
         await _history.FlushAsync();
         await _clipboard.DisposeAsync();
+        _updates.Dispose();
         _lifetime.Dispose();
     }
 
@@ -210,18 +227,64 @@ public sealed class MainViewModel : ObservableObject
     {
         try
         {
-            var dialog = new SettingsWindow(_owner, _history.Settings, _history.RootDirectory);
+            SettingsWindow? dialog = null;
+            dialog = new SettingsWindow(_owner, _history.Settings, _history.RootDirectory, () => ShowUpdates(dialog!));
             if (dialog.ShowDialog() != true) return;
             await RunOperationAsync(async () =>
             {
                 string? warning = await _history.UpdateSettingsAsync(dialog.Settings, _lifetime.Token);
                 ApplyWindowSettings();
+                _updateTimer.Interval = TimeSpan.FromSeconds(5);
                 RefreshRecords();
                 Status = "设置已保存";
                 if (warning is not null) Notice = warning;
             }, "保存设置失败");
         }
         catch (Exception exception) { Report("打开设置失败", exception); }
+    }
+
+    private void ShowUpdates(Window owner)
+    {
+        try
+        {
+            if (new UpdateWindow(owner, _updates).ShowDialog() != true || IsClosing) return;
+            _updates.LaunchPrepared();
+            foreach (Window dialog in _owner.OwnedWindows.Cast<Window>().ToArray()) dialog.Close();
+            _owner.Close();
+        }
+        catch (Exception exception)
+        {
+            try { _updates.CancelPrepared(); }
+            catch (Exception cleanup) { AppLogger.LogException("清理未启动的更新失败", cleanup); }
+            Report("启动更新失败", exception);
+        }
+    }
+
+    private void OnUpdateTimer(object? sender, EventArgs args)
+    {
+        _updateTimer.Interval = TimeSpan.FromHours(6);
+        if (IsClosing || !_history.Settings.AutoCheckUpdates || !_updateTask.IsCompleted) return;
+        _updateTask = CheckForUpdatesAsync();
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        try
+        {
+            var update = await _updates.CheckAsync(_lifetime.Token);
+            if (update is null || IsClosing) return;
+            string message = $"发现新版本 {update.Manifest.Version} · 下载 {UpdateService.FormatSize(update.DownloadSize)}";
+            Notice = string.IsNullOrEmpty(Notice) ? message : Notice.Contains(message, StringComparison.Ordinal) ? Notice : Notice + "\n" + message;
+        }
+        catch (OperationCanceledException) when (IsClosing) { }
+        catch (Exception exception) { AppLogger.LogException("自动检查更新失败", exception); }
+    }
+
+    private async Task CleanUpdateFilesAsync()
+    {
+        try { await _updates.CleanFinishedAsync(_lifetime.Token); }
+        catch (OperationCanceledException) when (IsClosing) { }
+        catch (Exception exception) { AppLogger.LogException("清理更新临时文件失败", exception); }
     }
 
     private async Task ToggleAlwaysOnTopAsync()
@@ -334,6 +397,7 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(EmptyTitle)); Raise(nameof(EmptySubtitle));
         (ClearCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (SettingsCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        (UpdateCommand as RelayCommand)?.RaiseCanExecuteChanged();
         (ToggleAlwaysOnTopCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (RetryCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (PauseCommand as RelayCommand)?.RaiseCanExecuteChanged();

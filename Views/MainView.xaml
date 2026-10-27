@@ -97,6 +97,9 @@
                 </TextBlock>
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <Button Style="{StaticResource WidgetIconButton}" Command="{Binding UpdateCommand}" ToolTip="应用更新" AutomationProperties.Name="应用更新" Margin="0,0,4,0">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE895;" />
+                </Button>
                 <Button Style="{StaticResource WidgetIconButton}" Command="{Binding ClearCommand}" ToolTip="清空全部历史记录"
                         AutomationProperties.Name="清空全部历史记录" Margin="0,0,4,0">
                     <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />

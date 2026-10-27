@@ -2,7 +2,7 @@ param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'bin\Release\net8.0-windows'),
     [switch]$RuntimeCompiler,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.1'
+    [string]$Version = '0.0.2'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,8 +11,9 @@ $iconPath = Join-Path $PSScriptRoot 'Assets\Clipboard.ico'
 $dotnet = (Get-Command dotnet.exe -ErrorAction Stop).Source
 $sdks = @(& $dotnet --list-sdks)
 if ($sdks.Count -gt 0 -and -not $RuntimeCompiler) {
-    & $dotnet build (Join-Path $PSScriptRoot 'ClipboardManager.csproj') --configuration Release --output $output "-p:Version=$Version"
+    & $dotnet build (Join-Path $PSScriptRoot 'ClipboardManager.csproj') --configuration Release --output $output "-p:Version=$Version" -p:UseAppHost=false
     if ($LASTEXITCODE -ne 0) { throw "dotnet build failed: $LASTEXITCODE" }
+    & (Join-Path $PSScriptRoot 'build-update-tools.ps1') -OutputDirectory $output -Version $Version
     return
 }
 
@@ -47,7 +48,7 @@ $trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText($implicit
 $assemblyMetadata = "[assembly: System.Reflection.AssemblyVersion(`"$Version.0`")] [assembly: System.Reflection.AssemblyFileVersion(`"$Version.0`")] [assembly: System.Reflection.AssemblyInformationalVersion(`"$Version`")] [assembly: System.Reflection.AssemblyProduct(`"ClipboardManager`")]"
 $trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText($assemblyMetadata, $parseOptions))
 $sourceFiles = Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -Filter '*.cs' |
-    Where-Object { $_.FullName -notmatch '[\\/](bin|obj|\.verification)[\\/]' }
+    Where-Object { $_.FullName -notmatch '[\\/](bin|obj|\.verification|UpdateHelper)[\\/]' }
 foreach ($file in $sourceFiles) {
     $trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText([IO.File]::ReadAllText($file.FullName), $parseOptions, $file.FullName))
 }
@@ -91,40 +92,5 @@ $runtimeConfig = @{
 } | ConvertTo-Json -Depth 8
 [IO.File]::WriteAllText((Join-Path $output 'ClipboardManager.runtimeconfig.json'), $runtimeConfig, [Text.UTF8Encoding]::new($false))
 
-# A small Windows subsystem launcher avoids opening a console when double-clicked.
-$frameworkCompiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
-if (Test-Path -LiteralPath $frameworkCompiler) {
-    $launcherSource = @'
-using System;
-using System.Diagnostics;
-using System.IO;
-using System.Windows.Forms;
-internal static class DesktopLauncher {
-    [STAThread] private static int Main() {
-        try {
-            string directory = AppDomain.CurrentDomain.BaseDirectory;
-            string host = Path.Combine(directory, "runtime", "dotnet.exe");
-            if (!File.Exists(host)) host = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
-            var info = new ProcessStartInfo(host, "\"" + Path.Combine(directory, "ClipboardManager.dll") + "\"");
-            info.WorkingDirectory = directory;
-            info.UseShellExecute = false;
-            info.CreateNoWindow = true;
-            using (var process = Process.Start(info)) {
-                process.WaitForExit();
-                if (process.ExitCode != 0) MessageBox.Show("应用已异常退出。请检查 %LOCALAPPDATA%\\ClipboardManager\\app.log，并确认已安装 .NET 8 Desktop Runtime。", "剪贴板");
-                return process.ExitCode;
-            }
-        } catch (Exception error) { MessageBox.Show(error.Message, "剪贴板"); return 1; }
-    }
-}
-'@
-    $launcherSource = $launcherSource.Replace('internal static class DesktopLauncher {', $assemblyMetadata + [Environment]::NewLine + 'internal static class DesktopLauncher {')
-    $launcherPath = Join-Path $output 'Launcher.generated.cs'
-    [IO.File]::WriteAllText($launcherPath, $launcherSource, [Text.UTF8Encoding]::new($false))
-    try {
-        & $frameworkCompiler /nologo /target:winexe /optimize+ /codepage:65001 /reference:System.Windows.Forms.dll "/win32icon:$iconPath" "/out:$(Join-Path $output 'ClipboardManager.exe')" $launcherPath
-        if ($LASTEXITCODE -ne 0) { throw 'Desktop launcher compilation failed.' }
-    }
-    finally { [IO.File]::Delete($launcherPath) }
-}
+& (Join-Path $PSScriptRoot 'build-update-tools.ps1') -OutputDirectory $output -Version $Version
 Write-Host "Build succeeded: $assemblyPath"

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.1',
+    [string]$Version = '0.0.2',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
     [switch]$RuntimeCompiler
 )
@@ -12,7 +12,8 @@ $output = [IO.Path]::GetFullPath($OutputDirectory)
 $name = "ClipboardManager-$Version-win-x64"
 $archive = Join-Path $output "$name.zip"
 $checksum = Join-Path $output "$name.sha256"
-foreach ($path in @($archive, $checksum)) {
+$updateManifest = Join-Path $output "$name-update.json"
+foreach ($path in @($archive, $checksum, $updateManifest)) {
     if (Test-Path -LiteralPath $path) { throw "Release file already exists; choose a new version or output directory: $path" }
 }
 $bin = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'bin'))
@@ -33,6 +34,7 @@ try {
         $runtimeVersion = (Get-Content -LiteralPath (Join-Path $payload 'ClipboardManager.runtimeconfig.json') -Raw | ConvertFrom-Json).runtimeOptions.includedFrameworks |
             Where-Object name -eq 'Microsoft.WindowsDesktop.App' | Select-Object -ExpandProperty version
         if (-not $runtimeVersion) { throw 'Published application is missing its self-contained desktop runtime.' }
+        & (Join-Path $PSScriptRoot 'build-update-tools.ps1') -OutputDirectory $payload -Version $Version -SelfContainedAppHost
     }
     else {
         if ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -ne 'X64') {
@@ -74,11 +76,20 @@ try {
         dataDirectory = '%LOCALAPPDATA%\ClipboardManager'
     }
     [IO.File]::WriteAllText((Join-Path $payload 'release.json'), ($manifest | ConvertTo-Json), [Text.UTF8Encoding]::new($false))
+    $updateAssets = Join-Path $staging 'update-assets'
+    & (Join-Path $PSScriptRoot 'package-updates.ps1') -SourceDirectory $payload -OutputDirectory $updateAssets -Version $Version
     [IO.Directory]::CreateDirectory($output) | Out-Null
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::CreateFromDirectory($payload, $archive, [IO.Compression.CompressionLevel]::Optimal, $false)
     $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     [IO.File]::WriteAllText($checksum, "$hash  $name.zip`n", [Text.UTF8Encoding]::new($false))
+    foreach ($asset in Get-ChildItem -LiteralPath $updateAssets -File) {
+        $target = Join-Path $output $asset.Name
+        if (Test-Path -LiteralPath $target) {
+            if ((Get-FileHash -LiteralPath $target).Hash -ne (Get-FileHash -LiteralPath $asset.FullName).Hash) { throw "Update asset collision: $target" }
+        }
+        else { [IO.File]::Move($asset.FullName, $target, $false) }
+    }
     Write-Host "Package: $archive"
     Write-Host "SHA256:  $hash"
     Write-Host "Runtime: $runtimeVersion ($mode)"
