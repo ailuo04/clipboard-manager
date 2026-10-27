@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory)]
     [string]$Archive,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.2',
+    [string]$Version = '0.0.3',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
     [string]$CompilerPath,
     [switch]$VerifyInstall
@@ -133,7 +133,13 @@ public static class ClipboardInstallerPaths {
                 Start-Sleep -Milliseconds 250
             }
             if (-not $appWindowProcess) { throw 'The installed application did not open its main window.' }
-            if (-not $appWindowProcess.CloseMainWindow() -or -not $appWindowProcess.WaitForExit(15000) -or $appWindowProcess.ExitCode -ne 0 -or -not $appProcess.WaitForExit(15000) -or $appProcess.ExitCode -ne 0) { throw 'The installed application did not exit cleanly.' }
+            # Get-Process must retain its handle before exit, otherwise ExitCode is unavailable.
+            $null = $appWindowProcess.Handle
+            if (-not $appWindowProcess.CloseMainWindow()) { throw 'The installed application did not accept a close request.' }
+            if (-not $appWindowProcess.WaitForExit(15000)) { throw 'The installed application did not exit within 15 seconds.' }
+            if ($appWindowProcess.ExitCode -ne 0) { throw "The installed application exited with code: $($appWindowProcess.ExitCode)" }
+            if (-not $appProcess.WaitForExit(15000)) { throw 'The installed launcher did not exit within 15 seconds.' }
+            if ($appProcess.ExitCode -ne 0) { throw "The installed launcher exited with code: $($appProcess.ExitCode)" }
             $appWindowProcess = $null
             $appProcess = $null
             Invoke-Setup $builtInstaller $arguments
