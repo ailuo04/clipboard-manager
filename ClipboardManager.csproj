@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClipboardManager</RootNamespace>
     <AssemblyName>ClipboardManager</AssemblyName>
-    <Version>0.0.3</Version>
+    <Version>0.0.2</Version>
     <Product>ClipboardManager</Product>
     <Description>Windows clipboard history manager with text, images, search, and pinning.</Description>
     <ApplicationIcon>Assets\Clipboard.ico</ApplicationIcon>
