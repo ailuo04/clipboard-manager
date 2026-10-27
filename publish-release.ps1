@@ -18,8 +18,15 @@ if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the release source commit.' }
 function Get-Release([string]$ReleaseTag) {
     try { return Invoke-RestMethod -Uri "$api/releases/tags/$ReleaseTag" -Headers $headers -TimeoutSec 60 }
     catch {
-        if ($_.Exception.Response -and [int]$_.Exception.Response.StatusCode -eq 404) { return $null }
-        throw
+        if (-not $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 404) { throw }
+    }
+    # A new draft has no Git tag yet, so the tag endpoint cannot resolve it until publication.
+    for ($page = 1; ; $page++) {
+        $releases = Invoke-RestMethod -Uri "$api/releases?per_page=100&page=$page" -Headers $headers -TimeoutSec 60
+        $matching = @($releases | Where-Object tag_name -eq $ReleaseTag)
+        if ($matching.Count -gt 1) { throw "Multiple releases use the same tag: $ReleaseTag" }
+        if ($matching.Count -eq 1) { return $matching[0] }
+        if (@($releases).Count -lt 100) { return $null }
     }
 }
 
@@ -29,6 +36,7 @@ function Invoke-GitHub([string[]]$Arguments) {
 }
 
 function Assert-Assets($Release, [IO.FileInfo[]]$Files) {
+    if (-not $Release) { throw 'Cannot verify an unresolved release.' }
     if ($Release.assets.Count -ne $Files.Count) { throw "Wrong asset count in $($Release.tag_name)." }
     foreach ($file in $Files) {
         $asset = @($Release.assets | Where-Object name -eq $file.Name)
