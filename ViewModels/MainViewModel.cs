@@ -236,9 +236,9 @@ public sealed class MainViewModel : ObservableObject
     {
         try
         {
-            SettingsWindow? dialog = null;
-            dialog = new SettingsWindow(_owner, _history.Settings, _history.RootDirectory, () => ShowUpdates(dialog!));
-            if (dialog.ShowDialog() != true) return;
+            if (_overlays is null) return;
+            var dialog = new SettingsOverlay(_history.Settings, _history.RootDirectory, () => ShowUpdates(_owner));
+            if (await _overlays.ShowAsync(dialog, OverlaySize.Settings) != true) return;
             await RunOperationAsync(async () =>
             {
                 string? warning = await _history.UpdateSettingsAsync(dialog.Settings, _lifetime.Token);
