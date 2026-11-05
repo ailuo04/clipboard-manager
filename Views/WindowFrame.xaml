@@ -146,10 +146,7 @@
                 Background="{DynamicResource OverlayGlassBrush}"
                 BorderBrush="{DynamicResource OverlayEdgeBrush}" BorderThickness="1"
                 CornerRadius="24" Effect="{DynamicResource OverlayShadowEffect}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                          KeyboardNavigation.TabNavigation="Cycle">
-                <ContentControl x:Name="OverlayContent" />
-            </ScrollViewer>
+            <ContentControl x:Name="OverlayContent" KeyboardNavigation.TabNavigation="Cycle" />
         </Border>
     </Grid>
 </Grid>

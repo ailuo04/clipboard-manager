@@ -248,6 +248,7 @@ public sealed class ThemeAndOverlayTests
         XElement titleBar = main.Elements(ns + "Grid").Single(element => (string?)element.Attribute(x + "Name") == "TitleBar");
         XElement content = main.Elements(ns + "Grid").Single(element => (string?)element.Attribute(x + "Name") == "WindowContent");
         XElement panel = overlay.Descendants(ns + "Border").Single(element => (string?)element.Attribute(x + "Name") == "OverlayPanel");
+        XElement overlayContent = panel.Elements().Single();
 
         Assert.Null(titleBar.Attribute("Grid.Row"));
         Assert.Equal("1", (string?)content.Attribute("Grid.Row"));
@@ -257,7 +258,8 @@ public sealed class ThemeAndOverlayTests
         Assert.Equal("{DynamicResource OverlayGlassBrush}", (string?)panel.Attribute("Background"));
         Assert.Equal("{DynamicResource OverlayEdgeBrush}", (string?)panel.Attribute("BorderBrush"));
         Assert.Equal("{DynamicResource OverlayShadowEffect}", (string?)panel.Attribute("Effect"));
-        Assert.NotEmpty(overlay.Descendants(ns + "ScrollViewer"));
+        Assert.Equal(ns + "ContentControl", overlayContent.Name);
+        Assert.Equal("OverlayContent", (string?)overlayContent.Attribute(x + "Name"));
     }
 
     [Fact]
