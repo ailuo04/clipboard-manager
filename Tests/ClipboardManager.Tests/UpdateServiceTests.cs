@@ -99,6 +99,69 @@ public sealed class UpdateServiceTests
     }
 
     [Fact]
+    public async Task Check_UsesMatchingPrereleaseWhenLatestReleaseContainsOnlyInstaller()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "clipboard-update-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var currentFiles = new List<UpdateFile>();
+            var currentContents = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+            {
+                ["ClipboardManager.exe"] = Encoding.UTF8.GetBytes("app-host"),
+                ["ClipboardManager.dll"] = Encoding.UTF8.GetBytes("old-application"),
+                ["ClipboardManager.runtimeconfig.json"] = Encoding.UTF8.GetBytes("runtime-config"),
+                ["ClipboardManager.Update.exe"] = Encoding.UTF8.GetBytes("update-helper")
+            };
+            var nextContents = new Dictionary<string, byte[]>(currentContents, StringComparer.Ordinal)
+            {
+                ["ClipboardManager.dll"] = Encoding.UTF8.GetBytes("new-application")
+            };
+            foreach (var entry in currentContents)
+            {
+                File.WriteAllBytes(Path.Combine(root, entry.Key), entry.Value);
+                currentFiles.Add(CreateFile(entry.Key, entry.Value));
+            }
+            string currentVersion = UpdateService.CurrentVersion;
+            string nextVersion = NextPatch(currentVersion);
+            UpdateFiles.WriteJson(Path.Combine(root, UpdateFiles.ManifestName), CreateManifest(currentVersion, currentFiles));
+
+            var nextFiles = new List<UpdateFile>();
+            var blobs = new Dictionary<string, byte[]>(StringComparer.Ordinal);
+            foreach (var entry in nextContents)
+            {
+                byte[] compressed = Compress(entry.Value);
+                var file = CreateFile(entry.Key, entry.Value, compressed.Length);
+                nextFiles.Add(file);
+                blobs.Add(file.AssetName, compressed);
+            }
+            string updateTag = "updates-v" + nextVersion;
+            string updateBase = $"https://github.com/{UpdateService.Repository}/releases/download/{updateTag}/";
+            string manifestName = $"ClipboardManager-{nextVersion}-win-x64-update.json";
+            string manifestPath = Path.Combine(root, "published-update.json");
+            UpdateFiles.WriteJson(manifestPath, CreateManifest(nextVersion, nextFiles));
+            byte[] manifestBytes = await File.ReadAllBytesAsync(manifestPath);
+            string manifestUrl = updateBase + manifestName;
+            string changedAssetName = nextFiles.Single(file => file.Path == "ClipboardManager.dll").AssetName;
+            var handler = new PublicReleaseHandler("v" + nextVersion, manifestName, manifestBytes, manifestUrl, blobs, separateUpdateRelease: true);
+            using var service = new UpdateService(root, handler);
+
+            AvailableUpdate update = Assert.IsType<AvailableUpdate>(await service.CheckAsync());
+            Assert.Equal(new[] { "ClipboardManager.dll" }, update.Plan.Changes.Select(file => file.Path));
+            Assert.Contains(handler.Requests, url => url.EndsWith("/releases/tags/" + updateTag, StringComparison.Ordinal));
+            Assert.Contains(manifestUrl, handler.Requests);
+            Assert.DoesNotContain(handler.Requests, url => url.EndsWith("-setup.exe", StringComparison.Ordinal));
+            await service.PrepareAsync(update, progress: null);
+            Assert.Equal(new[] { updateBase + changedAssetName }, handler.BlobRequests);
+            service.CancelPrepared();
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task Check_RejectsReleaseAssetsOutsideTheConfiguredPublicRepository()
     {
         string root = Path.Combine(Path.GetTempPath(), "clipboard-update-test-" + Guid.NewGuid().ToString("N"));
@@ -162,14 +225,16 @@ public sealed class UpdateServiceTests
     {
         private readonly string _releaseJson;
         private readonly string _manifestUrl;
+        private readonly string? _updateReleaseJson;
         private readonly byte[] _manifestBytes;
         private readonly Dictionary<string, byte[]> _blobs;
 
-        public PublicReleaseHandler(string tag, string manifestName, byte[] manifestBytes, string manifestUrl, Dictionary<string, byte[]> blobs)
+        public PublicReleaseHandler(string tag, string manifestName, byte[] manifestBytes, string manifestUrl, Dictionary<string, byte[]> blobs, bool separateUpdateRelease = false)
         {
             _manifestUrl = manifestUrl;
             _manifestBytes = manifestBytes;
-            _blobs = blobs.ToDictionary(pair => $"https://github.com/{UpdateService.Repository}/releases/download/{tag}/{pair.Key}", pair => pair.Value, StringComparer.Ordinal);
+            string assetTag = separateUpdateRelease ? "updates-" + tag : tag;
+            _blobs = blobs.ToDictionary(pair => $"https://github.com/{UpdateService.Repository}/releases/download/{assetTag}/{pair.Key}", pair => pair.Value, StringComparer.Ordinal);
             var assets = new JsonArray
             {
                 new JsonObject
@@ -183,12 +248,32 @@ public sealed class UpdateServiceTests
             long id = 2;
             foreach (var blob in _blobs)
                 assets.Add(new JsonObject { ["name"] = Path.GetFileName(blob.Key), ["id"] = id++, ["size"] = blob.Value.Length, ["browser_download_url"] = blob.Key });
-            _releaseJson = new JsonObject { ["tag_name"] = tag, ["draft"] = false, ["prerelease"] = false, ["assets"] = assets }.ToJsonString();
+            if (separateUpdateRelease)
+            {
+                _updateReleaseJson = new JsonObject { ["tag_name"] = assetTag, ["draft"] = false, ["prerelease"] = true, ["assets"] = assets.DeepClone() }.ToJsonString();
+                var installer = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["name"] = $"ClipboardManager-{tag[1..]}-win-x64-setup.exe",
+                        ["id"] = 1,
+                        ["size"] = 4,
+                        ["browser_download_url"] = $"https://github.com/{UpdateService.Repository}/releases/download/{tag}/ClipboardManager-{tag[1..]}-win-x64-setup.exe"
+                    }
+                };
+                _releaseJson = new JsonObject { ["tag_name"] = tag, ["draft"] = false, ["prerelease"] = false, ["assets"] = installer }.ToJsonString();
+            }
+            else
+            {
+                _updateReleaseJson = null;
+                _releaseJson = new JsonObject { ["tag_name"] = tag, ["draft"] = false, ["prerelease"] = false, ["assets"] = assets }.ToJsonString();
+            }
         }
 
         private PublicReleaseHandler(string releaseJson)
         {
             _releaseJson = releaseJson;
+            _updateReleaseJson = null;
             _manifestUrl = string.Empty;
             _manifestBytes = [];
             _blobs = new Dictionary<string, byte[]>(StringComparer.Ordinal);
@@ -233,6 +318,8 @@ public sealed class UpdateServiceTests
                 latest.Headers.ETag = new EntityTagHeaderValue("\"latest-release-etag\"");
                 return Task.FromResult(latest);
             }
+            if (_updateReleaseJson is not null && url.EndsWith("/releases/tags/updates-" + JsonNode.Parse(_releaseJson)!["tag_name"]!.GetValue<string>(), StringComparison.Ordinal))
+                return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(_updateReleaseJson, Encoding.UTF8, "application/json") });
             if (url == _manifestUrl)
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(_manifestBytes) });
             if (_blobs.TryGetValue(url, out byte[]? blob))

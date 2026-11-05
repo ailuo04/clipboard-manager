@@ -4,21 +4,13 @@ Windows 11 中文桌面剪贴板管理器。自动保存文本、截图和图片
 
 ## 下载与使用
 
-在仓库的 [最新正式版](../../releases/latest) 页面选择 Windows 11 x64 版本：
+在仓库的 [最新正式版](../../releases/latest) 页面下载唯一提供的 Windows 11 x64 安装包：
 
-- 安装版：下载 `ClipboardManager-0.0.5-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
-- 便携版：下载 `ClipboardManager-0.0.5-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
+- 安装版：下载 ClipboardManager-0.0.5-win-x64-setup.exe，运行中文安装向导。默认安装到当前用户的 %LOCALAPPDATA%\Programs\ClipboardManager；可在安装向导中调整桌面快捷方式和安装后启动选项。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
 
-两种版本均自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。安装版与便携版共用历史数据，不能同时运行；安装、升级和卸载均不删除历史。仓库现已公开，任何人都可以下载正式发行版。
+安装包自带运行环境，不需要管理员权限，也不必另装 .NET SDK 或运行时。安装、升级和卸载均不删除本机历史数据。
 
-首次运行可能出现 Windows 未知发布者提示，应用尚未代码签名。请确认来源并核对同版本 `.sha256` 文件，不要关闭系统安全防护。在 PowerShell 中校验：
-
-```powershell
-Get-FileHash .\ClipboardManager-0.0.5-win-x64.zip -Algorithm SHA256
-Get-Content .\ClipboardManager-0.0.5-win-x64.sha256
-Get-FileHash .\ClipboardManager-0.0.5-win-x64-setup.exe -Algorithm SHA256
-Get-Content .\ClipboardManager-0.0.5-win-x64-setup.sha256
-```
+首次运行可能出现 Windows 未知发布者提示，因为应用尚未代码签名。请确认下载来源，并在 GitHub 附件详情中核对 SHA256 摘要；PowerShell 可用 Get-FileHash .\ClipboardManager-0.0.5-win-x64-setup.exe -Algorithm SHA256 计算本地值进行比对。不要关闭系统安全防护。
 
 完整操作、升级和卸载说明见 [使用说明](docs/USAGE.md)，当前版本介绍见 [发行说明](RELEASE_NOTES.md)。
 
@@ -75,7 +67,7 @@ dotnet run --project .\ClipboardManager.csproj
 
 v0.0.2 是首个包含应用内增量更新器的版本；v0.0.1 不包含此功能，需要先手动升级一次。
 
-更新器直接读取 GitHub 最新正式版 Release。新版本的清单和逐文件压缩附件与安装包一起发布；旧版本曾使用同仓库的 `updates-v版本号` 预发布 Release，客户端仍兼容读取旧布局。
+更新器直接读取 GitHub 最新正式版 Release。安装包单独显示在正式版下载区；清单和逐文件压缩附件保存在同一公开仓库对应的 `updates-v版本号` 预发布 Release，客户端会自动读取，无需用户手动下载。旧版本曾将更新数据放在正式版中，客户端仍兼容读取旧布局。
 
 v0.0.2 曾按确认完成同版本重建，旧批次用户需重新安装一次以切换更新数据源；该问题不影响 v0.0.3 及后续版本的应用内增量更新。
 
@@ -100,7 +92,7 @@ v0.0.2 曾按确认完成同版本重建，旧批次用户需重新安装一次�
 
 `installer.ps1` 校验输入 ZIP 和版本后，使用已有 Inno Setup 编译器构建中文安装版，同时生成独立 SHA256 文件；不会下载或安装构建工具。当前本机没有 Inno Setup，可使用预装该工具的 GitHub Windows 构建环境。安装包使用固定应用标识，支持原目录覆盖升级；程序正在运行时要求先退出。卸载只移除安装文件、快捷方式和卸载注册信息，不删除用户历史。
 
-GitHub Actions 工作流 `.github/workflows/release.yml` 在 Windows 上先运行更新器自动化测试，再构建自包含程序与中文安装包并验证安装、重装、启动、卸载及数据保留。`publish-release.ps1` 将安装包、完整更新清单和逐文件压缩附件放入同一正式 Release，校验全部附件后才发布并标记 Latest。默认拒绝覆盖既有版本；同版本刷新必须明确批准，且先将正式版暂存为草稿，验证后再恢复发布。发布前请同步版本号和 `RELEASE_NOTES.md`。
+GitHub Actions 工作流 `.github/workflows/release.yml` 在 Windows 上先运行更新器自动化测试，再构建自包含程序与中文安装包并验证安装、重装、启动、卸载及数据保留。`publish-release.ps1` 先把完整更新清单和逐文件压缩附件发布并校验到同仓库的 `updates-v版本号` 预发布 Release，再将正式 Latest Release 清理为只含安装 EXE；其余校验文件仍在本地验证，但不作为下载附件展示。默认拒绝覆盖既有版本；同版本刷新必须明确批准，且仅在更新数据准备完成后刷新正式 Release。发布前请同步版本号和 `RELEASE_NOTES.md`。
 
 ## 功能与规则
 
