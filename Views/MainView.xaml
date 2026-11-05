@@ -185,8 +185,8 @@
     </Grid>
 
     <Border Grid.Row="3" Margin="12,0,12,9" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
-            BorderThickness="0" CornerRadius="14">
-        <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="22" ShadowDepth="4" Direction="270" Opacity="0.25" /></Border.Effect>
+            BorderThickness="1" CornerRadius="14">
+        <Border.Effect><DropShadowEffect Color="{DynamicResource CardShadowColor}" BlurRadius="22" ShadowDepth="4" Direction="270" Opacity="0.25" /></Border.Effect>
         <Grid ClipToBounds="True">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
             <Border Background="{DynamicResource GlassSheenBrush}" CornerRadius="13" Margin="1,1,1,0" IsHitTestVisible="False" />
@@ -344,7 +344,7 @@
                         <StackPanel>
                             <Border Width="48" Height="48" CornerRadius="16" HorizontalAlignment="Center"
                                     Background="{DynamicResource EmptyIconBackgroundBrush}" BorderBrush="{DynamicResource EmptyIconBorderBrush}" BorderThickness="1">
-                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="15" ShadowDepth="3" Opacity="0.2" /></Border.Effect>
+                                <Border.Effect><DropShadowEffect Color="{DynamicResource CardShadowColor}" BlurRadius="15" ShadowDepth="3" Opacity="0.2" /></Border.Effect>
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE77F;" FontSize="21" Foreground="{DynamicResource AccentBrush}" />
                             </Border>
                             <TextBlock Text="{Binding EmptyTitle}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,0"

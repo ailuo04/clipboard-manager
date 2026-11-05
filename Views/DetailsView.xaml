@@ -12,20 +12,27 @@
         </Button>
     </Grid>
     <TextBox Grid.Row="1" Text="{Binding Record.Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="14" AutomationProperties.Name="完整文本内容">
+             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="14"
+             Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
+             BorderThickness="1" AutomationProperties.Name="完整文本内容">
         <TextBox.Style><Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}"><Style.Triggers>
             <DataTrigger Binding="{Binding IsImage}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
         </Style.Triggers></Style></TextBox.Style>
     </TextBox>
     <Grid Grid.Row="1" Visibility="{Binding IsImage, Converter={StaticResource BoolVisibility}}">
         <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-        <Border Background="{DynamicResource ImageWellBackgroundBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="4">
-            <Grid>
-                <ScrollViewer x:Name="ImageScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" Padding="10">
-                    <Image x:Name="FullImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
-                </ScrollViewer>
-                <TextBlock x:Name="ImageStatus" Text="正在加载原图…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="16" />
-            </Grid>
+        <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
+                BorderThickness="1" CornerRadius="14" Padding="5">
+            <Border Background="{DynamicResource ImageWellBackgroundBrush}" BorderBrush="{DynamicResource ImageWellBorderBrush}"
+                    BorderThickness="1" CornerRadius="0" Padding="3">
+                <Grid ClipToBounds="True">
+                    <Border Background="{DynamicResource GlassSheenBrush}" CornerRadius="0" IsHitTestVisible="False" />
+                    <ScrollViewer x:Name="ImageScroll" Background="Transparent" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled" Padding="10">
+                        <Image x:Name="FullImage" Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality" />
+                    </ScrollViewer>
+                    <TextBlock x:Name="ImageStatus" Text="正在加载原图…" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="16" />
+                </Grid>
+            </Border>
         </Border>
         <Grid Grid.Row="1" Margin="0,12,0,0">
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>

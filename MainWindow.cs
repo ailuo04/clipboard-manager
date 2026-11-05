@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shell;
 using System.Windows.Threading;
@@ -128,17 +127,7 @@ public sealed class MainWindow : Window
     {
         if (_backdropAttempted) return;
         _backdropAttempted = true;
-        IntPtr handle = new WindowInteropHelper(this).Handle;
-        if (handle == IntPtr.Zero) return;
-        int backdropType = NativeMethods.DwmsbtTransientWindow;
-        _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaSystemBackdropType, ref backdropType,
-            System.Runtime.InteropServices.Marshal.SizeOf<int>());
-        int cornerPreference = 2;
-        _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaWindowCornerPreference, ref cornerPreference,
-            System.Runtime.InteropServices.Marshal.SizeOf<int>());
-        int darkMode = ThemeManager.IsDark ? 1 : 0;
-        _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaUseImmersiveDarkMode, ref darkMode,
-            System.Runtime.InteropServices.Marshal.SizeOf<int>());
+        ThemeManager.ApplyBackdrop(this);
     }
 
     private void OnHistoryMouseDown(object sender, MouseButtonEventArgs args)
