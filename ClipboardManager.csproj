@@ -18,6 +18,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="UpdateHelper\**\*.cs" />
+    <Compile Remove="Tests/**/*.cs" />
     <Using Include="System.IO" />
     <EmbeddedResource Include="App.xaml;Views\*.xaml;Assets\Clipboard.ico" />
   </ItemGroup>
