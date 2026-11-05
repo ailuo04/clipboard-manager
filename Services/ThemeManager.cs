@@ -22,8 +22,8 @@ public static class ThemeManager
 
     private static ResourceDictionary? _palette;
     private static bool _initialized;
-    private static AppTheme _preference = AppTheme.Dark;
-    private static bool _isDark = true;
+    private static AppTheme _preference = AppTheme.Light;
+    private static bool _isDark = false;
 
     public static AppTheme Preference => _preference;
     public static bool IsDark => _isDark;
@@ -46,7 +46,7 @@ public static class ThemeManager
 
     public static void Apply(AppTheme preference)
     {
-        if (!Enum.IsDefined(preference)) preference = AppTheme.Dark;
+        if (!Enum.IsDefined(preference)) preference = ThemePreferencePolicy.Resolve(null);
         bool dark = preference switch
         {
             AppTheme.Light => false,
@@ -122,14 +122,14 @@ public static class ThemeManager
     {
         try
         {
-            if (!File.Exists(AppPaths.ThemeFilePath)) return AppTheme.Dark;
+            if (!File.Exists(AppPaths.ThemeFilePath)) return ThemePreferencePolicy.Resolve(null);
             var document = JsonSerializer.Deserialize<ThemeDocument>(File.ReadAllText(AppPaths.ThemeFilePath), JsonOptions);
-            return document is not null && Enum.IsDefined(document.Theme) ? document.Theme : AppTheme.Dark;
+            return ThemePreferencePolicy.Resolve(document?.Theme);
         }
         catch (Exception exception)
         {
-            AppLogger.LogException("读取主题设置失败，沿用深色主题", exception);
-            return AppTheme.Dark;
+            AppLogger.LogException("读取主题设置失败，使用浅色主题", exception);
+            return ThemePreferencePolicy.Resolve(null);
         }
     }
 
@@ -157,5 +157,5 @@ public static class ThemeManager
 
 internal sealed class ThemeDocument
 {
-    public AppTheme Theme { get; set; } = AppTheme.Dark;
+    public AppTheme Theme { get; set; } = AppTheme.Light;
 }
