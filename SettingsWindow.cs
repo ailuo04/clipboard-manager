@@ -7,25 +7,17 @@ using ClipboardManager.Utilities;
 
 namespace ClipboardManager;
 
-public sealed class SettingsWindow : Window
+public sealed class SettingsWindow : GlassDialogWindow
 {
     private readonly AppTheme _openedTheme;
 
     public SettingsWindow(Window owner, AppSettings settings, string dataDirectory, Action? showUpdates = null)
+        : base(owner, "设置", 510, 660, 460, 510)
     {
         _openedTheme = ThemeManager.Preference;
-        SetResourceReference(StyleProperty, typeof(Window));
-        Owner = owner;
-        Title = "设置";
-        Width = 510;
-        Height = 660;
-        MinWidth = 460;
-        MinHeight = 510;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
         Settings = settings.Clone();
         var view = ViewLoader.Load<Grid>("Views/SettingsView.xaml");
-        Content = view;
-        ThemeManager.RegisterWindow(this);
+        SetDialogContent(view);
         var records = (TextBox)view.FindName("MaxRecordsBox");
         var storage = (TextBox)view.FindName("MaxStorageBox");
         var validation = (TextBlock)view.FindName("ValidationText");

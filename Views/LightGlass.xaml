@@ -5,6 +5,15 @@
     <Color x:Key="AccentGlowColor">#99167D6B</Color>
     <Color x:Key="CardShadowColor">#243D43</Color>
 
+    <LinearGradientBrush x:Key="DialogSurfaceBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#F7FFFFFF" Offset="0" />
+        <GradientStop Color="#E6F0F4F8" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="DialogHeaderBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#E6FFFFFF" Offset="0" />
+        <GradientStop Color="#66DCEBFF" Offset="1" />
+    </LinearGradientBrush>
+
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
     <SolidColorBrush x:Key="AccentSoftBrush" Color="#DDF2EC" />
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1D2930" />
@@ -26,7 +35,10 @@
     <SolidColorBrush x:Key="TextSelectionBrush" Color="#59167D6B" />
     <SolidColorBrush x:Key="PrimaryBorderBrush" Color="#7FFFFFFF" />
     <SolidColorBrush x:Key="PrimaryForegroundBrush" Color="#FFFFFF" />
-    <SolidColorBrush x:Key="CaptionBarBrush" Color="#40FFFFFF" />
+    <LinearGradientBrush x:Key="CaptionBarBrush" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Color="#80FFFFFF" Offset="0" />
+        <GradientStop Color="#33FFFFFF" Offset="1" />
+    </LinearGradientBrush>
     <SolidColorBrush x:Key="CaptionForegroundBrush" Color="#3A4650" />
     <SolidColorBrush x:Key="CaptionHoverBrush" Color="#331D2930" />
     <SolidColorBrush x:Key="CaptionPressedBrush" Color="#1F1D2930" />

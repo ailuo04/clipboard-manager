@@ -6,7 +6,7 @@ using ClipboardManager.Utilities;
 
 namespace ClipboardManager;
 
-public sealed class UpdateWindow : Window
+public sealed class UpdateWindow : GlassDialogWindow
 {
     private readonly UpdateService _updates;
     private readonly CancellationTokenSource _lifetime = new();
@@ -26,16 +26,11 @@ public sealed class UpdateWindow : Window
     private bool _closed;
 
     public UpdateWindow(Window owner, UpdateService updates)
+        : base(owner, "应用更新", 510, 510, 430, 400)
     {
         _updates = updates;
-        SetResourceReference(StyleProperty, typeof(Window));
-        Owner = owner;
-        Title = "应用更新";
-        Width = 510; Height = 510; MinWidth = 430; MinHeight = 400;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        ThemeManager.RegisterWindow(this);
         var view = ViewLoader.Load<Grid>("Views/UpdateView.xaml");
-        Content = view;
+        SetDialogContent(view);
         _status = (TextBlock)view.FindName("UpdateStatusText");
         _details = (TextBlock)view.FindName("UpdateDetailsText");
         _credentialStatus = (TextBlock)view.FindName("UpdateCredentialText");

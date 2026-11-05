@@ -22,10 +22,14 @@ public static class ThemeManager
 
     private static ResourceDictionary? _palette;
     private static bool _initialized;
-    private static AppTheme _preference = AppTheme.Dark;
+    private static AppTheme _preference = AppTheme.Light;
     private static bool _isDark = true;
 
     public static AppTheme Preference => _preference;
+
+    internal static AppTheme ResolvePreference(AppTheme? savedPreference) =>
+        savedPreference is AppTheme preference && Enum.IsDefined(preference) ? preference : AppTheme.Light;
+
     public static bool IsDark => _isDark;
     public static event EventHandler? ThemeChanged;
 
@@ -46,7 +50,7 @@ public static class ThemeManager
 
     public static void Apply(AppTheme preference)
     {
-        if (!Enum.IsDefined(preference)) preference = AppTheme.Dark;
+        preference = ResolvePreference(preference);
         bool dark = preference switch
         {
             AppTheme.Light => false,
@@ -65,6 +69,25 @@ public static class ThemeManager
         application.Resources.MergedDictionaries.Insert(0, palette);
         _palette = palette;
         ThemeChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    internal static void ApplyBackdrop(Window window)
+    {
+        try
+        {
+            IntPtr handle = new WindowInteropHelper(window).Handle;
+            if (handle == IntPtr.Zero) return;
+            int backdropType = NativeMethods.DwmsbtTransientWindow;
+            _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaSystemBackdropType, ref backdropType,
+                Marshal.SizeOf<int>());
+            int cornerPreference = 2;
+            _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaWindowCornerPreference, ref cornerPreference,
+                Marshal.SizeOf<int>());
+            int darkMode = _isDark ? 1 : 0;
+            _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaUseImmersiveDarkMode, ref darkMode,
+                Marshal.SizeOf<int>());
+        }
+        catch (Exception exception) { AppLogger.LogException("设置窗口玻璃背景失败", exception); }
     }
 
     /// <summary>Keeps the native title bar and DWM backdrop in sync with the app theme.</summary>
@@ -122,14 +145,14 @@ public static class ThemeManager
     {
         try
         {
-            if (!File.Exists(AppPaths.ThemeFilePath)) return AppTheme.Dark;
+            if (!File.Exists(AppPaths.ThemeFilePath)) return ResolvePreference(null);
             var document = JsonSerializer.Deserialize<ThemeDocument>(File.ReadAllText(AppPaths.ThemeFilePath), JsonOptions);
-            return document is not null && Enum.IsDefined(document.Theme) ? document.Theme : AppTheme.Dark;
+            return ResolvePreference(document?.Theme);
         }
         catch (Exception exception)
         {
-            AppLogger.LogException("读取主题设置失败，沿用深色主题", exception);
-            return AppTheme.Dark;
+            AppLogger.LogException("读取主题设置失败，回退到浅色主题", exception);
+            return ResolvePreference(null);
         }
     }
 
@@ -157,5 +180,5 @@ public static class ThemeManager
 
 internal sealed class ThemeDocument
 {
-    public AppTheme Theme { get; set; } = AppTheme.Dark;
+    public AppTheme Theme { get; set; } = AppTheme.Light;
 }

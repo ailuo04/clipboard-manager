@@ -135,4 +135,6 @@
         </StackPanel>
     </Grid>
     <Grid x:Name="WindowContent" Grid.Row="1" Background="Transparent" />
+    <Border Grid.RowSpan="2" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1"
+            CornerRadius="15" IsHitTestVisible="False" />
 </Grid>

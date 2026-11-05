@@ -7,23 +7,15 @@ using ClipboardManager.ViewModels;
 
 namespace ClipboardManager;
 
-public sealed class DetailsWindow : Window
+public sealed class DetailsWindow : GlassDialogWindow
 {
     private readonly CancellationTokenSource _lifetime = new();
 
     public DetailsWindow(Window owner, RecordViewModel item, ClipboardReader clipboard, IntPtr clipboardOwner)
+        : base(owner, item.IsImage ? "图片详情" : "文本详情", 800, 660, 500, 420)
     {
-        SetResourceReference(StyleProperty, typeof(Window));
-        Owner = owner;
-        Title = item.IsImage ? "图片详情" : "文本详情";
-        Width = 800;
-        Height = 660;
-        MinWidth = 500;
-        MinHeight = 420;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        ThemeManager.RegisterWindow(this);
         var view = ViewLoader.Load<Grid>("Views/DetailsView.xaml");
-        Content = view;
+        SetDialogContent(view);
         DataContext = item;
         var copy = (Button)view.FindName("CopyButton");
         var status = (TextBlock)view.FindName("StatusLabel");
