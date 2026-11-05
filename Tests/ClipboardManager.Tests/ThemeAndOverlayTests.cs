@@ -298,6 +298,34 @@ public sealed class ThemeAndOverlayTests
     }
 
     [Fact]
+    public void WindowOverlayHostIgnoresParentCloseCallbackFromBeforeChildActivation()
+    {
+        RunOnSta(() =>
+        {
+            var owner = new Window { Width = 340, Height = 500 };
+            Grid root = CreateOverlayRoot();
+            owner.Content = root;
+            using var host = new WindowOverlayHost(owner, root);
+            var parent = new TestOverlayView();
+            var child = new TestOverlayView();
+
+            Task<bool?> parentTask = host.ShowAsync(parent, OverlaySize.Settings);
+            Action<bool?>? staleParentCallback = parent.CloseRequest;
+            Task<bool?> childTask = host.ShowAsync(child, OverlaySize.Update);
+
+            child.CloseRequest?.Invoke(true);
+            staleParentCallback?.Invoke(false);
+
+            Assert.True(childTask.IsCompleted);
+            Assert.True(childTask.GetAwaiter().GetResult());
+            Assert.False(parentTask.IsCompleted);
+            Assert.Equal(1, host.Count);
+            host.CompleteCurrent(null);
+            owner.Content = null;
+        });
+    }
+
+    [Fact]
     public void WindowOverlayHostBlursMainSurfaceAndRestoresWindowInputGeometryStateAndEffect()
     {
         RunOnSta(() =>

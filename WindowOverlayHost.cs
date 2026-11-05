@@ -43,6 +43,7 @@ internal sealed class WindowOverlayHost : IDisposable
     private bool _mainSurfaceWasEnabled;
     private bool _mainSurfaceWasHitTestVisible;
     private OverlayFrame? _current;
+    private long _activationGeneration;
     private WindowSnapshot? _snapshot;
     private bool _sessionActive;
     private bool _closingAll;
@@ -217,9 +218,11 @@ internal sealed class WindowOverlayHost : IDisposable
         ApplyPageSize(frame.Size);
         frame.Page.Focusable = true;
         frame.Page.IsTabStop = true;
+        long activationGeneration = ++_activationGeneration;
         frame.Page.CloseRequest = result =>
         {
-            if (ReferenceEquals(_current, frame)) CompleteCurrent(result);
+            if (activationGeneration == _activationGeneration && ReferenceEquals(_current, frame))
+                CompleteCurrent(result);
         };
         FocusPage(frame);
     }
