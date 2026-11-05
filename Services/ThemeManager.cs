@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -12,14 +10,6 @@ namespace ClipboardManager.Services;
 
 public static class ThemeManager
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
     private static ResourceDictionary? _palette;
     private static bool _initialized;
     private static AppTheme _preference = AppTheme.Light;
@@ -40,6 +30,7 @@ public static class ThemeManager
 
     public static void SetPreference(AppTheme preference)
     {
+        preference = ThemePreferencePolicy.Resolve(preference);
         Apply(preference);
         SavePreference(preference);
     }
@@ -122,9 +113,8 @@ public static class ThemeManager
     {
         try
         {
-            if (!File.Exists(AppPaths.ThemeFilePath)) return ThemePreferencePolicy.Resolve(null);
-            var document = JsonSerializer.Deserialize<ThemeDocument>(File.ReadAllText(AppPaths.ThemeFilePath), JsonOptions);
-            return ThemePreferencePolicy.Resolve(document?.Theme);
+            if (!File.Exists(AppPaths.ThemeFilePath)) return ThemePreferencePolicy.ResolveSavedPreferenceJson(null);
+            return ThemePreferencePolicy.ResolveSavedPreferenceJson(File.ReadAllText(AppPaths.ThemeFilePath));
         }
         catch (Exception exception)
         {
@@ -139,7 +129,7 @@ public static class ThemeManager
         try
         {
             Directory.CreateDirectory(AppPaths.RootDirectory);
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new ThemeDocument { Theme = preference }, JsonOptions));
+            File.WriteAllText(temporaryPath, ThemePreferencePolicy.SerializePreference(preference));
             File.Move(temporaryPath, AppPaths.ThemeFilePath, overwrite: true);
         }
         catch (Exception exception)
@@ -153,9 +143,4 @@ public static class ThemeManager
         }
     }
 
-}
-
-internal sealed class ThemeDocument
-{
-    public AppTheme Theme { get; set; } = AppTheme.Light;
 }

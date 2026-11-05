@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Xml.Linq;
 using ClipboardManager.Models;
 using ClipboardManager.Services;
@@ -17,6 +18,31 @@ public sealed class ThemeAndOverlayTests
     public void MissingOrInvalidThemeUsesLightAndValidPreferenceIsPreserved(AppTheme? saved, AppTheme expected)
     {
         Assert.Equal(expected, ThemePreferencePolicy.Resolve(saved));
+    }
+
+    [Theory]
+    [InlineData(null, AppTheme.Light)]
+    [InlineData("null", AppTheme.Light)]
+    [InlineData("{}", AppTheme.Light)]
+    [InlineData("{", AppTheme.Light)]
+    [InlineData("{\"theme\":99}", AppTheme.Light)]
+    [InlineData("{\"theme\":\"Unknown\"}", AppTheme.Light)]
+    [InlineData("{\"theme\":\"Light\"}", AppTheme.Light)]
+    [InlineData("{\"theme\":\"Dark\"}", AppTheme.Dark)]
+    [InlineData("{\"theme\":\"System\"}", AppTheme.System)]
+    public void SavedThemeJsonUsesLightForMissingOrInvalidValuesAndPreservesValidThemes(string? json, AppTheme expected)
+    {
+        Assert.Equal(expected, ThemePreferencePolicy.ResolveSavedPreferenceJson(json));
+    }
+
+    [Fact]
+    public void InvalidPreferenceIsNormalizedToLightBeforeSerialization()
+    {
+        using var document = JsonDocument.Parse(ThemePreferencePolicy.SerializePreference((AppTheme)99));
+        var theme = document.RootElement.GetProperty("theme");
+
+        Assert.Equal(JsonValueKind.String, theme.ValueKind);
+        Assert.Equal("Light", theme.GetString());
     }
 
     [Fact]

@@ -48,7 +48,7 @@ $trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText($implicit
 $assemblyMetadata = "[assembly: System.Reflection.AssemblyVersion(`"$Version.0`")] [assembly: System.Reflection.AssemblyFileVersion(`"$Version.0`")] [assembly: System.Reflection.AssemblyInformationalVersion(`"$Version`")] [assembly: System.Reflection.AssemblyProduct(`"ClipboardManager`")]"
 $trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText($assemblyMetadata, $parseOptions))
 $sourceFiles = Get-ChildItem -LiteralPath $PSScriptRoot -Recurse -Filter '*.cs' |
-    Where-Object { $_.FullName -notmatch '[\\/](bin|obj|\.verification|UpdateHelper)[\\/]' }
+    Where-Object { $_.FullName -notmatch '[\\/](bin|obj|\.verification|UpdateHelper|Tests)[\\/]' }
 foreach ($file in $sourceFiles) {
     $trees.Add([Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree]::ParseText([IO.File]::ReadAllText($file.FullName), $parseOptions, $file.FullName))
 }
