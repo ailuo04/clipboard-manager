@@ -29,27 +29,7 @@
             <Separator Margin="0,18,0,14" />
             <TextBlock Text="发布源" Style="{StaticResource SecondaryText}" />
             <TextBlock Text="GitHub · ailuo04/clipboard-manager" TextWrapping="Wrap" Margin="0,6,0,0" />
-            <Border Background="{DynamicResource SoftSurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
-                    BorderThickness="1" CornerRadius="12" Padding="10" Margin="0,16,0,0">
-                <Expander Header="私有仓库访问" Background="Transparent" BorderThickness="0">
-                    <StackPanel Margin="0,12,0,0">
-                        <TextBlock Text="GitHub 只读访问令牌" Margin="0,0,0,8" />
-                        <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <PasswordBox x:Name="UpdateTokenBox" MaxLength="255" Padding="10,8" VerticalContentAlignment="Center"
-                                         Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
-                                         AutomationProperties.Name="GitHub 只读访问令牌" />
-                            <Button x:Name="SaveUpdateTokenButton" Grid.Column="1" Style="{StaticResource IconButton}" ToolTip="保存到 Windows 凭据管理器" AutomationProperties.Name="保存访问令牌" Margin="8,0,0,0">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE74E;" />
-                            </Button>
-                            <Button x:Name="DeleteUpdateTokenButton" Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="删除已保存的访问令牌" AutomationProperties.Name="删除访问令牌" Margin="6,0,0,0">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
-                            </Button>
-                        </Grid>
-                        <TextBlock x:Name="UpdateCredentialText" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,8,0,0" />
-                    </StackPanel>
-                </Expander>
-            </Border>
+            <TextBlock Text="读取最新正式版，只下载发生变化的文件。" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,8,0,0" />
         </StackPanel>
     </ScrollViewer>
     <Border Grid.Row="2" Background="{DynamicResource SoftSurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"

@@ -12,53 +12,36 @@ public sealed class UpdateWindow : GlassDialogWindow
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TextBlock _status;
     private readonly TextBlock _details;
-    private readonly TextBlock _credentialStatus;
     private readonly ProgressBar _progress;
     private readonly Button _check;
     private readonly Button _install;
     private readonly Button _cancelDownload;
-    private readonly Button _saveToken;
-    private readonly Button _deleteToken;
-    private readonly PasswordBox _token;
     private AvailableUpdate? _available;
     private CancellationTokenSource? _download;
     private bool _busy;
     private bool _closed;
 
     public UpdateWindow(Window owner, UpdateService updates)
-        : base(owner, "应用更新", 510, 510, 430, 400)
+        : base(owner, "应用更新", 490, 430, 430, 360)
     {
         _updates = updates;
         var view = ViewLoader.Load<Grid>("Views/UpdateView.xaml");
         SetDialogContent(view);
         _status = (TextBlock)view.FindName("UpdateStatusText");
         _details = (TextBlock)view.FindName("UpdateDetailsText");
-        _credentialStatus = (TextBlock)view.FindName("UpdateCredentialText");
         _progress = (ProgressBar)view.FindName("UpdateProgressBar");
         _check = (Button)view.FindName("CheckUpdateButton");
         _install = (Button)view.FindName("InstallUpdateButton");
         _cancelDownload = (Button)view.FindName("CancelDownloadButton");
-        _saveToken = (Button)view.FindName("SaveUpdateTokenButton");
-        _deleteToken = (Button)view.FindName("DeleteUpdateTokenButton");
-        _token = (PasswordBox)view.FindName("UpdateTokenBox");
         ((TextBlock)view.FindName("CurrentVersionText")).Text = "当前版本 " + UpdateService.CurrentVersion;
         _check.Click += async (_, _) => await CheckAsync();
         _install.Click += async (_, _) => await InstallAsync();
         _cancelDownload.Click += (_, _) => _download?.Cancel();
         ((Button)view.FindName("CloseUpdateButton")).Click += (_, _) => Close();
-        _saveToken.Click += (_, _) => ChangeCredential(() => { UpdateCredentials.Save(_token.Password.Trim()); _token.Clear(); }, "访问令牌已安全保存。");
-        _deleteToken.Click += (_, _) => ChangeCredential(() => { UpdateCredentials.Delete(); _token.Clear(); }, "已删除保存的访问令牌。");
         Closing += OnClosing;
         Loaded += async (_, _) => await CheckAsync();
-        try { _credentialStatus.Text = UpdateCredentials.Read() is null ? "未保存访问令牌" : "已保存访问令牌"; }
-        catch (Exception exception) { _credentialStatus.Text = exception.Message; }
     }
 
-    private void ChangeCredential(Action action, string success)
-    {
-        try { action(); _credentialStatus.Text = success; }
-        catch (Exception exception) { _credentialStatus.Text = exception.Message; }
-    }
 
     private async Task CheckAsync()
     {
@@ -130,15 +113,11 @@ public sealed class UpdateWindow : GlassDialogWindow
         _busy = value;
         _check.IsEnabled = !value;
         _install.IsEnabled = !value && _available is not null;
-        _saveToken.IsEnabled = !value;
-        _deleteToken.IsEnabled = !value;
-        _token.IsEnabled = !value;
     }
 
     private void OnClosing(object? sender, CancelEventArgs args)
     {
         _closed = true;
         _lifetime.Cancel();
-        _token.Clear();
     }
 }
