@@ -13,6 +13,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly Window _owner;
     private readonly HistoryService _history;
     private readonly Action<bool>? _trayModeChanged;
+    private readonly WindowOverlayHost? _overlays;
     private readonly ClipboardReader _clipboard = new();
     private readonly ClipboardMonitor _monitor;
     private readonly CancellationTokenSource _lifetime = new();
@@ -42,10 +43,14 @@ public sealed class MainViewModel : ObservableObject
     private string _status = "正在加载历史记录…";
 
     public MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged = null)
+        : this(owner, history, trayModeChanged, null) { }
+
+    internal MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged, WindowOverlayHost? overlays)
     {
         _owner = owner;
         _history = history;
         _trayModeChanged = trayModeChanged;
+        _overlays = overlays;
         _monitor = new ClipboardMonitor(owner);
         _monitor.ClipboardChanged += OnClipboardChanged;
         _captureTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };

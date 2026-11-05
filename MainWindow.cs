@@ -19,6 +19,7 @@ public sealed class MainWindow : Window
     private readonly TextBox _searchBox;
     private readonly GlobalHotKey _hotKey;
     private readonly Grid _windowFrame;
+    private readonly WindowOverlayHost _overlayHost;
     private readonly Grid _titleBar;
     private readonly TextBlock _maximizeGlyph;
     private readonly SystemTrayIcon _trayIcon;
@@ -57,9 +58,11 @@ public sealed class MainWindow : Window
         var view = ViewLoader.Load<Grid>("Views/MainView.xaml");
         ((Grid)_windowFrame.FindName("WindowContent")).Children.Add(view);
         Content = _windowFrame;
+        _overlayHost = new WindowOverlayHost(this, _windowFrame);
         _historyList = (ListBox)view.FindName("HistoryList");
         _searchBox = (TextBox)view.FindName("SearchBox");
-        _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()), UpdateTrayMode);
+        _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()),
+            UpdateTrayMode, _overlayHost);
         _trayIcon = new SystemTrayIcon(this);
         _trayIcon.OpenRequested += (_, _) => OnHotKeyPressed(this, EventArgs.Empty);
         _trayIcon.PauseRequested += (_, _) => _viewModel.PauseCommand.Execute(null);
@@ -94,6 +97,7 @@ public sealed class MainWindow : Window
         Application.Current.SessionEnding += OnSessionEnding;
         Closed += (_, _) =>
         {
+            _overlayHost.Dispose();
             _hotKey.Dispose();
             Application.Current.SessionEnding -= OnSessionEnding;
             _trayIcon.Dispose();
@@ -189,6 +193,7 @@ public sealed class MainWindow : Window
         var dialog = OwnedWindows.Cast<Window>().LastOrDefault(window => window.IsVisible);
         if (dialog is not null) { dialog.Activate(); return; }
         Activate();
+        if (_overlayHost.IsOpen) return;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
             if (_viewModel.IsClosing || !IsEnabled) return;
@@ -230,6 +235,7 @@ public sealed class MainWindow : Window
 
     private async void OnClosing(object? sender, CancelEventArgs args)
     {
+        _overlayHost.CloseAll(null);
         if (!_exitRequested && _closeToTray && _viewModel.IsReady)
         {
             args.Cancel = true;

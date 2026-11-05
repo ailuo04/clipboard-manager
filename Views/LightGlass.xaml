@@ -60,6 +60,18 @@
     <SolidColorBrush x:Key="ReadOnlyBackgroundBrush" Color="#ECEFF2" />
     <SolidColorBrush x:Key="ErrorTextBrush" Color="#A53A3A" />
     <SolidColorBrush x:Key="DangerTextBrush" Color="#B3393F" />
+    <SolidColorBrush x:Key="OverlayScrimBrush" Color="#381B2930" />
+    <LinearGradientBrush x:Key="OverlayGlassBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#F7FFFFFF" Offset="0" />
+        <GradientStop Color="#E8F4F7F8" Offset="0.45" />
+        <GradientStop Color="#DCE9F0F2" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="OverlayEdgeBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FFFFFFFF" Offset="0" />
+        <GradientStop Color="#D9FFFFFF" Offset="0.55" />
+        <GradientStop Color="#8C9CBFC4" Offset="1" />
+    </LinearGradientBrush>
+    <DropShadowEffect x:Key="OverlayShadowEffect" Color="#3D334047" BlurRadius="32" ShadowDepth="8" Direction="270" Opacity="0.28" />
 
     <LinearGradientBrush x:Key="WindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#F2F3FAF8" Offset="0" />
