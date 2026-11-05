@@ -88,6 +88,21 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
     }
 
     [Fact]
+    public void SettingsViewRootExposesAccessiblePageName()
+    {
+        string path = Path.Combine(AppContext.BaseDirectory, "Xaml", "Views", "SettingsView.xaml");
+        XElement root = XDocument.Load(path).Root!;
+
+        Assert.Equal("设置", (string?)root.Attribute("AutomationProperties.Name"));
+
+        wpf.Run(() =>
+        {
+            Grid view = ViewLoader.Load<Grid>("Views/SettingsView.xaml");
+            Assert.Equal("设置", System.Windows.Automation.AutomationProperties.GetName(view));
+        });
+    }
+
+    [Fact]
     public void InvalidNumericInputShowsValidationAndDoesNotCompleteSave()
     {
         wpf.Run(() =>
