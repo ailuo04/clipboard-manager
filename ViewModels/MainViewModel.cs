@@ -130,6 +130,8 @@ public sealed class MainViewModel : ObservableObject
     private async Task InitializeCoreAsync()
     {
         if (IsClosing) return;
+        try { UpdateCredentials.DeleteLegacy(); }
+        catch (Exception exception) { AppLogger.LogException("清理旧版更新访问令牌失败", exception); }
         IsLoading = true;
         Notice = string.Empty;
         try

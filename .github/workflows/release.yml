@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version, for example 0.0.2'
+        description: 'Release version, for example 0.0.5'
         required: true
         type: string
       refresh_existing:
@@ -47,6 +47,9 @@ jobs:
           $existing = git rev-parse --verify --quiet "refs/tags/$tag^{commit}"
           if ($LASTEXITCODE -eq 0 -and $existing -ne (git rev-parse HEAD) -and $env:REFRESH_EXISTING -ne 'true') { throw 'Release tag points to a different commit.' }
           $global:LASTEXITCODE = 0
+      - name: Test updater release and delta behavior
+        shell: pwsh
+        run: dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj --configuration Release
       - name: Package self-contained Windows application
         shell: pwsh
         run: ./package.ps1 -Version '${{ steps.version.outputs.value }}'

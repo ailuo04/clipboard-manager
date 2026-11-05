@@ -12,7 +12,7 @@ using ClipboardManager.Utilities;
 namespace ClipboardManager.Services;
 
 public sealed record UpdateProgress(string Status, long Downloaded, long Total);
-public sealed record UpdateAsset(long Id, long Size);
+public sealed record UpdateAsset(long Id, long Size, string DownloadUrl);
 public sealed record AvailableUpdate(UpdateManifest Manifest, byte[] ManifestBytes, UpdatePlan Plan, IReadOnlyDictionary<string, UpdateAsset> Assets)
 {
     public long DownloadSize => Plan.Changes.Sum(file => file.CompressedSize);
@@ -23,17 +23,17 @@ public sealed class UpdateService : IDisposable
     public const string Repository = "ailuo04/clipboard-manager";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly HttpClient _client;
-    private readonly Func<string?> _getToken;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly string _root;
     private bool _prepared;
-    public static string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.3";
+    private string? _latestReleaseETag;
+    private byte[]? _latestReleaseMetadata;
+    public static string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.5";
 
-    public UpdateService(string? root = null, HttpMessageHandler? handler = null, Func<string?>? tokenProvider = null)
+    public UpdateService(string? root = null, HttpMessageHandler? handler = null)
     {
         _root = Path.GetFullPath(root ?? AppContext.BaseDirectory);
-        _getToken = tokenProvider ?? UpdateCredentials.Read;
         _client = handler is null ? new HttpClient() : new HttpClient(handler);
         _client.Timeout = TimeSpan.FromSeconds(30);
         _client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipboardManager/" + CurrentVersion);
@@ -48,7 +48,7 @@ public sealed class UpdateService : IDisposable
         try
         {
             var current = LoadCurrentManifest();
-            byte[] metadata = await GetMetadataAsync($"https://api.github.com/repos/{Repository}/releases/latest", false, token);
+            byte[] metadata = await GetLatestReleaseMetadataAsync(token);
             using var release = JsonDocument.Parse(metadata);
             var data = release.RootElement;
             if (data.GetProperty("draft").GetBoolean() || data.GetProperty("prerelease").GetBoolean()) return null;
@@ -70,7 +70,7 @@ public sealed class UpdateService : IDisposable
             }
             if (!assets.TryGetValue(manifestName, out var manifestAsset)) throw new InvalidDataException("此发行版没有增量更新清单，不会下载完整安装包。");
             if (manifestAsset.Size > 4 * 1024 * 1024) throw new InvalidDataException("更新清单过大。");
-            byte[] manifestBytes = await GetMetadataAsync(AssetUrl(manifestAsset), true, token);
+            byte[] manifestBytes = await GetMetadataAsync(manifestAsset.DownloadUrl, true, token);
             if (manifestBytes.LongLength != manifestAsset.Size) throw new InvalidDataException("更新清单长度不符。");
             var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestBytes, JsonOptions) ?? throw new InvalidDataException("更新清单为空。");
             UpdateFiles.ValidateManifest(manifest);
@@ -92,7 +92,8 @@ public sealed class UpdateService : IDisposable
             string name = asset.GetProperty("name").GetString() ?? "";
             long id = asset.GetProperty("id").GetInt64();
             long size = asset.GetProperty("size").GetInt64();
-            if (id <= 0 || size < 0 || !assets.TryAdd(name, new UpdateAsset(id, size)))
+            string downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
+            if (id <= 0 || size < 0 || !IsReleaseDownloadUrl(downloadUrl) || !assets.TryAdd(name, new UpdateAsset(id, size, downloadUrl)))
                 throw new InvalidDataException("发行附件信息不正确。");
         }
         return assets;
@@ -170,7 +171,7 @@ public sealed class UpdateService : IDisposable
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
         token = timeout.Token;
-        using var request = CreateRequest(AssetUrl(asset), true);
+        using var request = CreateRequest(asset.DownloadUrl, true);
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         EnsureSuccess(response);
         if (response.Content.Headers.ContentLength is long length && length != file.CompressedSize) throw new InvalidDataException("下载长度不符：" + file.Path);
@@ -275,15 +276,27 @@ public sealed class UpdateService : IDisposable
         finally { _gate.Release(); }
     }
 
-    private static string AssetUrl(UpdateAsset asset) => $"https://api.github.com/repos/{Repository}/releases/assets/{asset.Id}";
-
     private HttpRequestMessage CreateRequest(string url, bool asset)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(asset ? "application/octet-stream" : "application/vnd.github+json"));
-        string? token = _getToken();
-        if (!string.IsNullOrWhiteSpace(token)) request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return request;
+    }
+
+    private async Task<byte[]> GetLatestReleaseMetadataAsync(CancellationToken token)
+    {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(30));
+        token = timeout.Token;
+        using var request = CreateRequest($"https://api.github.com/repos/{Repository}/releases/latest", false);
+        if (_latestReleaseETag is not null) request.Headers.IfNoneMatch.ParseAdd(_latestReleaseETag);
+        using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+        if (response.StatusCode == HttpStatusCode.NotModified)
+            return _latestReleaseMetadata ?? throw new InvalidDataException("GitHub 返回了未修改状态，但本地没有缓存的发行版信息。");
+        EnsureSuccess(response);
+        _latestReleaseMetadata = await ReadMetadataContentAsync(response.Content, token);
+        _latestReleaseETag = response.Headers.ETag?.ToString();
+        return _latestReleaseMetadata;
     }
 
     private async Task<byte[]> GetMetadataAsync(string url, bool asset, CancellationToken token)
@@ -294,7 +307,12 @@ public sealed class UpdateService : IDisposable
         using var request = CreateRequest(url, asset);
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         EnsureSuccess(response);
-        await using var stream = await response.Content.ReadAsStreamAsync(token);
+        return await ReadMetadataContentAsync(response.Content, token);
+    }
+
+    private static async Task<byte[]> ReadMetadataContentAsync(HttpContent content, CancellationToken token)
+    {
+        await using var stream = await content.ReadAsStreamAsync(token);
         using var output = new MemoryStream();
         byte[] buffer = new byte[16384];
         int count;
@@ -306,12 +324,45 @@ public sealed class UpdateService : IDisposable
         return output.ToArray();
     }
 
+    private static bool IsReleaseDownloadUrl(string value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
+            return false;
+        return uri.AbsolutePath.StartsWith($"/{Repository}/releases/download/", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void EnsureSuccess(HttpResponseMessage response)
     {
-        if (response.StatusCode == HttpStatusCode.NotFound) throw new HttpRequestException("发布源不可访问或暂无发行版；私有仓库需要只读访问令牌。");
-        if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-            throw new HttpRequestException("更新访问被拒绝或请求达到频率限制，请检查令牌权限或稍后重试。");
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            throw new HttpRequestException("GitHub 未找到可公开访问的正式发行版或附件（HTTP 404）。请确认仓库公开可访问，并且已发布正式版本。", null, response.StatusCode);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+            throw new HttpRequestException("公开更新源拒绝了匿名请求（HTTP 401）。更新器不使用个人访问令牌；请检查仓库可见性或网络代理设置。", null, response.StatusCode);
+        if ((int)response.StatusCode == 429 || response.StatusCode == HttpStatusCode.Forbidden)
+        {
+            bool rateLimited = (int)response.StatusCode == 429 || response.Headers.RetryAfter is not null
+                || (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) && remaining.Any(value => value == "0"));
+            if (rateLimited)
+                throw new HttpRequestException($"GitHub API 请求频率已达上限（HTTP {(int)response.StatusCode}）。{GetRateLimitRetryHint(response)}", null, response.StatusCode);
+            if (response.StatusCode == HttpStatusCode.Forbidden)
+                throw new HttpRequestException("GitHub 拒绝了公开更新请求（HTTP 403）。请确认仓库可公开访问；若仓库已公开，可能是 GitHub 临时限制或网络代理拦截，请稍后重试。", null, response.StatusCode);
+        }
         response.EnsureSuccessStatusCode();
+    }
+
+    private static string GetRateLimitRetryHint(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter?.Delta is TimeSpan delay)
+            return $"请在约 {Math.Max(1, (int)Math.Ceiling(delay.TotalSeconds))} 秒后重试。";
+        if (retryAfter?.Date is DateTimeOffset retryAt)
+            return $"请于 {retryAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} 后重试。";
+        if (response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues)
+            && long.TryParse(resetValues.FirstOrDefault(), out long resetSeconds))
+        {
+            try { return $"请于 {DateTimeOffset.FromUnixTimeSeconds(resetSeconds).ToLocalTime():yyyy-MM-dd HH:mm:ss} 后重试。"; }
+            catch (ArgumentOutOfRangeException) { }
+        }
+        return "请稍后重试。";
     }
 
     public static string FormatSize(long bytes) => bytes < 1024 ? $"{bytes} B" : bytes < 1024 * 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes / (1024d * 1024):0.##} MB";

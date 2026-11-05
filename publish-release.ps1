@@ -11,7 +11,6 @@ if (-not $env:GH_TOKEN) { throw 'GH_TOKEN is required for release publication.' 
 $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; 'User-Agent' = 'ClipboardManager-release'; Accept = 'application/vnd.github+json'; 'X-GitHub-Api-Version' = '2022-11-28' }
 $api = "https://api.github.com/repos/$Repository"
 $tag = "v$Version"
-$updateTag = "updates-$tag"
 $commit = (git rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw 'Cannot determine the release source commit.' }
 
@@ -94,25 +93,11 @@ foreach ($file in @($downloads | Where-Object Extension -in @('.exe','.zip'))) {
 }
 
 $main = Get-Release $tag
-$updates = Get-Release $updateTag
-if (($main -or $updates) -and -not $RefreshExisting) { throw 'A release already exists. Refresh requires explicit approval.' }
-if (($main -and $main.immutable) -or ($updates -and $updates.immutable)) { throw 'Cannot refresh an immutable release.' }
+if ($main -and -not $RefreshExisting) { throw 'A release already exists. Refresh requires explicit approval.' }
+if ($main -and $main.immutable) { throw 'Cannot refresh an immutable release.' }
 if ($main -and $main.prerelease) { throw 'The application release must not be a prerelease.' }
-if ($updates -and -not $updates.prerelease) { throw 'Update data must be a prerelease, never the latest application.' }
-
-# Publish and verify the independent update data before changing the user-facing downloads.
-if (-not $updates) {
-    Invoke-GitHub -Arguments @('release','create',$updateTag,'--repo',$Repository,'--target',$commit,'--title',"自动更新数据 $tag（非安装包）",'--notes',"仅供应用内增量更新使用；请从 $tag 正式发行页下载安装包。",'--draft','--prerelease','--latest=false')
-}
-elseif (-not $updates.draft) { Invoke-GitHub -Arguments @('release','edit',$updateTag,'--repo',$Repository,'--draft=true','--latest=false') }
-Upload-Assets $updateTag $updateFiles ([bool]$updates)
-$updates = Get-Release $updateTag
-$updateNames = @($updateFiles.Name)
-$obsoleteUpdates = @($updates.assets | Where-Object name -NotIn $updateNames)
-if (@($obsoleteUpdates | Where-Object { $_.name -notmatch '^update-[0-9a-f]{64}\.gz$' }).Count) { throw 'Refusing to delete unknown update-data assets.' }
-Remove-Assets $obsoleteUpdates
-Assert-Assets (Get-Release $updateTag) $updateFiles
-Invoke-GitHub -Arguments @('release','edit',$updateTag,'--repo',$Repository,'--draft=false','--prerelease','--latest=false')
+$releaseFiles = @($downloads) + @($updateFiles)
+$releaseNames = @($releaseFiles | ForEach-Object Name)
 
 if (-not $main) {
     Invoke-GitHub -Arguments @('release','create',$tag,'--repo',$Repository,'--target',$commit,'--title',"剪贴板 $tag",'--notes-file',(Join-Path $PSScriptRoot 'RELEASE_NOTES.md'),'--draft')
@@ -122,19 +107,21 @@ else {
     if ($unknown.Count) { throw 'Refusing to delete unknown application release assets.' }
     Invoke-GitHub -Arguments @('release','edit',$tag,'--repo',$Repository,'--draft=true')
 }
-Upload-Assets $tag $downloads ([bool]$main)
+
+# Keep the manifest and content-addressed file blobs on the same published release as the installer.
+Upload-Assets $tag $releaseFiles ([bool]$main)
 $main = Get-Release $tag
-$obsoleteDownloads = @($main.assets | Where-Object name -NotIn $downloadNames)
-if (@($obsoleteDownloads | Where-Object { $_.name -ne "$name-update.json" -and $_.name -notmatch '^update-[0-9a-f]{64}\.gz$' }).Count) { throw 'Refusing to delete an unrecognized asset added during publication.' }
-Remove-Assets $obsoleteDownloads
-Assert-Assets (Get-Release $tag) $downloads
+$obsoleteAssets = @($main.assets | Where-Object name -NotIn $releaseNames)
+if (@($obsoleteAssets | Where-Object { $_.name -notin $downloadNames -and $_.name -ne "$name-update.json" -and $_.name -notmatch '^update-[0-9a-f]{64}\.gz$' }).Count) { throw 'Refusing to delete an unrecognized release asset.' }
+Remove-Assets $obsoleteAssets
+Assert-Assets (Get-Release $tag) $releaseFiles
 
 if ($RefreshExisting) {
     $oldTag = (git rev-parse "refs/tags/$tag").Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Existing release tag is missing.' }
     $oldCommit = (git rev-parse "refs/tags/$tag^{commit}").Trim()
     if ($oldCommit -ne $commit) {
-        git -c 'user.name=github-actions[bot]' -c 'user.email=41898282+github-actions[bot]@users.noreply.github.com' tag -f -a $tag -m "Refresh $tag with independent update data"
+        git -c 'user.name=github-actions[bot]' -c 'user.email=41898282+github-actions[bot]@users.noreply.github.com' tag -f -a $tag -m "Refresh $tag with file-level update assets"
         if ($LASTEXITCODE -ne 0) { throw 'Could not refresh the approved source tag.' }
         $lease = '--force-with-lease=refs/tags/{0}:{1}' -f $tag,$oldTag
         git push $lease origin "refs/tags/$tag"
@@ -142,4 +129,4 @@ if ($RefreshExisting) {
     }
 }
 Invoke-GitHub -Arguments @('release','edit',$tag,'--repo',$Repository,'--title',"剪贴板 $tag",'--notes-file',(Join-Path $PSScriptRoot 'RELEASE_NOTES.md'),'--draft=false','--latest')
-Write-Host "Published $tag with exactly four downloadable assets; update data is isolated at $updateTag."
+Write-Host "Published $tag with installer files and file-level incremental update assets on the same latest release."

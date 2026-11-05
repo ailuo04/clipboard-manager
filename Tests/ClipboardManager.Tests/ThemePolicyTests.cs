@@ -98,8 +98,6 @@ public sealed class ThemePolicyTests
             ("CurrentVersionText", "TextBlock"), ("CheckUpdateButton", "Button"),
             ("UpdateStatusText", "TextBlock"), ("UpdateDetailsText", "TextBlock"),
             ("UpdateProgressBar", "ProgressBar"), ("CancelDownloadButton", "Button"),
-            ("UpdateTokenBox", "PasswordBox"), ("SaveUpdateTokenButton", "Button"),
-            ("DeleteUpdateTokenButton", "Button"), ("UpdateCredentialText", "TextBlock"),
             ("CloseUpdateButton", "Button"), ("InstallUpdateButton", "Button"));
     }
 
