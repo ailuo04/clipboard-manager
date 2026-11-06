@@ -214,7 +214,7 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         wpf.Run(() =>
         {
             bool invoked = false;
-            SettingsOverlay overlay = CreateOverlay(new AppSettings(), () => invoked = true);
+            SettingsOverlay overlay = CreateOverlay(new AppSettings(), () => { invoked = true; return Task.CompletedTask; });
             var updateButton = (Button)((Grid)overlay.Content!).FindName("OpenUpdatesButton");
 
             Assert.True(updateButton.IsEnabled);
@@ -224,7 +224,7 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         });
     }
 
-    private static SettingsOverlay CreateOverlay(AppSettings settings, Action? showUpdates)
+    private static SettingsOverlay CreateOverlay(AppSettings settings, Func<Task>? showUpdates)
     {
         return new SettingsOverlay(settings, Path.GetTempPath(), showUpdates);
     }
