@@ -15,6 +15,7 @@ internal static class NativeMethods
     internal const int DwmwaWindowCornerPreference = 33;
     internal const int DwmwaSystemBackdropType = 38;
     internal const int DwmsbtTransientWindow = 3;
+    internal const uint MonitorDefaultToNearest = 2;
 
     [StructLayout(LayoutKind.Sequential)]
     internal struct NativeRect
@@ -24,6 +25,22 @@ internal static class NativeMethods
         internal int Right;
         internal int Bottom;
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct MonitorInfo
+    {
+        internal int Size;
+        internal NativeRect Monitor;
+        internal NativeRect Work;
+        internal uint Flags;
+    }
+
+    [DllImport("user32.dll")]
+    internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true, EntryPoint = "GetMonitorInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
 
     [DllImport("dwmapi.dll")]
     internal static extern int DwmGetWindowAttribute(IntPtr hwnd, int attribute, out NativeRect value, int size);

@@ -86,7 +86,7 @@ public sealed class ThemePolicyTests
         AssertControls("DetailsView.xaml",
             ("CopyButton", "Button"), ("FullImage", "Image"), ("ImageScroll", "ScrollViewer"),
             ("FitCheckBox", "CheckBox"), ("ZoomSlider", "Slider"), ("ZoomLabel", "TextBlock"),
-            ("StatusLabel", "TextBlock"), ("CloseButton", "Button"));
+            ("StatusLabel", "TextBlock"), ("CloseDetailsButton", "Button"));
         AssertControls("SettingsView.xaml",
             ("ThemeDarkRadio", "RadioButton"), ("ThemeLightRadio", "RadioButton"), ("ThemeSystemRadio", "RadioButton"),
             ("MaxRecordsBox", "TextBox"), ("MaxStorageBox", "TextBox"), ("AlwaysOnTopCheckBox", "CheckBox"),

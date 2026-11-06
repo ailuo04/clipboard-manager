@@ -1,6 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
@@ -12,26 +10,17 @@ namespace ClipboardManager.Services;
 
 public static class ThemeManager
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
-    };
-
     private static ResourceDictionary? _palette;
     private static bool _initialized;
     private static AppTheme _preference = AppTheme.Light;
-    private static bool _isDark = true;
+    private static bool _isDark = false;
 
     public static AppTheme Preference => _preference;
 
-    internal static AppTheme ResolvePreference(AppTheme? savedPreference) =>
-        savedPreference is AppTheme preference && Enum.IsDefined(preference) ? preference : AppTheme.Light;
-
+    internal static AppTheme ResolvePreference(AppTheme? saved) => ThemePreferencePolicy.Resolve(saved);
     public static bool IsDark => _isDark;
     public static event EventHandler? ThemeChanged;
+
 
     public static void Initialize()
     {
@@ -44,13 +33,14 @@ public static class ThemeManager
 
     public static void SetPreference(AppTheme preference)
     {
+        preference = ThemePreferencePolicy.Resolve(preference);
         Apply(preference);
         SavePreference(preference);
     }
 
     public static void Apply(AppTheme preference)
     {
-        preference = ResolvePreference(preference);
+        if (!Enum.IsDefined(preference)) preference = ThemePreferencePolicy.Resolve(null);
         bool dark = preference switch
         {
             AppTheme.Light => false,
@@ -69,25 +59,6 @@ public static class ThemeManager
         application.Resources.MergedDictionaries.Insert(0, palette);
         _palette = palette;
         ThemeChanged?.Invoke(null, EventArgs.Empty);
-    }
-
-    internal static void ApplyBackdrop(Window window)
-    {
-        try
-        {
-            IntPtr handle = new WindowInteropHelper(window).Handle;
-            if (handle == IntPtr.Zero) return;
-            int backdropType = NativeMethods.DwmsbtTransientWindow;
-            _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaSystemBackdropType, ref backdropType,
-                Marshal.SizeOf<int>());
-            int cornerPreference = 2;
-            _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaWindowCornerPreference, ref cornerPreference,
-                Marshal.SizeOf<int>());
-            int darkMode = _isDark ? 1 : 0;
-            _ = NativeMethods.DwmSetWindowAttribute(handle, NativeMethods.DwmwaUseImmersiveDarkMode, ref darkMode,
-                Marshal.SizeOf<int>());
-        }
-        catch (Exception exception) { AppLogger.LogException("设置窗口玻璃背景失败", exception); }
     }
 
     /// <summary>Keeps the native title bar and DWM backdrop in sync with the app theme.</summary>
@@ -145,14 +116,13 @@ public static class ThemeManager
     {
         try
         {
-            if (!File.Exists(AppPaths.ThemeFilePath)) return ResolvePreference(null);
-            var document = JsonSerializer.Deserialize<ThemeDocument>(File.ReadAllText(AppPaths.ThemeFilePath), JsonOptions);
-            return ResolvePreference(document?.Theme);
+            if (!File.Exists(AppPaths.ThemeFilePath)) return ThemePreferencePolicy.ResolveSavedPreferenceJson(null);
+            return ThemePreferencePolicy.ResolveSavedPreferenceJson(File.ReadAllText(AppPaths.ThemeFilePath));
         }
         catch (Exception exception)
         {
-            AppLogger.LogException("读取主题设置失败，回退到浅色主题", exception);
-            return ResolvePreference(null);
+            AppLogger.LogException("读取主题设置失败，使用浅色主题", exception);
+            return ThemePreferencePolicy.Resolve(null);
         }
     }
 
@@ -162,7 +132,7 @@ public static class ThemeManager
         try
         {
             Directory.CreateDirectory(AppPaths.RootDirectory);
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(new ThemeDocument { Theme = preference }, JsonOptions));
+            File.WriteAllText(temporaryPath, ThemePreferencePolicy.SerializePreference(preference));
             File.Move(temporaryPath, AppPaths.ThemeFilePath, overwrite: true);
         }
         catch (Exception exception)
@@ -176,9 +146,4 @@ public static class ThemeManager
         }
     }
 
-}
-
-internal sealed class ThemeDocument
-{
-    public AppTheme Theme { get; set; } = AppTheme.Light;
 }

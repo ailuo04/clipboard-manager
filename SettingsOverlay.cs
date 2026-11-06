@@ -7,24 +7,25 @@ using ClipboardManager.Utilities;
 
 namespace ClipboardManager;
 
-public sealed class SettingsWindow : GlassDialogWindow
+internal sealed class SettingsOverlay : OverlayView
 {
     private readonly AppTheme _openedTheme;
 
-    public SettingsWindow(Window owner, AppSettings settings, string dataDirectory, Action? showUpdates = null)
-        : base(owner, "设置", 510, 660, 460, 510)
+    internal SettingsOverlay(AppSettings settings, string dataDirectory, Func<Task>? showUpdates = null)
     {
+        ArgumentNullException.ThrowIfNull(settings);
         _openedTheme = ThemeManager.Preference;
         Settings = settings.Clone();
         var view = ViewLoader.Load<Grid>("Views/SettingsView.xaml");
-        SetDialogContent(view);
+        Content = view;
+
         var records = (TextBox)view.FindName("MaxRecordsBox");
         var storage = (TextBox)view.FindName("MaxStorageBox");
         var validation = (TextBlock)view.FindName("ValidationText");
         var themeDark = (RadioButton)view.FindName("ThemeDarkRadio");
         var themeLight = (RadioButton)view.FindName("ThemeLightRadio");
         var themeSystem = (RadioButton)view.FindName("ThemeSystemRadio");
-        switch (ThemeManager.Preference)
+        switch (_openedTheme)
         {
             case AppTheme.Light: themeLight.IsChecked = true; break;
             case AppTheme.System: themeSystem.IsChecked = true; break;
@@ -36,6 +37,7 @@ public sealed class SettingsWindow : GlassDialogWindow
         themeDark.Checked += PreviewTheme;
         themeLight.Checked += PreviewTheme;
         themeSystem.Checked += PreviewTheme;
+
         var alwaysOnTop = (CheckBox)view.FindName("AlwaysOnTopCheckBox");
         var autoUpdates = (CheckBox)view.FindName("AutoCheckUpdatesCheckBox");
         var minimizeToTray = (CheckBox)view.FindName("MinimizeToTrayCheckBox");
@@ -43,17 +45,14 @@ public sealed class SettingsWindow : GlassDialogWindow
         minimizeToTray.IsChecked = Settings.MinimizeToTray;
         var updateButton = (Button)view.FindName("OpenUpdatesButton");
         updateButton.IsEnabled = showUpdates is not null;
-        updateButton.Click += (_, _) => showUpdates?.Invoke();
-        ((TextBlock)view.FindName("SettingsVersionText")).Text = "当前版本 " + Services.UpdateService.CurrentVersion;
+        updateButton.Click += (_, _) => { if (showUpdates is not null) StartOperation(showUpdates); };
+        ((TextBlock)view.FindName("SettingsVersionText")).Text = "当前版本 " + UpdateService.CurrentVersion;
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
         alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
         ((TextBox)view.FindName("DirectoryBox")).Text = dataDirectory;
-        ((Button)view.FindName("CancelButton")).Click += (_, _) => DialogResult = false;
-        Closing += (_, _) =>
-        {
-            if (DialogResult != true) ThemeManager.Apply(_openedTheme);
-        };
+        ((Button)view.FindName("CloseSettingsButton")).Click += (_, _) => Complete(null);
+        ((Button)view.FindName("CancelButton")).Click += (_, _) => Complete(false);
         ((Button)view.FindName("SaveButton")).Click += (_, _) =>
         {
             if (!int.TryParse(records.Text, out int count) || count is < 50 or > 5000)
@@ -68,17 +67,26 @@ public sealed class SettingsWindow : GlassDialogWindow
                 storage.Focus();
                 return;
             }
-            if ((count < settings.MaxRecords || megabytes < settings.MaxStorageMb)
-                && MessageBox.Show(this, "降低上限可能立即清理最早的未固定记录，确定保存吗？", "调整保留上限",
-                    MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+            if (count < settings.MaxRecords || megabytes < settings.MaxStorageMb)
+            {
+                const string message = "降低上限可能立即清理最早的未固定记录，确定保存吗？";
+                const string title = "调整保留上限";
+                Window? owner = Window.GetWindow(this);
+                MessageBoxResult confirmation = owner is null
+                    ? MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No)
+                    : MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+                if (confirmation != MessageBoxResult.Yes) return;
+            }
+
+            AppTheme selectedTheme = SelectedThemeValue();
             Settings = Settings.Clone();
             Settings.MaxRecords = count;
             Settings.MaxStorageMb = megabytes;
             Settings.AlwaysOnTop = alwaysOnTop.IsChecked == true;
             Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
             Settings.MinimizeToTray = minimizeToTray.IsChecked == true;
-            SelectedTheme = SelectedThemeValue();
-            DialogResult = true;
+            SelectedTheme = selectedTheme;
+            Complete(true);
         };
         ((Button)view.FindName("OpenDirectoryButton")).Click += (_, _) => OpenPath(dataDirectory, validation);
         ((Button)view.FindName("OpenLogButton")).Click += (_, _) =>
@@ -92,6 +100,18 @@ public sealed class SettingsWindow : GlassDialogWindow
 
     public AppTheme SelectedTheme { get; private set; } = ThemeManager.Preference;
 
+    internal override void OnDismissed(bool? result)
+    {
+        if (result != true) ThemeManager.Apply(_openedTheme);
+    }
+
+    private static void StartOperation(Func<Task> operation) => _ = ObserveOperationAsync(operation);
+
+    private static async Task ObserveOperationAsync(Func<Task> operation)
+    {
+        try { await operation(); }
+        catch (Exception exception) { AppLogger.LogException("打开更新失败", exception); }
+    }
     private static void OpenPath(string path, TextBlock validation)
     {
         try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }

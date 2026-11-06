@@ -13,6 +13,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly Window _owner;
     private readonly HistoryService _history;
     private readonly Action<bool>? _trayModeChanged;
+    private readonly WindowOverlayHost? _overlays;
     private readonly ClipboardReader _clipboard = new();
     private readonly ClipboardMonitor _monitor;
     private readonly CancellationTokenSource _lifetime = new();
@@ -22,6 +23,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly DispatcherTimer _updateTimer;
     private readonly UpdateService _updates = new();
     private Task _updateTask = Task.CompletedTask;
+    private Task _updateOverlayTask = Task.CompletedTask;
     private Task _updateCleanupTask = Task.CompletedTask;
     private List<RecordViewModel> _allRecords = [];
     private Task _captureTask = Task.CompletedTask;
@@ -42,10 +44,14 @@ public sealed class MainViewModel : ObservableObject
     private string _status = "正在加载历史记录…";
 
     public MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged = null)
+        : this(owner, history, trayModeChanged, null) { }
+
+    internal MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged, WindowOverlayHost? overlays)
     {
         _owner = owner;
         _history = history;
         _trayModeChanged = trayModeChanged;
+        _overlays = overlays;
         _monitor = new ClipboardMonitor(owner);
         _monitor.ClipboardChanged += OnClipboardChanged;
         _captureTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -56,7 +62,7 @@ public sealed class MainViewModel : ObservableObject
         _updateTimer.Tick += OnUpdateTimer;
         ClearCommand = new AsyncRelayCommand(ClearAsync, () => CanAct && _allRecords.Count > 0);
         SettingsCommand = new AsyncRelayCommand(ShowSettingsAsync, () => CanAct);
-        UpdateCommand = new RelayCommand(() => ShowUpdates(_owner), () => CanAct);
+        UpdateCommand = new AsyncRelayCommand(ShowUpdatesAsync, () => CanAct);
         ToggleAlwaysOnTopCommand = new AsyncRelayCommand(ToggleAlwaysOnTopAsync, () => CanAct);
         RetryCommand = new AsyncRelayCommand(InitializeAsync, () => !IsLoading && !IsClosing);
         PauseCommand = new RelayCommand(() =>
@@ -184,9 +190,14 @@ public sealed class MainViewModel : ObservableObject
         if (warning is not null) Notice = warning;
     }, "更新固定状态失败");
 
-    public void ShowDetails(RecordViewModel item)
+    public async Task ShowDetails(RecordViewModel item)
     {
-        try { new DetailsWindow(_owner, item, _clipboard, _monitor.Handle).ShowDialog(); }
+        try
+        {
+            if (_overlays is null || IsClosing) return;
+            var details = new DetailsOverlay(item, _clipboard, _monitor.Handle);
+            await _overlays.ShowAsync(details, OverlaySize.Details);
+        }
         catch (Exception exception) { Report("打开详情失败", exception); }
     }
 
@@ -203,6 +214,8 @@ public sealed class MainViewModel : ObservableObject
         _monitor.ClipboardChanged -= OnClipboardChanged;
         _monitor.Dispose();
         _lifetime.Cancel();
+        _overlays?.CloseAll(null);
+        await _updateOverlayTask;
         await _initializationTask;
         await _captureTask;
         await _updateTask;
@@ -233,9 +246,9 @@ public sealed class MainViewModel : ObservableObject
     {
         try
         {
-            SettingsWindow? dialog = null;
-            dialog = new SettingsWindow(_owner, _history.Settings, _history.RootDirectory, () => ShowUpdates(dialog!));
-            if (dialog.ShowDialog() != true) return;
+            if (_overlays is null) return;
+            var dialog = new SettingsOverlay(_history.Settings, _history.RootDirectory, ShowUpdatesAsync);
+            if (await _overlays.ShowAsync(dialog, OverlaySize.Settings) != true) return;
             await RunOperationAsync(async () =>
             {
                 string? warning = await _history.UpdateSettingsAsync(dialog.Settings, _lifetime.Token);
@@ -251,13 +264,31 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception exception) { Report("打开设置失败", exception); }
     }
 
-    private void ShowUpdates(Window owner)
+    private Task ShowUpdatesAsync()
     {
+        if (_overlays is null || IsClosing) return Task.CompletedTask;
+        Task? operation = null;
+        operation = ShowUpdatesCoreAsync(() =>
+        {
+            if (ReferenceEquals(_updateOverlayTask, operation)) _updateOverlayTask = Task.CompletedTask;
+        });
+        _updateOverlayTask = operation;
+        return operation;
+    }
+
+    private async Task ShowUpdatesCoreAsync(Action clearTracking)
+    {
+        bool handedOff = false;
         try
         {
-            if (new UpdateWindow(owner, _updates).ShowDialog() != true || IsClosing) return;
-            _updates.LaunchPrepared();
-            foreach (Window dialog in _owner.OwnedWindows.Cast<Window>().ToArray()) dialog.Close();
+            if (_overlays is null || IsClosing) return;
+            var overlay = new UpdateOverlay(_updates);
+            bool? result = await _overlays.ShowAsync(overlay, OverlaySize.Update);
+            await overlay.WhenIdle;
+            if (result != true || IsClosing) return;
+            clearTracking();
+            handedOff = true;
+            _overlays.CloseAll(null);
             if (_owner is MainWindow mainWindow) mainWindow.ExitApplication();
             else _owner.Close();
         }
@@ -267,8 +298,11 @@ public sealed class MainViewModel : ObservableObject
             catch (Exception cleanup) { AppLogger.LogException("清理未启动的更新失败", cleanup); }
             Report("启动更新失败", exception);
         }
+        finally
+        {
+            if (!handedOff) clearTracking();
+        }
     }
-
     private void OnUpdateTimer(object? sender, EventArgs args)
     {
         _updateTimer.Interval = TimeSpan.FromHours(6);
@@ -417,7 +451,7 @@ public sealed class MainViewModel : ObservableObject
         Raise(nameof(EmptyTitle)); Raise(nameof(EmptySubtitle));
         (ClearCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (SettingsCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
-        (UpdateCommand as RelayCommand)?.RaiseCanExecuteChanged();
+        (UpdateCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (ToggleAlwaysOnTopCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (RetryCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (PauseCommand as RelayCommand)?.RaiseCanExecuteChanged();

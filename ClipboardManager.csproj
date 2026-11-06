@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClipboardManager</RootNamespace>
     <AssemblyName>ClipboardManager</AssemblyName>
-    <Version>0.0.5</Version>
+    <Version>0.0.6</Version>
     <Product>ClipboardManager</Product>
     <Description>Windows clipboard history manager with text, images, search, and pinning.</Description>
     <ApplicationIcon>Assets\Clipboard.ico</ApplicationIcon>
@@ -19,7 +19,6 @@
   <ItemGroup>
     <Compile Remove="UpdateHelper\**\*.cs" />
     <Compile Remove="Tests\**\*.cs" />
-    <InternalsVisibleTo Include="ClipboardManager.Tests" />
     <Using Include="System.IO" />
     <EmbeddedResource Include="App.xaml;Views\*.xaml;Assets\Clipboard.ico" />
   </ItemGroup>

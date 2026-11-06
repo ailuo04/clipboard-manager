@@ -6,11 +6,11 @@ Windows 11 中文桌面剪贴板管理器。自动保存文本、截图和图片
 
 在仓库的 [最新正式版](../../releases/latest) 页面下载唯一提供的 Windows 11 x64 安装包：
 
-- 安装版：下载 ClipboardManager-0.0.5-win-x64-setup.exe，运行中文安装向导。默认安装到当前用户的 %LOCALAPPDATA%\Programs\ClipboardManager；可在安装向导中调整桌面快捷方式和安装后启动选项。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
+- 安装版：下载 ClipboardManager-0.0.6-win-x64-setup.exe，运行中文安装向导。默认安装到当前用户的 %LOCALAPPDATA%\Programs\ClipboardManager；可在安装向导中调整桌面快捷方式和安装后启动选项。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
 
 安装包自带运行环境，不需要管理员权限，也不必另装 .NET SDK 或运行时。安装、升级和卸载均不删除本机历史数据。
 
-首次运行可能出现 Windows 未知发布者提示，因为应用尚未代码签名。请确认下载来源，并在 GitHub 附件详情中核对 SHA256 摘要；PowerShell 可用 Get-FileHash .\ClipboardManager-0.0.5-win-x64-setup.exe -Algorithm SHA256 计算本地值进行比对。不要关闭系统安全防护。
+首次运行可能出现 Windows 未知发布者提示，因为应用尚未代码签名。请确认下载来源，并在 GitHub 附件详情中核对 SHA256 摘要；PowerShell 可用 Get-FileHash .\ClipboardManager-0.0.6-win-x64-setup.exe -Algorithm SHA256 计算本地值进行比对。不要关闭系统安全防护。
 
 完整操作、升级和卸载说明见 [使用说明](docs/USAGE.md)，当前版本介绍见 [发行说明](RELEASE_NOTES.md)。
 
@@ -82,8 +82,8 @@ v0.0.2 曾按确认完成同版本重建，旧批次用户需重新安装一次�
 旧发行版不含更新器，必须先手动升级一次到含本功能的发行版。此后新发行版必须由新版发布流程生成更新清单和文件附件，且打包方式保持一致；缺少附件、无权限或打包方式改变时明确报错，**绝不退回全量更新**。自动更新需要程序目录可写，不申请管理员权限。
 
 ```powershell
-.\package.ps1 -Version 0.0.5
-.\installer.ps1 -Archive .\dist\ClipboardManager-0.0.5-win-x64.zip -Version 0.0.5
+.\package.ps1 -Version 0.0.6
+.\installer.ps1 -Archive .\dist\ClipboardManager-0.0.6-win-x64.zip -Version 0.0.6
 ```
 
 在 `dist` 生成 Windows x64 便携 ZIP、SHA256、增量更新清单及逐文件压缩附件。有 SDK 时使用标准 `dotnet publish --self-contained true`；没有 SDK 时，编译应用并将本机匹配版本的 .NET 8 Core、Windows Desktop 和 hostfxr 复制到包内私有 `runtime` 目录，保留 .NET 许可声明，不安装或修改系统运行环境。包内 `release.json` 记录应用版本、运行环境版本和构建方式；离线打包不会下载最新安全补丁，正式维护应定期重发包含更新运行环境的版本。
@@ -153,9 +153,9 @@ GitHub Actions 工作流 `.github/workflows/release.yml` 在 Windows 上先运�
 | `build.ps1`、`Start.ps1`、`package.ps1` | 本地构建、启动、自带运行环境的打包 |
 | `.github/workflows/release.yml` | GitHub Windows 自包含构建与 Release 发布 |
 
-## 本次打包验证
+## 历史版本打包验证
 
-v0.0.3 已于 2026 年 10 月 28 日通过 GitHub Actions 正式发布：SDK 自包含构建、中文安装包、安装/重装/启动/卸载及历史数据保留检查全部通过。正式下载页 4 个附件，独立更新数据区 updates-v0.0.3 共 468 个附件。重新下载的便携 ZIP（72,333,609 字节）和安装 EXE（51,175,386 字节）均与各自 SHA256 文件及 GitHub 摘要一致；本地离线 Roslyn 构建、XAML 资源键覆盖检查、实际窗口启动和离线打包（476 个文件、475 个更新附件）也已通过。发布后已清理临时校验下载。
+v0.0.3 已于 2026 年 10 月 28 日通过 GitHub Actions 正式发布；SDK 自包含构建、中文安装包、安装/重装/启动/卸载及历史数据保留检查全部通过。正式下载页 4 个附件，独立更新数据区 updates-v0.0.3 共 468 个附件。重新下载的便携 ZIP（72,333,609 字节）和安装 EXE（51,175,386 字节）均与各自 SHA256 文件及 GitHub 摘要一致；本地离线 Roslyn 构建、XAML 资源键覆盖检查、实际窗口启动和离线打包（476 个文件、475 个更新附件）也已通过。发布后已清理临时校验下载。
 
 增量更新改造已通过 71 项隔离检查，覆盖仅下载改动文件、压缩流直接写入、取消及损坏下载清理、文件增删、未变化运行环境不重写、不覆盖用户文件、路径越界保护、设置兼容、卸载清理及大小窗口的 WPF 离屏渲染。另以真实 .NET Framework 更新进程和独立启动器验证了中断恢复、文件替换、新版启动就绪和临时文件清理；离线包内 476 个程序文件与 475 个唯一压缩附件逐一通过 SHA256 校验，包内外更新清单一致。测试源码、数据、截图和临时验证包在完成后清理，保留应用构建结果。
 
