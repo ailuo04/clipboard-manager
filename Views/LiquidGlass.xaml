@@ -12,8 +12,8 @@
     <SolidColorBrush x:Key="BorderBrush" Color="#35FFFFFF" />
     <SolidColorBrush x:Key="GlassStrokeBrush" Color="#40FFFFFF" />
     <SolidColorBrush x:Key="GlassShadowBrush" Color="#27182A31" />
-    <SolidColorBrush x:Key="HoverSurfaceBrush" Color="#557F7D87" />
-    <SolidColorBrush x:Key="PressedSurfaceBrush" Color="#806A778A" />
+    <SolidColorBrush x:Key="HoverSurfaceBrush" Color="#667D7D89" />
+    <SolidColorBrush x:Key="PressedSurfaceBrush" Color="#916A778A" />
     <SolidColorBrush x:Key="PinnedGlassBrush" Color="#45618CB5" />
     <SolidColorBrush x:Key="PinnedBorderBrush" Color="#A7D4C6" />
     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#F21B1C21" />
@@ -34,16 +34,16 @@
     <SolidColorBrush x:Key="CaptionSeparatorBrush" Color="#35757F80" />
     <SolidColorBrush x:Key="CloseHoverBrush" Color="#C42B2B" />
     <SolidColorBrush x:Key="ClosePressedBrush" Color="#A52626" />
-    <SolidColorBrush x:Key="FilterPanelBrush" Color="#183C3B42" />
+    <SolidColorBrush x:Key="FilterPanelBrush" Color="#24444750" />
     <SolidColorBrush x:Key="FilterPanelBorderBrush" Color="#24FFFFFF" />
-    <SolidColorBrush x:Key="FilterHoverBrush" Color="#4FFFFFFF" />
+    <SolidColorBrush x:Key="FilterHoverBrush" Color="#5CFFFFFF" />
     <SolidColorBrush x:Key="FilterSelectedBorderBrush" Color="#A8FFFFFF" />
     <SolidColorBrush x:Key="FilterSelectedForegroundBrush" Color="#F2F5FF" />
     <SolidColorBrush x:Key="NoticeBackgroundBrush" Color="#FFF2D9" />
     <SolidColorBrush x:Key="NoticeBorderBrush" Color="#F0D69E" />
     <SolidColorBrush x:Key="NoticeTextBrush" Color="#704E13" />
     <SolidColorBrush x:Key="RecordShadowBrush" Color="#1D213D43" />
-    <SolidColorBrush x:Key="RecordHoverBrush" Color="#607C7A85" />
+    <SolidColorBrush x:Key="RecordHoverBrush" Color="#6B7C7A85" />
     <SolidColorBrush x:Key="RecordHoverBorderBrush" Color="#BAFFFFFF" />
     <SolidColorBrush x:Key="RecordSelectedBorderBrush" Color="#809CC6F4" />
     <SolidColorBrush x:Key="TagBackgroundBrush" Color="#305A6578" />
@@ -54,7 +54,7 @@
     <SolidColorBrush x:Key="PinActiveBackgroundBrush" Color="#405A7BA0" />
     <SolidColorBrush x:Key="EmptyIconBackgroundBrush" Color="#303C4B60" />
     <SolidColorBrush x:Key="EmptyIconBorderBrush" Color="#BAFFFFFF" />
-    <SolidColorBrush x:Key="StatusBarBrush" Color="#20464550" />
+    <SolidColorBrush x:Key="StatusBarBrush" Color="#2B464550" />
     <SolidColorBrush x:Key="ImageWellBackgroundBrush" Color="#20212229" />
     <SolidColorBrush x:Key="ImageWellBorderBrush" Color="#7CFFFFFF" />
     <SolidColorBrush x:Key="ReadOnlyBackgroundBrush" Color="#2A2B31" />
@@ -107,8 +107,8 @@
         <GradientStop Color="#879CC6F4" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="SelectionBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#526482A0" Offset="0" />
-        <GradientStop Color="#32465972" Offset="1" />
+        <GradientStop Color="#5D6482A0" Offset="0" />
+        <GradientStop Color="#3D465972" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="PrimaryBrush" StartPoint="0,0" EndPoint="0,1">
         <GradientStop Color="#228671" Offset="0" />

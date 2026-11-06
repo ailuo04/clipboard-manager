@@ -56,7 +56,7 @@ internal sealed class DetailsOverlay : OverlayView
         _zoomLabel = (TextBlock)view.FindName("ZoomLabel");
         _scroll = (ScrollViewer)view.FindName("ImageScroll");
 
-        ((Button)view.FindName("CloseButton")).Click += (_, _) => Complete(null);
+        ((Button)view.FindName("CloseDetailsButton")).Click += (_, _) => Complete(null);
         _copy.Click += async (_, _) => await CopyAsync(item);
         _fit.Checked += (_, _) => UpdateZoom();
         _fit.Unchecked += (_, _) => UpdateZoom();

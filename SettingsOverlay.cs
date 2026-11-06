@@ -51,6 +51,7 @@ internal sealed class SettingsOverlay : OverlayView
         storage.Text = Settings.MaxStorageMb.ToString();
         alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
         ((TextBox)view.FindName("DirectoryBox")).Text = dataDirectory;
+        ((Button)view.FindName("CloseSettingsButton")).Click += (_, _) => Complete(null);
         ((Button)view.FindName("CancelButton")).Click += (_, _) => Complete(false);
         ((Button)view.FindName("SaveButton")).Click += (_, _) =>
         {

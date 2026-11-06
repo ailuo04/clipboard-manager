@@ -4,13 +4,16 @@
         <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
     <Grid Margin="0,0,0,20">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <StackPanel>
             <TextBlock Text="应用更新" FontSize="20" FontWeight="SemiBold" />
             <TextBlock x:Name="CurrentVersionText" Style="{StaticResource SecondaryText}" Margin="0,6,0,0" />
         </StackPanel>
         <Button x:Name="CheckUpdateButton" Grid.Column="1" Style="{StaticResource IconButton}" ToolTip="检查更新" AutomationProperties.Name="检查更新" VerticalAlignment="Center">
             <TextBlock Style="{StaticResource Icon}" Text="&#xE72C;" />
+        </Button>
+        <Button x:Name="CloseUpdateButton" Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="关闭应用更新" AutomationProperties.Name="关闭应用更新" IsCancel="True" Margin="8,0,0,0" VerticalAlignment="Center">
+            <TextBlock Style="{StaticResource Icon}" Text="&#xE711;" />
         </Button>
     </Grid>
     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -43,7 +46,6 @@
         </StackPanel>
     </ScrollViewer>
     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-        <Button x:Name="CloseUpdateButton" Content="关闭" IsCancel="True" MinWidth="84" Margin="0,0,10,0" />
         <Button x:Name="InstallUpdateButton" Style="{StaticResource PrimaryButton}" IsEnabled="False" MinWidth="120">
             <StackPanel Orientation="Horizontal"><TextBlock Style="{StaticResource Icon}" Text="&#xE895;" Margin="0,0,8,0" /><TextBlock Text="更新并重启" /></StackPanel>
         </Button>
