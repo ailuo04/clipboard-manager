@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using ClipboardManager.Services;
@@ -6,9 +5,11 @@ using ClipboardManager.Utilities;
 
 namespace ClipboardManager;
 
-public sealed class UpdateWindow : Window
+internal sealed class UpdateOverlay : OverlayView
 {
-    private readonly UpdateService _updates;
+    private readonly Func<CancellationToken, Task<AvailableUpdate?>> _checkAsync;
+    private readonly Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> _prepareAsync;
+    private readonly Action _cancelPrepared;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TextBlock _status;
     private readonly TextBlock _details;
@@ -24,16 +25,20 @@ public sealed class UpdateWindow : Window
     private CancellationTokenSource? _download;
     private bool _busy;
     private bool _closed;
+    private bool _autoCheckStarted;
 
-    public UpdateWindow(Window owner, UpdateService updates)
+    internal UpdateOverlay(UpdateService updates)
+        : this(updates.CheckAsync, updates.PrepareAsync, updates.CancelPrepared) { }
+
+    internal UpdateOverlay(
+        Func<CancellationToken, Task<AvailableUpdate?>> checkAsync,
+        Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> prepareAsync,
+        Action cancelPrepared)
     {
-        _updates = updates;
-        SetResourceReference(StyleProperty, typeof(Window));
-        Owner = owner;
-        Title = "应用更新";
-        Width = 510; Height = 510; MinWidth = 430; MinHeight = 400;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        ThemeManager.RegisterWindow(this);
+        _checkAsync = checkAsync ?? throw new ArgumentNullException(nameof(checkAsync));
+        _prepareAsync = prepareAsync ?? throw new ArgumentNullException(nameof(prepareAsync));
+        _cancelPrepared = cancelPrepared ?? throw new ArgumentNullException(nameof(cancelPrepared));
+
         var view = ViewLoader.Load<Grid>("Views/UpdateView.xaml");
         Content = view;
         _status = (TextBlock)view.FindName("UpdateStatusText");
@@ -49,20 +54,38 @@ public sealed class UpdateWindow : Window
         ((TextBlock)view.FindName("CurrentVersionText")).Text = "当前版本 " + UpdateService.CurrentVersion;
         _check.Click += async (_, _) => await CheckAsync();
         _install.Click += async (_, _) => await InstallAsync();
-        _cancelDownload.Click += (_, _) => _download?.Cancel();
-        ((Button)view.FindName("CloseUpdateButton")).Click += (_, _) => Close();
-        _saveToken.Click += (_, _) => ChangeCredential(() => { UpdateCredentials.Save(_token.Password.Trim()); _token.Clear(); }, "访问令牌已安全保存。");
-        _deleteToken.Click += (_, _) => ChangeCredential(() => { UpdateCredentials.Delete(); _token.Clear(); }, "已删除保存的访问令牌。");
-        Closing += OnClosing;
-        Loaded += async (_, _) => await CheckAsync();
+        _cancelDownload.Click += (_, _) => { if (!_closed) _download?.Cancel(); };
+        ((Button)view.FindName("CloseUpdateButton")).Click += (_, _) => Complete(null);
+        _saveToken.Click += (_, _) => ChangeCredential(
+            () => { UpdateCredentials.Save(_token.Password.Trim()); _token.Clear(); }, "访问令牌已安全保存。");
+        _deleteToken.Click += (_, _) => ChangeCredential(
+            () => { UpdateCredentials.Delete(); _token.Clear(); }, "已删除保存的访问令牌。");
+        Loaded += OnLoaded;
         try { _credentialStatus.Text = UpdateCredentials.Read() is null ? "未保存访问令牌" : "已保存访问令牌"; }
         catch (Exception exception) { _credentialStatus.Text = exception.Message; }
     }
 
+    internal override void OnDismissed(bool? result)
+    {
+        if (_closed) return;
+        _closed = true;
+        Loaded -= OnLoaded;
+        try { _lifetime.Cancel(); }
+        finally { _token.Clear(); }
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs args)
+    {
+        if (_closed || _autoCheckStarted) return;
+        _autoCheckStarted = true;
+        _ = CheckAsync();
+    }
+
     private void ChangeCredential(Action action, string success)
     {
+        if (_closed) return;
         try { action(); _credentialStatus.Text = success; }
-        catch (Exception exception) { _credentialStatus.Text = exception.Message; }
+        catch (Exception exception) { if (!_closed) _credentialStatus.Text = exception.Message; }
     }
 
     private async Task CheckAsync()
@@ -76,7 +99,7 @@ public sealed class UpdateWindow : Window
         _progress.IsIndeterminate = true;
         try
         {
-            _available = await _updates.CheckAsync(_lifetime.Token);
+            _available = await _checkAsync(_lifetime.Token);
             if (_closed) return;
             if (_available is null) _status.Text = "已是最新版本";
             else
@@ -93,8 +116,14 @@ public sealed class UpdateWindow : Window
     private async Task InstallAsync()
     {
         if (_busy || _available is null || _closed) return;
-        if (MessageBox.Show(this, $"下载 {UpdateService.FormatSize(_available.DownloadSize)} 并更新到 {_available.Manifest.Version}？\n程序将保存当前操作后重启，剪贴板历史和设置保持不变。", "增量更新",
-            MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        const string title = "增量更新";
+        string message = $"下载 {UpdateService.FormatSize(_available.DownloadSize)} 并更新到 {_available.Manifest.Version}？\n程序将保存当前操作后重启，剪贴板历史和设置保持不变。";
+        Window? owner = Window.GetWindow(this);
+        MessageBoxResult confirmation = owner is null
+            ? MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No)
+            : MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        if (confirmation != MessageBoxResult.Yes) return;
+
         SetBusy(true);
         using var download = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _download = download;
@@ -111,9 +140,9 @@ public sealed class UpdateWindow : Window
                 _details.Text = $"{UpdateService.FormatSize(value.Downloaded)} / {UpdateService.FormatSize(value.Total)}";
                 _progress.Value = value.Total == 0 ? 100 : Math.Clamp(100d * value.Downloaded / value.Total, 0, 100);
             });
-            await _updates.PrepareAsync(_available, progress, download.Token);
-            if (_closed) { _updates.CancelPrepared(); return; }
-            DialogResult = true;
+            await _prepareAsync(_available, progress, download.Token);
+            if (_closed) { _cancelPrepared(); return; }
+            Complete(true);
         }
         catch (OperationCanceledException)
         {
@@ -132,18 +161,12 @@ public sealed class UpdateWindow : Window
 
     private void SetBusy(bool value)
     {
+        if (_closed) return;
         _busy = value;
         _check.IsEnabled = !value;
         _install.IsEnabled = !value && _available is not null;
         _saveToken.IsEnabled = !value;
         _deleteToken.IsEnabled = !value;
         _token.IsEnabled = !value;
-    }
-
-    private void OnClosing(object? sender, CancelEventArgs args)
-    {
-        _closed = true;
-        _lifetime.Cancel();
-        _token.Clear();
     }
 }

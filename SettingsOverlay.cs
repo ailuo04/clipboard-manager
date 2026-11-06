@@ -11,7 +11,7 @@ internal sealed class SettingsOverlay : OverlayView
 {
     private readonly AppTheme _openedTheme;
 
-    internal SettingsOverlay(AppSettings settings, string dataDirectory, Action? showUpdates = null)
+    internal SettingsOverlay(AppSettings settings, string dataDirectory, Func<Task>? showUpdates = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _openedTheme = ThemeManager.Preference;
@@ -45,7 +45,7 @@ internal sealed class SettingsOverlay : OverlayView
         minimizeToTray.IsChecked = Settings.MinimizeToTray;
         var updateButton = (Button)view.FindName("OpenUpdatesButton");
         updateButton.IsEnabled = showUpdates is not null;
-        updateButton.Click += (_, _) => showUpdates?.Invoke();
+        updateButton.Click += async (_, _) => { if (showUpdates is not null) await showUpdates(); };
         ((TextBlock)view.FindName("SettingsVersionText")).Text = "当前版本 " + UpdateService.CurrentVersion;
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
