@@ -9,6 +9,17 @@ public sealed class XamlPolishStructureTests
 {
     private static readonly XNamespace Presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
+    private static readonly XNamespace Shell = "clr-namespace:System.Windows.Shell;assembly=PresentationFramework";
+
+    [Fact]
+    public void OverlayLayerIsHitTestableInWindowChrome()
+    {
+        XElement root = LoadView("WindowFrame.xaml");
+        XElement overlay = root.Descendants(Presentation + "Grid")
+            .Single(element => (string?)element.Attribute(Xaml + "Name") == "OverlayLayer");
+
+        Assert.Equal("True", (string?)overlay.Attribute(Shell + "WindowChrome.IsHitTestVisibleInChrome"));
+    }
 
     [Theory]
     [InlineData("SettingsView.xaml", "设置", "CloseSettingsButton", "关闭设置", "ScrollViewer", "设置")]

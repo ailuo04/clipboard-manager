@@ -138,7 +138,7 @@
         <Grid x:Name="WindowContent" Grid.Row="1" Background="Transparent" />
 
     </Grid>
-    <Grid x:Name="OverlayLayer" Visibility="Collapsed" Panel.ZIndex="10"
+    <Grid x:Name="OverlayLayer" Visibility="Collapsed" Panel.ZIndex="10" shell:WindowChrome.IsHitTestVisibleInChrome="True"
           Background="{DynamicResource OverlayScrimBrush}"
           KeyboardNavigation.TabNavigation="Cycle" FocusManager.IsFocusScope="True">
         <Border x:Name="OverlayPanel" HorizontalAlignment="Center" VerticalAlignment="Center"
