@@ -127,6 +127,22 @@ public sealed class ThemeAndOverlayTests
         AssertGeometryIsInsideAndCentered(workArea, result, new Size(40, 20));
     }
 
+    private static string[] FindMissingDynamicResourceKeys(
+        IEnumerable<string> referencedKeys,
+        IEnumerable<string> locallyDefinedKeys,
+        IEnumerable<string> sharedKeys,
+        IEnumerable<string> lightPaletteKeys,
+        IEnumerable<string> darkPaletteKeys)
+    {
+        var localKeys = locallyDefinedKeys.ToHashSet(StringComparer.Ordinal);
+        var availableKeys = sharedKeys.ToHashSet(StringComparer.Ordinal);
+        var commonPaletteKeys = lightPaletteKeys.ToHashSet(StringComparer.Ordinal);
+        commonPaletteKeys.IntersectWith(darkPaletteKeys);
+        availableKeys.UnionWith(commonPaletteKeys);
+        return referencedKeys.Distinct(StringComparer.Ordinal)
+            .Where(key => !localKeys.Contains(key) && !availableKeys.Contains(key))
+            .OrderBy(key => key, StringComparer.Ordinal).ToArray();
+    }
     private static void RunOnSta(Action action)
     {
         Exception? failure = null;
@@ -236,6 +252,49 @@ public sealed class ThemeAndOverlayTests
         Assert.Contains("OverlayShadowEffect", lightKeys);
     }
 
+    [Fact]
+    public void DynamicResourceReferencesInViewsExistInSharedResourcesOrBothThemePalettes()
+    {
+        string viewsRoot = Path.Combine(AppContext.BaseDirectory, "Xaml", "Views");
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        string appResourceName = typeof(App).Assembly.GetManifestResourceNames()
+            .Single(name => name.EndsWith(".App.xaml", StringComparison.Ordinal));
+        using Stream appStream = typeof(App).Assembly.GetManifestResourceStream(appResourceName)!;
+        HashSet<string> sharedKeys = XDocument.Load(appStream).Root!.DescendantsAndSelf()
+            .Attributes(x + "Key").Select(attribute => attribute.Value).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> lightKeys = XDocument.Load(Path.Combine(viewsRoot, "LightGlass.xaml")).Root!.DescendantsAndSelf()
+            .Attributes(x + "Key").Select(attribute => attribute.Value).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> darkKeys = XDocument.Load(Path.Combine(viewsRoot, "LiquidGlass.xaml")).Root!.DescendantsAndSelf()
+            .Attributes(x + "Key").Select(attribute => attribute.Value).ToHashSet(StringComparer.Ordinal);
+        var missing = new List<string>();
+
+        foreach (string path in Directory.EnumerateFiles(viewsRoot, "*.xaml"))
+        {
+            XDocument document = XDocument.Load(path);
+            HashSet<string> locallyDefinedKeys = Path.GetFileName(path) is "LightGlass.xaml" or "LiquidGlass.xaml"
+                ? new HashSet<string>(StringComparer.Ordinal)
+                : document.Root!.DescendantsAndSelf().Attributes(x + "Key")
+                    .Select(attribute => attribute.Value).ToHashSet(StringComparer.Ordinal);
+            IEnumerable<string> values = document.Root!.DescendantsAndSelf().Attributes().Select(attribute => attribute.Value)
+                .Concat(document.Root.DescendantNodes().OfType<XText>().Select(text => text.Value));
+            string[] referencedKeys = values.SelectMany(value =>
+                    System.Text.RegularExpressions.Regex.Matches(value, @"\{DynamicResource\s+([^,\s}]+)")
+                        .Cast<System.Text.RegularExpressions.Match>().Select(match => match.Groups[1].Value))
+                .Distinct(StringComparer.Ordinal).ToArray();
+            missing.AddRange(FindMissingDynamicResourceKeys(referencedKeys, locallyDefinedKeys, sharedKeys, lightKeys, darkKeys)
+                .Select(key => $"{Path.GetFileName(path)}: {key}"));
+        }
+
+        Assert.True(missing.Count == 0, "Unresolved dynamic resources: " + string.Join(", ", missing));
+    }
+    [Fact]
+    public void DynamicResourceCheckerReportsAReferenceMissingFromEveryResourceSource()
+    {
+        string[] missing = FindMissingDynamicResourceKeys(
+            ["DefinitelyMissingResource"], [], [], [], []);
+
+        Assert.Equal(["DefinitelyMissingResource"], missing);
+    }
     [Fact]
     public void WindowFramePlacesCollapsedOverlayAboveNamedMainSurface()
     {
