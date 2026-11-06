@@ -486,7 +486,7 @@ public sealed class ThemeAndOverlayTests
     [Theory]
     [InlineData((int)OverlaySize.Settings, 510, 660)]
     [InlineData((int)OverlaySize.Update, 510, 510)]
-    [InlineData((int)OverlaySize.Details, 800, 660)]
+    [InlineData((int)OverlaySize.Details, 800, 760)]
     public void OverlaySizePolicyUsesDesignedPageSizes(int size, double expectedWidth, double expectedHeight)
     {
         Assert.Equal(new Size(expectedWidth, expectedHeight), OverlaySizePolicy.GetDesiredSize((OverlaySize)size));

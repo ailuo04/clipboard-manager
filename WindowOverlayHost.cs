@@ -24,7 +24,7 @@ internal static class OverlaySizePolicy
     {
         OverlaySize.Settings => new Size(510, 660),
         OverlaySize.Update => new Size(510, 510),
-        OverlaySize.Details => new Size(800, 660),
+        OverlaySize.Details => new Size(800, 760),
         _ => throw new ArgumentOutOfRangeException(nameof(size), size, "未知的覆盖层尺寸。")
     };
 }

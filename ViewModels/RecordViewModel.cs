@@ -13,7 +13,7 @@ public sealed class RecordViewModel
         CopyCommand = new AsyncRelayCommand(() => owner.CopyAsync(this), () => owner.CanAct);
         DeleteCommand = new AsyncRelayCommand(() => owner.DeleteAsync(this), () => owner.CanAct);
         PinCommand = new AsyncRelayCommand(() => owner.TogglePinAsync(this), () => owner.CanAct);
-        DetailsCommand = new RelayCommand(() => owner.ShowDetails(this), () => owner.CanAct);
+        DetailsCommand = new AsyncRelayCommand(() => owner.ShowDetails(this), () => owner.CanAct);
     }
 
     public ClipboardRecord Record { get; }
@@ -47,7 +47,7 @@ public sealed class RecordViewModel
         ((AsyncRelayCommand)CopyCommand).RaiseCanExecuteChanged();
         ((AsyncRelayCommand)DeleteCommand).RaiseCanExecuteChanged();
         ((AsyncRelayCommand)PinCommand).RaiseCanExecuteChanged();
-        ((RelayCommand)DetailsCommand).RaiseCanExecuteChanged();
+        ((AsyncRelayCommand)DetailsCommand).RaiseCanExecuteChanged();
     }
 
     public static string FormatSize(long bytes) => bytes >= 1024 * 1024

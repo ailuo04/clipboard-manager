@@ -188,9 +188,14 @@ public sealed class MainViewModel : ObservableObject
         if (warning is not null) Notice = warning;
     }, "更新固定状态失败");
 
-    public void ShowDetails(RecordViewModel item)
+    public async Task ShowDetails(RecordViewModel item)
     {
-        try { new DetailsWindow(_owner, item, _clipboard, _monitor.Handle).ShowDialog(); }
+        try
+        {
+            if (_overlays is null || IsClosing) return;
+            var details = new DetailsOverlay(item, _clipboard, _monitor.Handle);
+            await _overlays.ShowAsync(details, OverlaySize.Details);
+        }
         catch (Exception exception) { Report("打开详情失败", exception); }
     }
 

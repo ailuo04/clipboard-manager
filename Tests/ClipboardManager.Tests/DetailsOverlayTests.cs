@@ -38,11 +38,15 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("Auto", (string?)rows[2].Attribute("Height"));
         Assert.Equal("2", (string?)footer.Attribute("Grid.Row"));
         Assert.Equal("Auto", (string?)text.Attribute("VerticalScrollBarVisibility"));
-        Assert.Equal("Auto", (string?)imageScroll.Attribute("VerticalScrollBarVisibility"));
-        Assert.Contains("完整文本内容", (string?)text.Attribute(presentation + "AutomationProperties.Name"));
-        Assert.Contains(new[] { "CopyButton", "FullImage", "ImageScroll", "ImageStatus", "FitCheckBox", "ZoomSlider", "ZoomLabel", "StatusLabel", "CloseButton" }, names);
+        Assert.Equal("{Binding Record.Text, Mode=OneWay}", (string?)text.Attribute("Text"));
+        Assert.Equal("True", (string?)text.Attribute("IsReadOnly"));
+        Assert.Equal("True", (string?)text.Attribute("AcceptsReturn"));
+        Assert.Equal("Wrap", (string?)text.Attribute("TextWrapping"));
+        Assert.Equal("Disabled", (string?)imageScroll.Attribute("VerticalScrollBarVisibility"));
+        Assert.Contains("完整文本内容", (string?)text.Attribute("AutomationProperties.Name"));
+        Assert.All(new[] { "CopyButton", "FullImage", "ImageScroll", "ImageStatus", "FitCheckBox", "ZoomSlider", "ZoomLabel", "StatusLabel", "CloseButton" }, name => Assert.Contains(name, names));
         Assert.Equal("图片缩放比例", (string?)root.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ZoomSlider")
-            .Attribute(presentation + "AutomationProperties.Name"));
+            .Attribute("AutomationProperties.Name"));
 
         wpf.Run(() =>
         {
@@ -52,6 +56,11 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         });
     }
 
+    [Fact]
+    public void DetailsOverlayUsesEightHundredBySevenHundredSixtyPanelSize()
+    {
+        Assert.Equal(new Size(800, 760), OverlaySizePolicy.GetDesiredSize(OverlaySize.Details));
+    }
     [Fact]
     public void CloseButtonCompletesWithNullCancelsImageLoadAndClearsSource()
     {
@@ -94,10 +103,10 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
                 loadCount++;
                 return Task.FromResult<BitmapSource>(CreateBitmap());
             });
-            var owner = new Window { Width = 340, Height = 500 };
+            var parentWindow = new Window { Width = 340, Height = 500 };
             Grid hostRoot = CreateOverlayRoot();
-            owner.Content = hostRoot;
-            using var host = new WindowOverlayHost(owner, hostRoot);
+            parentWindow.Content = hostRoot;
+            using var host = new WindowOverlayHost(parentWindow, hostRoot);
 
             Task<bool?> detailsTask = host.ShowAsync(overlay, OverlaySize.Details);
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
@@ -112,7 +121,7 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
             Assert.True(childTask.IsCompleted);
             host.CompleteCurrent(null);
             Assert.Null(detailsTask.GetAwaiter().GetResult());
-            owner.Content = null;
+            parentWindow.Content = null;
         });
     }
 
@@ -169,6 +178,85 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
     }
 
     [Fact]
+    public async Task DetailsCommandShowsOverlayAndRemainsDisabledUntilDismissed()
+    {
+        MainViewModel? owner = null;
+        WindowOverlayHost? host = null;
+        Window? window = null;
+        AsyncRelayCommand? command = null;
+        Task shutdown = Task.CompletedTask;
+        wpf.Run(() =>
+        {
+            window = new Window { Width = 340, Height = 500 };
+            Grid hostRoot = CreateOverlayRoot();
+            window.Content = hostRoot;
+            host = new WindowOverlayHost(window, hostRoot);
+            owner = new MainViewModel(window,
+                new HistoryService(new HistoryStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")))), null, host);
+            typeof(MainViewModel).GetField("_isReady", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(owner, true);
+            var item = new RecordViewModel(new ClipboardRecord
+            {
+                Kind = ClipboardRecordKind.Text,
+                Text = "details command",
+                ByteLength = 15,
+                ContentHash = new string('C', 64),
+                CopiedAtUtc = DateTime.UtcNow
+            }, owner);
+            command = Assert.IsType<AsyncRelayCommand>(item.DetailsCommand);
+
+            Assert.True(owner.CanAct);
+            Assert.True(command.CanExecute(null));
+            command.Execute(null);
+            Assert.False(command.CanExecute(null));
+            Assert.IsType<DetailsOverlay>(((ContentControl)hostRoot.FindName("OverlayContent")).Content);
+
+            host.CompleteCurrent(null);
+        });
+
+        Assert.True(SpinWait.SpinUntil(() => command!.CanExecute(null), TimeSpan.FromSeconds(5)));
+        wpf.Run(() =>
+        {
+            shutdown = owner!.ShutdownAsync();
+            host!.Dispose();
+            window!.Content = null;
+        });
+        await shutdown;
+    }
+    [Fact]
+    public void ImageLoadFailureIsShownInTheImageStatus()
+    {
+        WithItem(image: true, (owner, item) =>
+        {
+            DetailsOverlay overlay = CreateOverlay(item, (_, _) =>
+                Task.FromException<BitmapSource>(new IOException("image unavailable")));
+            overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+
+            Assert.Equal("原图加载失败：image unavailable",
+                ((TextBlock)((Grid)overlay.Content!).FindName("ImageStatus")).Text);
+        });
+    }
+
+    [Fact]
+    public void CopyImageUsesTheInjectedImageCopyOperation()
+    {
+        WithItem(image: true, (owner, item) =>
+        {
+            string? copiedPath = null;
+            DetailsOverlay overlay = CreateOverlay(item, copyImageAsync: (path, _) =>
+            {
+                copiedPath = path;
+                return Task.CompletedTask;
+            });
+
+            Click((Button)((Grid)overlay.Content!).FindName("CopyButton"));
+
+            Assert.Equal(item.ImagePath, copiedPath);
+            Assert.Equal("已复制到系统剪贴板", ((TextBlock)((Grid)overlay.Content!).FindName("StatusLabel")).Text);
+        });
+    }
+
+    [Fact]
     public void FitUsesImageViewportAndZoomEnablesScrollBars()
     {
         WithItem(image: true, (owner, item) =>
@@ -185,8 +273,9 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             overlay.UpdateLayout();
 
-            Assert.True(image.ActualWidth <= scroll.ViewportWidth + 0.1);
-            Assert.True(image.ActualHeight <= scroll.ViewportHeight + 0.1);
+            Assert.True(image.Width <= scroll.ViewportWidth - scroll.Padding.Left - scroll.Padding.Right + 0.1);
+            Assert.True(image.Height <= scroll.ViewportHeight - scroll.Padding.Top - scroll.Padding.Bottom + 0.1);
+            Assert.Equal(1200d / 800d, image.Width / image.Height, precision: 6);
             Assert.True(fit.IsChecked);
             Assert.False(slider.IsEnabled);
             Assert.Equal(ScrollBarVisibility.Disabled, scroll.HorizontalScrollBarVisibility);
@@ -259,11 +348,12 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
     private static DetailsOverlay CreateOverlay(
         RecordViewModel item,
         Func<string, CancellationToken, Task<BitmapSource>>? loadImageAsync = null,
-        Func<string, CancellationToken, Task>? copyTextAsync = null)
+        Func<string, CancellationToken, Task>? copyTextAsync = null,
+        Func<string, CancellationToken, Task>? copyImageAsync = null)
     {
         return new DetailsOverlay(item,
             copyTextAsync ?? ((_, _) => Task.CompletedTask),
-            (_, _) => Task.CompletedTask,
+            copyImageAsync ?? ((_, _) => Task.CompletedTask),
             loadImageAsync ?? ((_, _) => Task.FromResult<BitmapSource>(CreateBitmap())));
     }
 
@@ -298,6 +388,3 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
     private sealed class TestOverlay : OverlayView { }
 
 }
-
-
-
