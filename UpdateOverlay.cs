@@ -11,6 +11,7 @@ internal sealed class UpdateOverlay : OverlayView
     private readonly Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> _prepareAsync;
     private readonly Action _commitPrepared;
     private readonly Action _cancelPrepared;
+    private readonly Func<Window?, string, string, bool> _confirmInstall;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TextBlock _status;
     private readonly TextBlock _details;
@@ -36,12 +37,14 @@ internal sealed class UpdateOverlay : OverlayView
         Func<CancellationToken, Task<AvailableUpdate?>> checkAsync,
         Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> prepareAsync,
         Action commitPrepared,
-        Action cancelPrepared)
+        Action cancelPrepared,
+        Func<Window?, string, string, bool>? confirmInstall = null)
     {
         _checkAsync = checkAsync ?? throw new ArgumentNullException(nameof(checkAsync));
         _prepareAsync = prepareAsync ?? throw new ArgumentNullException(nameof(prepareAsync));
         _commitPrepared = commitPrepared ?? throw new ArgumentNullException(nameof(commitPrepared));
         _cancelPrepared = cancelPrepared ?? throw new ArgumentNullException(nameof(cancelPrepared));
+        _confirmInstall = confirmInstall ?? ShowInstallConfirmation;
 
         var view = ViewLoader.Load<Grid>("Views/UpdateView.xaml");
         Content = view;
@@ -149,10 +152,7 @@ internal sealed class UpdateOverlay : OverlayView
         const string title = "增量更新";
         string message = $"下载 {UpdateService.FormatSize(_available.DownloadSize)} 并更新到 {_available.Manifest.Version}？\n程序将保存当前操作后重启，剪贴板历史和设置保持不变。";
         Window? owner = Window.GetWindow(this);
-        MessageBoxResult confirmation = owner is null
-            ? MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No)
-            : MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
-        if (confirmation != MessageBoxResult.Yes) return;
+        if (!_confirmInstall(owner, title, message)) return;
 
         SetBusy(true);
         using var download = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
@@ -171,11 +171,13 @@ internal sealed class UpdateOverlay : OverlayView
                 _progress.Value = value.Total == 0 ? 100 : Math.Clamp(100d * value.Downloaded / value.Total, 0, 100);
             });
             await _prepareAsync(_available, progress, download.Token);
+            download.Token.ThrowIfCancellationRequested();
             if (_closed) { _cancelPrepared(); return; }
             CommitPreparedUpdate();
         }
         catch (OperationCanceledException)
         {
+            _cancelPrepared();
             if (!_closed) { _status.Text = "更新已取消"; _details.Text = ""; }
         }
         catch (Exception exception)
@@ -187,6 +189,14 @@ internal sealed class UpdateOverlay : OverlayView
             _download = null;
             if (!_closed) { _progress.Visibility = Visibility.Collapsed; _cancelDownload.Visibility = Visibility.Collapsed; SetBusy(false); }
         }
+    }
+
+    private static bool ShowInstallConfirmation(Window? owner, string title, string message)
+    {
+        MessageBoxResult result = owner is null
+            ? MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No)
+            : MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
+        return result == MessageBoxResult.Yes;
     }
 
     internal void CommitPreparedUpdate()

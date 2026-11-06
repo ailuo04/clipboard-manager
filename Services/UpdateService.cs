@@ -111,7 +111,6 @@ public sealed class UpdateService : IDisposable
 
     public async Task PrepareAsync(AvailableUpdate update, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken = default)
     {
-        _prepared = false;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         var token = linked.Token;
         await _gate.WaitAsync(token);
@@ -119,8 +118,8 @@ public sealed class UpdateService : IDisposable
         bool created = false;
         try
         {
-            workspace = UpdateFiles.ResolvePath(_root, UpdateFiles.WorkspaceName);
             _prepared = false;
+            workspace = UpdateFiles.ResolvePath(_root, UpdateFiles.WorkspaceName);
             if (Directory.Exists(workspace))
             {
                 if (File.Exists(Path.Combine(workspace, "journal.json")) && !File.Exists(Path.Combine(workspace, "complete")))
@@ -221,9 +220,15 @@ public sealed class UpdateService : IDisposable
 
     public void CancelPrepared()
     {
-        if (!_prepared) return;
-        UpdateFiles.CleanWorkspace(_root);
+        bool wasPrepared = _prepared;
         _prepared = false;
+        try
+        {
+            string workspace = UpdateFiles.ResolvePath(_root, UpdateFiles.WorkspaceName);
+            if (wasPrepared || File.Exists(Path.Combine(workspace, "prepared")))
+                UpdateFiles.CleanWorkspace(_root);
+        }
+        finally { _prepared = false; }
     }
 
     public void MarkStartupReady()
@@ -324,8 +329,6 @@ public sealed class UpdateService : IDisposable
         _disposed = true;
         _lifetime.Cancel();
         _client.Dispose();
-        _gate.Dispose();
-        _lifetime.Dispose();
     }
 
     private sealed class BoundedReadStream(Stream stream, long limit) : Stream

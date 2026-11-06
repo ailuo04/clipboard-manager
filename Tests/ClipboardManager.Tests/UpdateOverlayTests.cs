@@ -8,6 +8,7 @@ using System.Xml.Linq;
 using ClipboardManager;
 using ClipboardManager.Models;
 using ClipboardManager.Services;
+using ClipboardManager.Updates;
 using ClipboardManager.Utilities;
 using Xunit;
 
@@ -181,6 +182,52 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
             Assert.Equal(new[] { "commit", "cancel" }, events);
             Assert.Null(result);
         });
+    }
+
+    [Fact]
+    public async Task CancelAfterPrepareCompletesButBeforeContinuationPreventsCommit()
+    {
+        var prepareCompleted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        UpdateOverlay? overlay = null;
+        int commitCount = 0;
+        int cancelCount = 0;
+        bool? closeResult = null;
+        CancellationToken downloadToken = default;
+
+        wpf.Run(() =>
+        {
+            var update = new AvailableUpdate(new UpdateManifest { Version = "9.9.9" }, Array.Empty<byte>(),
+                new UpdatePlan(), new Dictionary<string, UpdateAsset>());
+            overlay = new UpdateOverlay(
+                _ => Task.FromResult<AvailableUpdate?>(update),
+                (_, _, token) =>
+                {
+                    downloadToken = token;
+                    return prepareCompleted.Task;
+                },
+                () => commitCount++,
+                () => cancelCount++,
+                (_, _, _) => true);
+            overlay.CloseRequest = result =>
+            {
+                closeResult = result;
+                overlay.OnDismissed(result);
+            };
+            overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Click((Button)((Grid)overlay.Content!).FindName("InstallUpdateButton"));
+
+            Assert.False(overlay.WhenIdle.IsCompleted);
+            prepareCompleted.SetResult();
+            Assert.False(downloadToken.IsCancellationRequested);
+            Click((Button)((Grid)overlay.Content!).FindName("CancelDownloadButton"));
+        });
+
+        await overlay!.WhenIdle.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(downloadToken.IsCancellationRequested);
+        Assert.Equal(0, commitCount);
+        Assert.Equal(1, cancelCount);
+        Assert.NotEqual(true, closeResult);
     }
 
     [Fact]
