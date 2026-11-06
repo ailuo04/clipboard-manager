@@ -78,12 +78,12 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         XElement root = XDocument.Load(path).Root!;
         XElement scrollViewer = root.Elements(presentation + "ScrollViewer").Single();
         XElement footer = root.Elements(presentation + "StackPanel")
-            .Single(element => (string?)element.Attribute("Grid.Row") == "1");
+            .Single(element => (string?)element.Attribute("Grid.Row") == "2");
 
         Assert.Equal("22", (string?)root.Attribute("Margin"));
         Assert.Equal("430", (string?)root.Attribute("MinWidth"));
-        Assert.Equal("0", (string?)scrollViewer.Attribute("Grid.Row"));
-        Assert.Equal("1", (string?)footer.Attribute("Grid.Row"));
+        Assert.Equal("1", (string?)scrollViewer.Attribute("Grid.Row"));
+        Assert.Equal("2", (string?)footer.Attribute("Grid.Row"));
         Assert.Contains("SaveButton", root.Descendants().Attributes(x + "Name").Select(attribute => attribute.Value));
     }
 
@@ -102,6 +102,26 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         });
     }
 
+    [Fact]
+    public void HeaderCloseButtonCompletesSettingsWithNull()
+    {
+        wpf.Run(() =>
+        {
+            ThemeManager.Apply(AppTheme.Light);
+            SettingsOverlay overlay = CreateOverlay(new AppSettings(), showUpdates: null);
+            bool? result = true;
+            overlay.CloseRequest = value =>
+            {
+                result = value;
+                overlay.OnDismissed(value);
+            };
+
+            Click((Button)((Grid)overlay.Content!).FindName("CloseSettingsButton"));
+
+            Assert.Null(result);
+            Assert.Equal(AppTheme.Light, ThemeManager.Preference);
+        });
+    }
     [Fact]
     public void InvalidNumericInputShowsValidationAndDoesNotCompleteSave()
     {

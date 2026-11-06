@@ -24,6 +24,7 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement root = XDocument.Load(path).Root!;
+        Assert.Equal("详情", (string?)root.Attribute("AutomationProperties.Name"));
         string[] names = root.Descendants().Attributes(x + "Name").Select(attribute => attribute.Value).ToArray();
         XElement text = root.Descendants(presentation + "TextBox").Single();
         XElement imageScroll = root.Descendants(presentation + "ScrollViewer")
@@ -44,13 +45,14 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("Wrap", (string?)text.Attribute("TextWrapping"));
         Assert.Equal("Disabled", (string?)imageScroll.Attribute("VerticalScrollBarVisibility"));
         Assert.Contains("完整文本内容", (string?)text.Attribute("AutomationProperties.Name"));
-        Assert.All(new[] { "CopyButton", "FullImage", "ImageScroll", "ImageStatus", "FitCheckBox", "ZoomSlider", "ZoomLabel", "StatusLabel", "CloseButton" }, name => Assert.Contains(name, names));
+        Assert.All(new[] { "CopyButton", "FullImage", "ImageScroll", "ImageStatus", "FitCheckBox", "ZoomSlider", "ZoomLabel", "StatusLabel", "CloseDetailsButton" }, name => Assert.Contains(name, names));
         Assert.Equal("图片缩放比例", (string?)root.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ZoomSlider")
             .Attribute("AutomationProperties.Name"));
 
         wpf.Run(() =>
         {
             Grid view = ViewLoader.Load<Grid>("Views/DetailsView.xaml");
+            Assert.Equal("详情", System.Windows.Automation.AutomationProperties.GetName(view));
             Assert.Equal("完整文本内容", System.Windows.Automation.AutomationProperties.GetName((TextBox)view.Children
                 .OfType<TextBox>().Single()));
         });
@@ -84,7 +86,7 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
             var image = (Image)((Grid)overlay.Content!).FindName("FullImage");
             image.Source = CreateBitmap();
 
-            Click((Button)((Grid)overlay.Content!).FindName("CloseButton"));
+            Click((Button)((Grid)overlay.Content!).FindName("CloseDetailsButton"));
 
             Assert.Null(result);
             Assert.True(observedToken.IsCancellationRequested);
