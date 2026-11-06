@@ -23,6 +23,7 @@ public sealed class MainViewModel : ObservableObject
     private readonly DispatcherTimer _updateTimer;
     private readonly UpdateService _updates = new();
     private Task _updateTask = Task.CompletedTask;
+    private Task _updateOverlayTask = Task.CompletedTask;
     private Task _updateCleanupTask = Task.CompletedTask;
     private List<RecordViewModel> _allRecords = [];
     private Task _captureTask = Task.CompletedTask;
@@ -206,6 +207,8 @@ public sealed class MainViewModel : ObservableObject
         _monitor.ClipboardChanged -= OnClipboardChanged;
         _monitor.Dispose();
         _lifetime.Cancel();
+        _overlays?.CloseAll(null);
+        await _updateOverlayTask;
         await _initializationTask;
         await _captureTask;
         await _updateTask;
@@ -254,14 +257,30 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception exception) { Report("打开设置失败", exception); }
     }
 
-    private async Task ShowUpdatesAsync()
+    private Task ShowUpdatesAsync()
     {
+        if (_overlays is null || IsClosing) return Task.CompletedTask;
+        Task? operation = null;
+        operation = ShowUpdatesCoreAsync(() =>
+        {
+            if (ReferenceEquals(_updateOverlayTask, operation)) _updateOverlayTask = Task.CompletedTask;
+        });
+        _updateOverlayTask = operation;
+        return operation;
+    }
+
+    private async Task ShowUpdatesCoreAsync(Action clearTracking)
+    {
+        bool handedOff = false;
         try
         {
             if (_overlays is null || IsClosing) return;
             var overlay = new UpdateOverlay(_updates);
-            if (await _overlays.ShowAsync(overlay, OverlaySize.Update) != true || IsClosing) return;
-            _updates.LaunchPrepared();
+            bool? result = await _overlays.ShowAsync(overlay, OverlaySize.Update);
+            await overlay.WhenIdle;
+            if (result != true || IsClosing) return;
+            clearTracking();
+            handedOff = true;
             _overlays.CloseAll(null);
             if (_owner is MainWindow mainWindow) mainWindow.ExitApplication();
             else _owner.Close();
@@ -271,6 +290,10 @@ public sealed class MainViewModel : ObservableObject
             try { _updates.CancelPrepared(); }
             catch (Exception cleanup) { AppLogger.LogException("清理未启动的更新失败", cleanup); }
             Report("启动更新失败", exception);
+        }
+        finally
+        {
+            if (!handedOff) clearTracking();
         }
     }
     private void OnUpdateTimer(object? sender, EventArgs args)

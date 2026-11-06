@@ -45,7 +45,7 @@ internal sealed class SettingsOverlay : OverlayView
         minimizeToTray.IsChecked = Settings.MinimizeToTray;
         var updateButton = (Button)view.FindName("OpenUpdatesButton");
         updateButton.IsEnabled = showUpdates is not null;
-        updateButton.Click += async (_, _) => { if (showUpdates is not null) await showUpdates(); };
+        updateButton.Click += (_, _) => { if (showUpdates is not null) StartOperation(showUpdates); };
         ((TextBlock)view.FindName("SettingsVersionText")).Text = "当前版本 " + UpdateService.CurrentVersion;
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
@@ -104,6 +104,13 @@ internal sealed class SettingsOverlay : OverlayView
         if (result != true) ThemeManager.Apply(_openedTheme);
     }
 
+    private static void StartOperation(Func<Task> operation) => _ = ObserveOperationAsync(operation);
+
+    private static async Task ObserveOperationAsync(Func<Task> operation)
+    {
+        try { await operation(); }
+        catch (Exception exception) { AppLogger.LogException("打开更新失败", exception); }
+    }
     private static void OpenPath(string path, TextBlock validation)
     {
         try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }

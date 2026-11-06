@@ -144,6 +144,69 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
     }
 
     [Fact]
+    public void PreparedCommitRunsBeforeTrueCloseResult()
+    {
+        wpf.Run(() =>
+        {
+            var events = new List<string>();
+            var overlay = CreateOverlay(_ => Task.FromResult<AvailableUpdate?>(null),
+                () => events.Add("commit"),
+                () => events.Add("cancel"));
+            overlay.CloseRequest = result => events.Add(result == true ? "close-true" : "close-other");
+
+            overlay.CommitPreparedUpdate();
+
+            Assert.Equal(new[] { "commit", "close-true" }, events);
+        });
+    }
+
+    [Fact]
+    public void FailedPreparedCommitCancelsWithoutCompletingTrue()
+    {
+        wpf.Run(() =>
+        {
+            var events = new List<string>();
+            var overlay = CreateOverlay(_ => Task.FromResult<AvailableUpdate?>(null),
+                () =>
+                {
+                    events.Add("commit");
+                    throw new InvalidOperationException("commit failed");
+                },
+                () => events.Add("cancel"));
+            bool? result = null;
+            overlay.CloseRequest = value => result = value;
+
+            Assert.Throws<InvalidOperationException>(() => overlay.CommitPreparedUpdate());
+
+            Assert.Equal(new[] { "commit", "cancel" }, events);
+            Assert.Null(result);
+        });
+    }
+
+    [Fact]
+    public async Task DismissalCancelsDelayedCheckAndWhenIdleCompletes()
+    {
+        CancellationToken observedToken = default;
+        UpdateOverlay? overlay = null;
+        wpf.Run(() =>
+        {
+            overlay = CreateOverlay(async token =>
+            {
+                observedToken = token;
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                return null;
+            });
+
+            overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Assert.False(overlay.WhenIdle.IsCompleted);
+            overlay.OnDismissed(null);
+        });
+
+        await overlay!.WhenIdle.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(observedToken.IsCancellationRequested);
+    }
+
+    [Fact]
     public void SettingsUpdateCallbackOpensNestedOverlayAndPreservesUnsavedValues()
     {
         wpf.Run(() =>
@@ -176,11 +239,15 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
         });
     }
 
-    private static UpdateOverlay CreateOverlay(Func<CancellationToken, Task<AvailableUpdate?>> checkAsync)
+    private static UpdateOverlay CreateOverlay(
+        Func<CancellationToken, Task<AvailableUpdate?>> checkAsync,
+        Action? commitPrepared = null,
+        Action? cancelPrepared = null)
     {
         return new UpdateOverlay(checkAsync,
             (_, _, _) => Task.CompletedTask,
-            () => { });
+            commitPrepared ?? (() => { }),
+            cancelPrepared ?? (() => { }));
     }
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));

@@ -9,6 +9,7 @@ internal sealed class UpdateOverlay : OverlayView
 {
     private readonly Func<CancellationToken, Task<AvailableUpdate?>> _checkAsync;
     private readonly Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> _prepareAsync;
+    private readonly Action _commitPrepared;
     private readonly Action _cancelPrepared;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TextBlock _status;
@@ -23,20 +24,23 @@ internal sealed class UpdateOverlay : OverlayView
     private readonly PasswordBox _token;
     private AvailableUpdate? _available;
     private CancellationTokenSource? _download;
+    private Task _operation = Task.CompletedTask;
     private bool _busy;
     private bool _closed;
     private bool _autoCheckStarted;
 
     internal UpdateOverlay(UpdateService updates)
-        : this(updates.CheckAsync, updates.PrepareAsync, updates.CancelPrepared) { }
+        : this(updates.CheckAsync, updates.PrepareAsync, updates.LaunchPrepared, updates.CancelPrepared) { }
 
     internal UpdateOverlay(
         Func<CancellationToken, Task<AvailableUpdate?>> checkAsync,
         Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> prepareAsync,
+        Action commitPrepared,
         Action cancelPrepared)
     {
         _checkAsync = checkAsync ?? throw new ArgumentNullException(nameof(checkAsync));
         _prepareAsync = prepareAsync ?? throw new ArgumentNullException(nameof(prepareAsync));
+        _commitPrepared = commitPrepared ?? throw new ArgumentNullException(nameof(commitPrepared));
         _cancelPrepared = cancelPrepared ?? throw new ArgumentNullException(nameof(cancelPrepared));
 
         var view = ViewLoader.Load<Grid>("Views/UpdateView.xaml");
@@ -52,8 +56,8 @@ internal sealed class UpdateOverlay : OverlayView
         _deleteToken = (Button)view.FindName("DeleteUpdateTokenButton");
         _token = (PasswordBox)view.FindName("UpdateTokenBox");
         ((TextBlock)view.FindName("CurrentVersionText")).Text = "当前版本 " + UpdateService.CurrentVersion;
-        _check.Click += async (_, _) => await CheckAsync();
-        _install.Click += async (_, _) => await InstallAsync();
+        _check.Click += (_, _) => StartOperation(CheckAsync);
+        _install.Click += (_, _) => StartOperation(InstallAsync);
         _cancelDownload.Click += (_, _) => { if (!_closed) _download?.Cancel(); };
         ((Button)view.FindName("CloseUpdateButton")).Click += (_, _) => Complete(null);
         _saveToken.Click += (_, _) => ChangeCredential(
@@ -64,6 +68,8 @@ internal sealed class UpdateOverlay : OverlayView
         try { _credentialStatus.Text = UpdateCredentials.Read() is null ? "未保存访问令牌" : "已保存访问令牌"; }
         catch (Exception exception) { _credentialStatus.Text = exception.Message; }
     }
+
+    internal Task WhenIdle => _operation;
 
     internal override void OnDismissed(bool? result)
     {
@@ -78,7 +84,31 @@ internal sealed class UpdateOverlay : OverlayView
     {
         if (_closed || _autoCheckStarted) return;
         _autoCheckStarted = true;
-        _ = CheckAsync();
+        StartOperation(CheckAsync);
+    }
+
+    private void StartOperation(Func<Task> operation)
+    {
+        if (_closed) return;
+        Task task;
+        try { task = operation(); }
+        catch (Exception exception)
+        {
+            AppLogger.LogException("更新覆盖层操作启动失败", exception);
+            return;
+        }
+        _operation = task;
+        _ = ObserveOperationAsync(task);
+    }
+
+    private async Task ObserveOperationAsync(Task task)
+    {
+        try { await task; }
+        catch (Exception exception) { AppLogger.LogException("更新覆盖层操作失败", exception); }
+        finally
+        {
+            if (ReferenceEquals(_operation, task)) _operation = Task.CompletedTask;
+        }
     }
 
     private void ChangeCredential(Action action, string success)
@@ -142,7 +172,7 @@ internal sealed class UpdateOverlay : OverlayView
             });
             await _prepareAsync(_available, progress, download.Token);
             if (_closed) { _cancelPrepared(); return; }
-            Complete(true);
+            CommitPreparedUpdate();
         }
         catch (OperationCanceledException)
         {
@@ -157,6 +187,17 @@ internal sealed class UpdateOverlay : OverlayView
             _download = null;
             if (!_closed) { _progress.Visibility = Visibility.Collapsed; _cancelDownload.Visibility = Visibility.Collapsed; SetBusy(false); }
         }
+    }
+
+    internal void CommitPreparedUpdate()
+    {
+        try { _commitPrepared(); }
+        catch
+        {
+            _cancelPrepared();
+            throw;
+        }
+        Complete(true);
     }
 
     private void SetBusy(bool value)

@@ -28,6 +28,7 @@ public sealed class UpdateService : IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly string _root;
     private bool _prepared;
+    private bool _disposed;
     public static string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.3";
 
     public UpdateService(string? root = null, HttpMessageHandler? handler = null, Func<string?>? tokenProvider = null)
@@ -110,6 +111,7 @@ public sealed class UpdateService : IDisposable
 
     public async Task PrepareAsync(AvailableUpdate update, IProgress<UpdateProgress>? progress, CancellationToken cancellationToken = default)
     {
+        _prepared = false;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         var token = linked.Token;
         await _gate.WaitAsync(token);
@@ -157,6 +159,7 @@ public sealed class UpdateService : IDisposable
         }
         catch (Exception failure)
         {
+            _prepared = false;
             try { if (created) UpdateFiles.CleanWorkspace(_root); }
             catch (Exception cleanup) { throw new AggregateException("更新未完成，原程序未被修改；临时文件清理也失败。", failure, cleanup); }
             throw;
@@ -315,7 +318,15 @@ public sealed class UpdateService : IDisposable
     }
 
     public static string FormatSize(long bytes) => bytes < 1024 ? $"{bytes} B" : bytes < 1024 * 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes / (1024d * 1024):0.##} MB";
-    public void Dispose() { _lifetime.Cancel(); _client.Dispose(); }
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _lifetime.Cancel();
+        _client.Dispose();
+        _gate.Dispose();
+        _lifetime.Dispose();
+    }
 
     private sealed class BoundedReadStream(Stream stream, long limit) : Stream
     {
