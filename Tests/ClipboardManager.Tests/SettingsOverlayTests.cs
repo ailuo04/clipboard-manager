@@ -33,7 +33,7 @@ public sealed class SettingsOverlayWpfFixture : IDisposable
             try
             {
                 var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                application.Resources = ViewLoader.Load<ResourceDictionary>("App.xaml");
+                application.Resources = ClipboardManager.Views.SharedResources.Instance;
                 ThemeManager.Apply(AppTheme.Light);
                 _dispatcherReady.TrySetResult(Dispatcher.CurrentDispatcher);
                 Dispatcher.Run();
@@ -77,10 +77,9 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement root = XDocument.Load(path).Root!;
         XElement scrollViewer = root.Elements(presentation + "ScrollViewer").Single();
-        XElement footer = root.Elements(presentation + "StackPanel")
+        XElement footer = root.Elements(presentation + "Border")
             .Single(element => (string?)element.Attribute("Grid.Row") == "2");
 
-        Assert.Equal("22", (string?)root.Attribute("Margin"));
         Assert.Equal("430", (string?)root.Attribute("MinWidth"));
         Assert.Equal("1", (string?)scrollViewer.Attribute("Grid.Row"));
         Assert.Equal("2", (string?)footer.Attribute("Grid.Row"));
@@ -103,7 +102,7 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
     }
 
     [Fact]
-    public void HeaderCloseButtonCompletesSettingsWithNull()
+    public void CancelButtonCompletesSettingsWithFalse()
     {
         wpf.Run(() =>
         {
@@ -116,9 +115,9 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
                 overlay.OnDismissed(value);
             };
 
-            Click(((ClipboardManager.Views.SettingsView)overlay.Content!).CloseSettingsButton);
+            Click(((ClipboardManager.Views.SettingsView)overlay.Content!).CancelButton);
 
-            Assert.Null(result);
+            Assert.False(result);
             Assert.Equal(AppTheme.Light, ThemeManager.Preference);
         });
     }

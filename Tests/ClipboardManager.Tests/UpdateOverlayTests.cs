@@ -36,7 +36,7 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
         Assert.DoesNotContain("UpdateTokenBox", names);
         Assert.DoesNotContain("SaveUpdateTokenButton", names);
         Assert.DoesNotContain("DeleteUpdateTokenButton", names);
-        Assert.Contains("CloseUpdateButton", names);
+        Assert.DoesNotContain("CloseUpdateButton", names);
         Assert.Contains("InstallUpdateButton", names);
 
         wpf.Run(() =>
@@ -48,7 +48,7 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
     }
 
     [Fact]
-    public void CloseButtonCompletesWithNullAndCancelsPendingCheck()
+    public void DismissalCancelsPendingCheck()
     {
         wpf.Run(() =>
         {
@@ -60,21 +60,10 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
                 token.Register(() => pendingCheck.TrySetCanceled(token));
                 return pendingCheck.Task;
             });
-            bool callbackCalled = false;
-            bool? result = true;
-            overlay.CloseRequest = value =>
-            {
-                callbackCalled = true;
-                result = value;
-                overlay.OnDismissed(value);
-            };
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
-            var view = (ClipboardManager.Views.UpdateView)overlay.Content!;
 
-            Click(view.CloseUpdateButton);
+            overlay.OnDismissed(null);
 
-            Assert.True(callbackCalled);
-            Assert.Null(result);
             Assert.True(observedToken.IsCancellationRequested);
         });
     }

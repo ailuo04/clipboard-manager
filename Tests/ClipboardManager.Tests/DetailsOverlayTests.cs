@@ -45,7 +45,7 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("Wrap", (string?)text.Attribute("TextWrapping"));
         Assert.Equal("Disabled", (string?)imageScroll.Attribute("VerticalScrollBarVisibility"));
         Assert.Contains("完整文本内容", (string?)text.Attribute("AutomationProperties.Name"));
-        Assert.All(new[] { "CopyButton", "FullImage", "ImageScroll", "ImageStatus", "FitCheckBox", "ZoomSlider", "ZoomLabel", "StatusLabel", "CloseDetailsButton" }, name => Assert.Contains(name, names));
+        Assert.All(new[] { "CopyButton", "FullImage", "ImageScroll", "ImageStatus", "FitCheckBox", "ZoomSlider", "ZoomLabel", "StatusLabel" }, name => Assert.Contains(name, names));
         Assert.Equal("图片缩放比例", (string?)root.Descendants().Single(element => (string?)element.Attribute(x + "Name") == "ZoomSlider")
             .Attribute("AutomationProperties.Name"));
 
@@ -63,7 +63,7 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal(new Size(800, 760), OverlaySizePolicy.GetDesiredSize(OverlaySize.Details));
     }
     [Fact]
-    public void CloseButtonCompletesWithNullCancelsImageLoadAndClearsSource()
+    public void DismissalCancelsImageLoadAndClearsSource()
     {
         WithItem(image: true, (owner, item) =>
         {
@@ -75,19 +75,12 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
                 token.Register(() => pendingImage.TrySetCanceled(token));
                 return pendingImage.Task;
             });
-            bool? result = true;
-            overlay.CloseRequest = value =>
-            {
-                result = value;
-                overlay.OnDismissed(value);
-            };
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             var image = ((ClipboardManager.Views.DetailsView)overlay.Content!).FullImage;
             image.Source = CreateBitmap();
 
-            Click(((ClipboardManager.Views.DetailsView)overlay.Content!).CloseDetailsButton);
+            overlay.OnDismissed(null);
 
-            Assert.Null(result);
             Assert.True(observedToken.IsCancellationRequested);
             Assert.Null(image.Source);
         });

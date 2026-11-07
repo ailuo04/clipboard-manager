@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../ClipboardManager.csproj" />
+    <None Include="../../App.xaml" Link="Xaml/App.xaml" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../Views/*.xaml" Link="Xaml/Views/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

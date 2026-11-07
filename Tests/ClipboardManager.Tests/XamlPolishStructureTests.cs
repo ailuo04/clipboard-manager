@@ -22,30 +22,40 @@ public sealed class XamlPolishStructureTests
     }
 
     [Theory]
-    [InlineData("SettingsView.xaml", "设置", "CloseSettingsButton", "关闭设置", "ScrollViewer", "设置")]
-    [InlineData("UpdateView.xaml", "应用更新", "CloseUpdateButton", "关闭应用更新", "ScrollViewer", "应用更新")]
-    [InlineData("DetailsView.xaml", "详情", "CloseDetailsButton", "关闭详情", "Grid", "{Binding TypeLabel}")]
-    public void OverlayPagesHaveAccessibleTitleFixedHeaderBodyAndFooter(
-        string fileName, string pageName, string closeButtonName, string closeAccessibleName, string bodyElementName, string headerTitle)
+    [InlineData("SettingsView.xaml", "设置", "ScrollViewer")]
+    [InlineData("UpdateView.xaml", "应用更新", "ScrollViewer")]
+    [InlineData("DetailsView.xaml", "详情", "Grid")]
+    public void OverlayPagesKeepAccessibleNameBodyAndFooter(
+        string fileName, string pageName, string bodyElementName)
     {
         XElement root = LoadView(fileName);
         XElement[] rows = root.Element(Presentation + "Grid.RowDefinitions")!
             .Elements(Presentation + "RowDefinition").ToArray();
         XElement[] topLevel = root.Elements().ToArray();
-        XElement header = topLevel.Single(element => GridRow(element) == "0" && element.Name == Presentation + "Grid");
         XElement body = topLevel.First(element => GridRow(element) == "1" && element.Name == Presentation + bodyElementName);
         XElement footer = topLevel.Single(element => GridRow(element) == "2");
-        XElement[] closeButtons = root.Descendants(Presentation + "Button")
-            .Where(button => (string?)button.Attribute(Xaml + "Name") == closeButtonName).ToArray();
 
         Assert.Equal(pageName, (string?)root.Attribute("AutomationProperties.Name"));
         Assert.Equal(new[] { "Auto", "*", "Auto" }, rows.Select(row => (string?)row.Attribute("Height")));
         Assert.Equal(Presentation + bodyElementName, body.Name);
-        Assert.Contains(header.Descendants(Presentation + "TextBlock"), text => (string?)text.Attribute("Text") == headerTitle);
-        XElement close = Assert.Single(closeButtons);
-        Assert.Equal(closeAccessibleName, (string?)close.Attribute("AutomationProperties.Name"));
-        Assert.Contains(header.Descendants(), element => ReferenceEquals(element, close));
-        Assert.DoesNotContain(footer.Descendants(Presentation + "Button"), button => (string?)button.Attribute(Xaml + "Name") == closeButtonName);
+        // The page header and its close affordance live in WindowFrame's title bar now.
+        Assert.DoesNotContain(root.Descendants(Presentation + "Button"),
+            button => ((string?)button.Attribute(Xaml + "Name"))?.StartsWith("Close", StringComparison.Ordinal) == true);
+        Assert.NotEmpty(footer.Descendants(Presentation + "Button"));
+    }
+
+    [Fact]
+    public void WindowFrameHostsPageTitleAndBackAffordance()
+    {
+        XElement root = LoadView("WindowFrame.xaml");
+        XElement[] named = root.Descendants().ToArray();
+        XElement title = named.Single(element => (string?)element.Attribute(Xaml + "Name") == "PageTitle");
+        XElement back = named.Single(element => (string?)element.Attribute(Xaml + "Name") == "BackButton");
+
+        Assert.Equal("本地历史", (string?)title.Attribute("Text"));
+        Assert.Equal("Collapsed", (string?)back.Attribute("Visibility"));
+        Assert.Equal("返回", (string?)back.Attribute("AutomationProperties.Name"));
+        Assert.Equal("True", (string?)back.Attribute(Shell + "WindowChrome.IsHitTestVisibleInChrome"));
     }
 
     [Fact]

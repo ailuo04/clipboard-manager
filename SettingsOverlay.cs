@@ -41,8 +41,10 @@ internal sealed class SettingsOverlay : OverlayView
         var alwaysOnTop = view.AlwaysOnTopCheckBox;
         var autoUpdates = view.AutoCheckUpdatesCheckBox;
         var minimizeToTray = view.MinimizeToTrayCheckBox;
+        var hideAfterCopy = view.HideAfterCopyCheckBox;
         autoUpdates.IsChecked = Settings.AutoCheckUpdates;
         minimizeToTray.IsChecked = Settings.MinimizeToTray;
+        hideAfterCopy.IsChecked = Settings.HideAfterCopy;
         var updateButton = view.OpenUpdatesButton;
         updateButton.IsEnabled = showUpdates is not null;
         updateButton.Click += (_, _) => { if (showUpdates is not null) StartOperation(showUpdates); };
@@ -51,7 +53,6 @@ internal sealed class SettingsOverlay : OverlayView
         storage.Text = Settings.MaxStorageMb.ToString();
         alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
         view.DirectoryBox.Text = dataDirectory;
-        view.CloseSettingsButton.Click += (_, _) => Complete(null);
         view.CancelButton.Click += (_, _) => Complete(false);
         view.SaveButton.Click += (_, _) =>
         {
@@ -85,6 +86,7 @@ internal sealed class SettingsOverlay : OverlayView
             Settings.AlwaysOnTop = alwaysOnTop.IsChecked == true;
             Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
             Settings.MinimizeToTray = minimizeToTray.IsChecked == true;
+            Settings.HideAfterCopy = hideAfterCopy.IsChecked == true;
             SelectedTheme = selectedTheme;
             Complete(true);
         };
@@ -99,6 +101,8 @@ internal sealed class SettingsOverlay : OverlayView
     public AppSettings Settings { get; private set; }
 
     public AppTheme SelectedTheme { get; private set; } = ThemeManager.Preference;
+
+    internal override string? PageTitle => "设置";
 
     internal override void OnDismissed(bool? result)
     {

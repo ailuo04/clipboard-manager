@@ -14,15 +14,16 @@
     <LangVersion>latest</LangVersion>
     <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <EnableDefaultPageItems>false</EnableDefaultPageItems>
-    <StartupObject>ClipboardManager.App</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <Compile Remove="UpdateHelper\**\*.cs" />
     <Compile Remove="Tests/**/*.cs" />
     <Using Include="System.IO" />
-    <EmbeddedResource Include="App.xaml;Assets\Clipboard.ico" />
+    <EmbeddedResource Include="Assets\Clipboard.ico" />
+    <ApplicationDefinition Include="App.xaml" />
   </ItemGroup>
   <ItemGroup>
+    <Page Include="Views\SharedResources.xaml" />
     <Page Include="Views\WindowFrame.xaml" />
     <Page Include="Views\MainView.xaml" />
     <Page Include="Views\SettingsView.xaml" />

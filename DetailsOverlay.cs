@@ -56,7 +56,6 @@ internal sealed class DetailsOverlay : OverlayView
         _zoomLabel = view.ZoomLabel;
         _scroll = view.ImageScroll;
 
-        view.CloseDetailsButton.Click += (_, _) => Complete(null);
         _copy.Click += async (_, _) => await CopyAsync(item);
         _fit.Checked += (_, _) => UpdateZoom();
         _fit.Unchecked += (_, _) => UpdateZoom();
@@ -65,6 +64,8 @@ internal sealed class DetailsOverlay : OverlayView
         Loaded += OnLoaded;
         UpdateZoom();
     }
+
+    internal override string? PageTitle => DataContext is RecordViewModel { IsImage: true } ? "图片详情" : "文本详情";
 
     internal override void OnDismissed(bool? result)
     {

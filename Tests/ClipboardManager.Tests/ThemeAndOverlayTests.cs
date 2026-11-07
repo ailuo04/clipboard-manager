@@ -208,11 +208,11 @@ public sealed class ThemeAndOverlayTests
     {
         string viewsRoot = Path.Combine(AppContext.BaseDirectory, "Xaml", "Views");
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        string appResourceName = typeof(App).Assembly.GetManifestResourceNames()
-            .Single(name => name.EndsWith(".App.xaml", StringComparison.Ordinal));
-        using Stream appStream = typeof(App).Assembly.GetManifestResourceStream(appResourceName)!;
-        HashSet<string> sharedKeys = XDocument.Load(appStream).Root!.DescendantsAndSelf()
+        string appPath = Path.Combine(AppContext.BaseDirectory, "Xaml", "Views", "SharedResources.xaml");
+        HashSet<string> sharedKeys = XDocument.Load(appPath).Root!.DescendantsAndSelf()
             .Attributes(x + "Key").Select(attribute => attribute.Value).ToHashSet(StringComparer.Ordinal);
+        // Injected into Application.Resources at startup from Assets\Clipboard.ico.
+        sharedKeys.Add("AppIcon");
         HashSet<string> lightKeys = XDocument.Load(Path.Combine(viewsRoot, "LightGlass.xaml")).Root!.DescendantsAndSelf()
             .Attributes(x + "Key").Select(attribute => attribute.Value).ToHashSet(StringComparer.Ordinal);
         HashSet<string> darkKeys = XDocument.Load(Path.Combine(viewsRoot, "LiquidGlass.xaml")).Root!.DescendantsAndSelf()

@@ -82,12 +82,12 @@
             <Setter Property="IsTabStop" Value="False" />
         </Style>
         <Style x:Key="RecordCopySurface" TargetType="Button" BasedOn="{StaticResource CopySurface}">
-            <Setter Property="Padding" Value="12,10,64,11" />
+            <Setter Property="Padding" Value="14,12,14,13" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="IsTabStop" Value="False" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding DataContext.IsCompact, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
-                    <Setter Property="Padding" Value="10,8,58,9" />
+                    <Setter Property="Padding" Value="12,10,12,11" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -107,21 +107,22 @@
     </Grid.RowDefinitions>
 
 
-    <Grid Grid.Row="0" Margin="12,10,12,0">
+    <Grid Grid.Row="0" Margin="16,14,14,0">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*" />
             <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
-        <StackPanel Margin="4,0,8,0" VerticalAlignment="Center" Orientation="Horizontal">
-            <TextBlock Text="历史记录" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <StackPanel Margin="2,0,8,0" VerticalAlignment="Center">
+            <TextBlock Text="历史记录" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Text="本地保存 · 最新在前" Style="{StaticResource SecondaryText}" FontSize="11" Margin="0,3,0,0" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
             <Button Style="{StaticResource GlassToolButton}" Command="{Binding UpdateCommand}" ToolTip="检查应用更新"
-                    AutomationProperties.Name="检查应用更新" Margin="0,0,4,0">
+                    AutomationProperties.Name="检查应用更新" Margin="0,0,6,0">
                 <TextBlock Style="{StaticResource Icon}" Text="&#xE895;" />
             </Button>
             <Button Style="{StaticResource GlassToolButton}" Command="{Binding ClearCommand}" ToolTip="清空全部历史记录"
-                    AutomationProperties.Name="清空全部历史记录" Margin="0,0,4,0">
+                    AutomationProperties.Name="清空全部历史记录" Margin="0,0,6,0">
                 <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
             </Button>
             <Button Style="{StaticResource GlassToolButton}" Command="{Binding SettingsCommand}" ToolTip="设置" AutomationProperties.Name="设置">
@@ -130,7 +131,7 @@
         </StackPanel>
     </Grid>
 
-    <Grid Grid.Row="1" Margin="13,10,13,0">
+    <Grid Grid.Row="1" Margin="16,14,16,0">
         <TextBox x:Name="SearchBox" Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged}"
                  AutomationProperties.Name="搜索文本内容" MinHeight="40" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}">
             <TextBox.Style>
@@ -167,7 +168,7 @@
         </Button>
     </Grid>
 
-    <Grid Grid.Row="2" Margin="13,8,13,8">
+    <Grid Grid.Row="2" Margin="16,12,16,10">
         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
         <Border Background="{DynamicResource FilterPanelBrush}" BorderBrush="{DynamicResource FilterPanelBorderBrush}" BorderThickness="1" CornerRadius="11" Padding="3" HorizontalAlignment="Left">
             <ListBox BorderThickness="0" Background="Transparent" SelectedIndex="{Binding FilterIndex, Mode=TwoWay}"
@@ -185,9 +186,9 @@
         </StackPanel>
     </Grid>
 
-    <Border Grid.Row="3" Margin="12,0,12,9" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
+    <Border Grid.Row="3" Margin="16,0,16,10" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
             BorderThickness="1" CornerRadius="16">
-        <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.16" /></Border.Effect>
+        <Border.Effect><DropShadowEffect Color="{DynamicResource CardShadowColor}" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.16" /></Border.Effect>
         <Grid ClipToBounds="True">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
             <Border Background="{DynamicResource GlassSheenBrush}" CornerRadius="15" Margin="1,1,1,0" IsHitTestVisible="False" />
@@ -304,9 +305,26 @@
                                         </ContentControl>
                                     </Grid>
                                 </Button>
-                                <Border Background="{DynamicResource ActionPanelBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1" CornerRadius="8"
-                                        Width="34" Height="108" Margin="0,5,5,5" HorizontalAlignment="Right" VerticalAlignment="Stretch">
-                                    <UniformGrid Rows="4" Columns="1">
+                                <Border x:Name="ActionPanel" Background="{DynamicResource ActionPanelBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
+                                        BorderThickness="1" CornerRadius="10" Padding="2"
+                                        Margin="0,0,10,10" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                        Opacity="0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                    <Setter Property="Opacity" Value="1" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="{DynamicResource CardShadowColor}" BlurRadius="12" ShadowDepth="2" Opacity="0.22" />
+                                    </Border.Effect>
+                                    <StackPanel Orientation="Horizontal">
                                         <Button Command="{Binding CopyCommand}" Style="{StaticResource RecordAction}" ToolTip="{Binding CopyToolTip}"
                                                 AutomationProperties.Name="复制记录" Foreground="{DynamicResource AccentBrush}">
                                             <TextBlock Style="{StaticResource Icon}" Text="&#xE8C8;" FontSize="13" />
@@ -332,7 +350,7 @@
                                                 AutomationProperties.Name="删除记录" Foreground="{DynamicResource DangerTextBrush}">
                                             <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" FontSize="12" />
                                         </Button>
-                                    </UniformGrid>
+                                    </StackPanel>
                                 </Border>
                             </Grid>
                         </DataTemplate>
@@ -345,7 +363,7 @@
                         <StackPanel>
                             <Border Width="48" Height="48" CornerRadius="16" HorizontalAlignment="Center"
                                     Background="{DynamicResource EmptyIconBackgroundBrush}" BorderBrush="{DynamicResource EmptyIconBorderBrush}" BorderThickness="1">
-                                <Border.Effect><DropShadowEffect Color="#000000" BlurRadius="15" ShadowDepth="3" Opacity="0.2" /></Border.Effect>
+                                <Border.Effect><DropShadowEffect Color="{DynamicResource CardShadowColor}" BlurRadius="15" ShadowDepth="3" Opacity="0.2" /></Border.Effect>
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE77F;" FontSize="21" Foreground="{DynamicResource AccentBrush}" />
                             </Border>
                             <TextBlock Text="{Binding EmptyTitle}" FontSize="14" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,0"
@@ -367,8 +385,8 @@
         </Grid>
     </Border>
 
-    <Border Grid.Row="4" Margin="13,0,13,11" Background="{DynamicResource StatusBarBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1"
-            CornerRadius="11" Padding="10,7">
+    <Border Grid.Row="4" Margin="16,0,16,14" Background="{DynamicResource StatusBarBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1"
+            CornerRadius="11" Padding="12,8">
         <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

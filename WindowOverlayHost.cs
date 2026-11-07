@@ -59,6 +59,7 @@ internal sealed class WindowOverlayHost : IDisposable
         _overlayLayer.PreviewKeyDown += OnOverlayPreviewKeyDown;
         _overlayLayer.Visibility = Visibility.Collapsed;
         _overlayContent.Content = null;
+        if (root is Views.WindowFrame frame) frame.BackRequested += OnFrameBackRequested;
     }
 
     internal bool IsOpen => _sessionActive;
@@ -168,6 +169,7 @@ internal sealed class WindowOverlayHost : IDisposable
         {
             _overlayContent.Content = null;
             _overlayLayer.Visibility = Visibility.Collapsed;
+            SetPageHeader(null);
             try { RestoreMainWindow(); }
             finally { _closingAll = false; }
         }
@@ -223,7 +225,21 @@ internal sealed class WindowOverlayHost : IDisposable
             if (activationGeneration == _activationGeneration && ReferenceEquals(_current, frame))
                 CompleteCurrent(result);
         };
+        SetPageHeader(frame.Page.PageTitle);
+        (_root as Views.WindowFrame)?.PlayOverlayEnter();
         FocusPage(frame);
+    }
+
+    private void SetPageHeader(string? title)
+    {
+        if (_root is not Views.WindowFrame frame) return;
+        frame.SetPageHeader(title);
+    }
+
+    private void OnFrameBackRequested(object? sender, EventArgs e)
+    {
+        if (_current is null) return;
+        CompleteCurrent(null);
     }
 
     private void ApplyPageSize(OverlaySize size)
@@ -267,6 +283,7 @@ internal sealed class WindowOverlayHost : IDisposable
         _sessionActive = false;
         _overlayContent.Content = null;
         _overlayLayer.Visibility = Visibility.Collapsed;
+        SetPageHeader(null);
         RestoreMainWindow();
     }
 

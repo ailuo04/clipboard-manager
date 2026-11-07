@@ -5,37 +5,51 @@ using ClipboardManager.Utilities;
 
 namespace ClipboardManager;
 
-public sealed class App : Application
+public partial class App : Application
 {
-    [STAThread]
-    public static int Main()
+    private Mutex? _instanceMutex;
+    private int _exitCode;
+
+    protected override void OnStartup(StartupEventArgs e)
     {
-        using var mutex = new Mutex(true, "Local\\ClipboardManager.Desktop.v1", out bool created);
+        _instanceMutex = new Mutex(true, "Local\\ClipboardManager.Desktop.v1", out bool created);
         if (!created)
         {
             MessageBox.Show("剪贴板管理器已经在运行。", "剪贴板", MessageBoxButton.OK, MessageBoxImage.Information);
-            return 0;
+            _exitCode = 0;
+            Shutdown();
+            return;
         }
+
         try
         {
-            var app = new App { ShutdownMode = ShutdownMode.OnMainWindowClose };
-            app.Resources = ViewLoader.Load<ResourceDictionary>("App.xaml");
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
             ThemeManager.Initialize();
-            app.Resources["AppIcon"] = ViewLoader.LoadIcon();
-            app.DispatcherUnhandledException += OnDispatcherUnhandledException;
+            Resources["AppIcon"] = ViewLoader.LoadIcon();
+            DispatcherUnhandledException += OnDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += (_, args) =>
             {
                 if (args.ExceptionObject is Exception exception) AppLogger.LogException("未处理的后台异常", exception);
             };
-            return app.Run(new MainWindow());
+            MainWindow = new MainWindow();
+            MainWindow.Show();
         }
         catch (Exception exception)
         {
             AppLogger.LogException("启动应用失败", exception);
             MessageBox.Show($"应用无法启动：{exception.Message}\n日志：{AppPaths.LogFilePath}", "剪贴板", MessageBoxButton.OK, MessageBoxImage.Error);
-            return 1;
+            _exitCode = 1;
+            Shutdown();
         }
-        finally { mutex.ReleaseMutex(); }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        base.OnExit(e);
+        try { _instanceMutex?.ReleaseMutex(); }
+        catch (ApplicationException) { }
+        finally { _instanceMutex?.Dispose(); }
+        if (_exitCode != 0) e.ApplicationExitCode = _exitCode;
     }
 
     private static void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

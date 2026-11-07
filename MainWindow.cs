@@ -18,7 +18,7 @@ public sealed class MainWindow : Window
     private readonly ListBox _historyList;
     private readonly TextBox _searchBox;
     private readonly GlobalHotKey _hotKey;
-    private readonly Grid _windowFrame;
+    private readonly Views.WindowFrame _windowFrame;
     private readonly WindowOverlayHost _overlayHost;
     private readonly Grid _titleBar;
     private readonly TextBlock _maximizeGlyph;
@@ -26,16 +26,17 @@ public sealed class MainWindow : Window
     private bool _allowClose;
     private bool _exitRequested;
     private bool _closeToTray;
+    private bool _hideAfterCopy = true;
     private bool _backdropAttempted;
 
     public MainWindow(HistoryService? history = null)
     {
         SetResourceReference(StyleProperty, typeof(Window));
         Title = "剪贴板";
-        Width = 340;
-        Height = 500;
-        MinWidth = 320;
-        MinHeight = 400;
+        Width = 420;
+        Height = 620;
+        MinWidth = 380;
+        MinHeight = 520;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Background = Brushes.Transparent;
         SetResourceReference(ForegroundProperty, "TextPrimaryBrush");
@@ -68,6 +69,8 @@ public sealed class MainWindow : Window
         _trayIcon.PauseRequested += (_, _) => _viewModel.PauseCommand.Execute(null);
         _trayIcon.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.CopyCompleted += OnCopyCompleted;
+        _viewModel.SettingsApplied += OnSettingsApplied;
         DataContext = _viewModel;
         _hotKey = new GlobalHotKey(this);
         _hotKey.Pressed += OnHotKeyPressed;
@@ -86,6 +89,7 @@ public sealed class MainWindow : Window
                 FocusSelectedRecord();
             }
         };
+        PreviewKeyDown += OnWindowPreviewKeyDown;
         SizeChanged += (_, _) => { _viewModel.UpdateWindowSize(); UpdateWindowFrame(); };
         StateChanged += (_, _) => UpdateWindowFrame();
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(UpdateWindowFrame));
@@ -110,6 +114,7 @@ public sealed class MainWindow : Window
         UpdateWindowFrame();
         await _viewModel.InitializeAsync();
         if (_viewModel.IsClosing) return;
+        ApplyWindowSettings();
         try { _hotKey.Start(); }
         catch (Exception exception) { _viewModel.ReportHotKeyFailure(exception); }
         _searchBox.Focus();
@@ -183,6 +188,38 @@ public sealed class MainWindow : Window
         _historyList.UpdateLayout();
         if (_historyList.ItemContainerGenerator.ContainerFromItem(_historyList.SelectedItem) is ListBoxItem container) container.Focus();
         else _historyList.Focus();
+    }
+
+    private void ApplyWindowSettings()
+    {
+        _hideAfterCopy = _viewModel.HideAfterCopy;
+    }
+
+    private void OnSettingsApplied(object? sender, EventArgs args)
+    {
+        _hideAfterCopy = _viewModel.HideAfterCopy;
+    }
+
+    private void OnCopyCompleted(object? sender, EventArgs args)
+    {
+        if (!_hideAfterCopy || !IsVisible || _overlayHost.IsOpen) return;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (IsVisible) Hide();
+        }));
+    }
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs args)
+    {
+        if (args.Key != Key.Escape || _overlayHost.IsOpen || _viewModel.IsClosing) return;
+        args.Handled = true;
+        if (Keyboard.FocusedElement is TextBox { Text.Length: > 0 } search && ReferenceEquals(search, _searchBox))
+        {
+            _viewModel.ClearSearchCommand.Execute(null);
+            return;
+        }
+        if (_closeToTray) Hide();
+        else Close();
     }
 
     private void OnHotKeyPressed(object? sender, EventArgs args)

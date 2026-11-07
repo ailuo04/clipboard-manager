@@ -87,6 +87,7 @@ public sealed class MainViewModel : ObservableObject
     public bool CanAct => IsReady && !IsBusy && !IsClosing;
     public bool IsCompact => _isCompact;
     public bool IsAlwaysOnTop => _owner.Topmost;
+    public bool HideAfterCopy => _history.Settings.HideAfterCopy;
     public string AlwaysOnTopToolTip => IsAlwaysOnTop ? "取消窗口置顶" : "窗口置顶";
     public string AlwaysOnTopLabel => IsAlwaysOnTop ? "已置顶" : "置顶";
     public double ThumbnailHeight => IsCompact ? 104 : 196;
@@ -170,7 +171,12 @@ public sealed class MainViewModel : ObservableObject
         if (item.IsImage) await _clipboard.WriteImageAsync(item.ImagePath!, _monitor.Handle, _lifetime.Token);
         else await _clipboard.WriteTextAsync(item.Record.Text!, _monitor.Handle, _lifetime.Token);
         Status = item.IsImage ? "图片已复制到剪贴板" : "完整文本已复制到剪贴板";
+        CopyCompleted?.Invoke(this, EventArgs.Empty);
     }, "复制记录失败");
+
+    public event EventHandler? CopyCompleted;
+
+    public event EventHandler? SettingsApplied;
 
     public Task DeleteAsync(RecordViewModel item) => RunOperationAsync(async () =>
     {
@@ -257,6 +263,7 @@ public sealed class MainViewModel : ObservableObject
                 RefreshRecords();
                 Status = "设置已保存";
                 if (warning is not null) Notice = warning;
+                SettingsApplied?.Invoke(this, EventArgs.Empty);
             }, "保存设置失败");
         }
         catch (Exception exception) { Report("打开设置失败", exception); }

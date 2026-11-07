@@ -19,6 +19,7 @@ internal sealed class UpdateOverlay : OverlayView
     private readonly Button _check;
     private readonly Button _install;
     private readonly Button _cancelDownload;
+    private readonly TextBlock _latestVersion;
     private AvailableUpdate? _available;
     private CancellationTokenSource? _download;
     private Task _operation = Task.CompletedTask;
@@ -50,15 +51,17 @@ internal sealed class UpdateOverlay : OverlayView
         _check = view.CheckUpdateButton;
         _install = view.InstallUpdateButton;
         _cancelDownload = view.CancelDownloadButton;
+        _latestVersion = view.LatestVersionText;
         view.CurrentVersionText.Text = "当前版本 " + UpdateService.CurrentVersion;
         _check.Click += (_, _) => StartOperation(CheckAsync);
         _install.Click += (_, _) => StartOperation(InstallAsync);
         _cancelDownload.Click += (_, _) => { if (!_closed) _download?.Cancel(); };
-        view.CloseUpdateButton.Click += (_, _) => Complete(null);
         Loaded += OnLoaded;
     }
 
     internal Task WhenIdle => _operation;
+
+    internal override string? PageTitle => "应用更新";
 
     internal override void OnDismissed(bool? result)
     {
@@ -112,10 +115,15 @@ internal sealed class UpdateOverlay : OverlayView
         {
             _available = await _checkAsync(_lifetime.Token);
             if (_closed) return;
-            if (_available is null) _status.Text = "已是最新版本";
+            if (_available is null)
+            {
+                _status.Text = "已是最新版本";
+                _latestVersion.Text = UpdateService.CurrentVersion;
+            }
             else
             {
                 _status.Text = "发现新版本 " + _available.Manifest.Version;
+                _latestVersion.Text = _available.Manifest.Version;
                 _details.Text = $"下载 {Formatters.FormatSize(_available.DownloadSize)} · 更新 {_available.Plan.Changes.Count} 个文件 · 删除 {_available.Plan.Deletes.Count} 个旧文件";
             }
         }

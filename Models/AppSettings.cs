@@ -12,6 +12,8 @@ public sealed class AppSettings
 
     public bool MinimizeToTray { get; set; } = false;
 
+    public bool HideAfterCopy { get; set; } = true;
+
     public AppSettings Clone()
     {
         return new AppSettings
@@ -20,7 +22,8 @@ public sealed class AppSettings
             MaxStorageMb = MaxStorageMb,
             AlwaysOnTop = AlwaysOnTop,
             AutoCheckUpdates = AutoCheckUpdates,
-            MinimizeToTray = MinimizeToTray
+            MinimizeToTray = MinimizeToTray,
+            HideAfterCopy = HideAfterCopy
         };
     }
 
