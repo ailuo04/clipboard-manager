@@ -47,6 +47,9 @@ jobs:
           $existing = git rev-parse --verify --quiet "refs/tags/$tag^{commit}"
           if ($LASTEXITCODE -eq 0 -and $existing -ne (git rev-parse HEAD) -and $env:REFRESH_EXISTING -ne 'true') { throw 'Release tag points to a different commit.' }
           $global:LASTEXITCODE = 0
+      - name: Run unit tests
+        shell: pwsh
+        run: dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj --configuration Release --nologo
       - name: Package self-contained Windows application
         shell: pwsh
         run: ./package.ps1 -Version '${{ steps.version.outputs.value }}'
