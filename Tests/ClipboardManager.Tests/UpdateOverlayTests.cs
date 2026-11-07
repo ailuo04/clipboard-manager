@@ -26,7 +26,7 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
         XNamespace automation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         XElement root = XDocument.Load(path).Root!;
         XElement scrollViewer = root.Elements(presentation + "ScrollViewer").Single();
-        XElement footer = root.Elements(presentation + "StackPanel")
+        XElement footer = root.Elements(presentation + "Border")
             .Single(element => (string?)element.Attribute("Grid.Row") == "2");
         string[] names = root.Descendants().Attributes(x + "Name").Select(attribute => attribute.Value).ToArray();
 

@@ -115,9 +115,11 @@ public sealed class MainViewModel : ObservableObject
     public string SearchTerm
     {
         get => _searchTerm;
-        set { if (Set(ref _searchTerm, value)) { _searchTimer.Stop(); _searchTimer.Start(); Raise(nameof(HasSearch)); } }
+        set { if (Set(ref _searchTerm, value)) { _searchTimer.Stop(); _searchTimer.Start(); Raise(nameof(HasSearch)); Raise(nameof(SearchHidesImages)); } }
     }
     public bool HasSearch => !string.IsNullOrEmpty(SearchTerm);
+
+    public bool SearchHidesImages => HasSearch && FilterIndex != 2 && _allRecords.Any(item => item.IsImage);
     public int FilterIndex
     {
         get => _filterIndex;
@@ -444,10 +446,15 @@ public sealed class MainViewModel : ObservableObject
         var filtered = _allRecords.Where(item => (FilterIndex == 0 || FilterIndex == 1 && !item.IsImage || FilterIndex == 2 && item.IsImage)
             && (query.Length == 0 || !item.IsImage && item.Record.Text!.Contains(query, StringComparison.CurrentCultureIgnoreCase))).ToList();
         VisibleRecords.Clear();
-        foreach (var item in filtered) VisibleRecords.Add(item);
+        for (int index = 0; index < filtered.Count; index++)
+        {
+            filtered[index].Position = index + 1;
+            VisibleRecords.Add(filtered[index]);
+        }
         SelectedRecord = filtered.FirstOrDefault(item => item.Record.Id == selectedId)
             ?? (selectedIndex < 0 || filtered.Count == 0 ? null : filtered[Math.Min(selectedIndex, filtered.Count - 1)]);
         Raise(nameof(CountLabel)); Raise(nameof(IsEmpty)); Raise(nameof(EmptyTitle)); Raise(nameof(EmptySubtitle));
+        Raise(nameof(SearchHidesImages));
     }
 
     private void RaiseState()

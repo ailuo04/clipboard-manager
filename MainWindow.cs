@@ -179,6 +179,38 @@ public sealed class MainWindow : Window
             args.Handled = true;
             if (_historyList.SelectedItem is RecordViewModel item && item.CopyCommand.CanExecute(null)) item.CopyCommand.Execute(null);
         }
+        else if (args.Key == Key.Delete && modifiers == ModifierKeys.None)
+        {
+            args.Handled = true;
+            if (_historyList.SelectedItem is RecordViewModel item && item.DeleteCommand.CanExecute(null)) item.DeleteCommand.Execute(null);
+        }
+        else if (args.Key == Key.P && modifiers == ModifierKeys.Control)
+        {
+            args.Handled = true;
+            if (_historyList.SelectedItem is RecordViewModel item && item.PinCommand.CanExecute(null)) item.PinCommand.Execute(null);
+        }
+        else if (modifiers == ModifierKeys.None && TryGetDigit(args.Key, out int digit) && digit >= 1 && digit <= 9)
+        {
+            args.Handled = true;
+            int index = digit - 1;
+            if (index >= _historyList.Items.Count) return;
+            if (_historyList.Items[index] is RecordViewModel item && item.CopyCommand.CanExecute(null))
+            {
+                _historyList.SelectedIndex = index;
+                item.CopyCommand.Execute(null);
+            }
+        }
+    }
+
+    private static bool TryGetDigit(Key key, out int digit)
+    {
+        digit = key switch
+        {
+            >= Key.D1 and <= Key.D9 => key - Key.D0,
+            >= Key.NumPad1 and <= Key.NumPad9 => key - Key.NumPad0,
+            _ => 0
+        };
+        return digit > 0;
     }
 
     private void FocusSelectedRecord()

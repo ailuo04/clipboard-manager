@@ -1,11 +1,15 @@
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using ClipboardManager.Models;
 using ClipboardManager.Utilities;
 
 namespace ClipboardManager.ViewModels;
 
-public sealed class RecordViewModel
+public sealed class RecordViewModel : INotifyPropertyChanged
 {
+    private int _position;
+
     public RecordViewModel(ClipboardRecord record, MainViewModel owner)
     {
         Record = record;
@@ -19,6 +23,19 @@ public sealed class RecordViewModel
     public ClipboardRecord Record { get; }
     public bool IsImage => Record.Kind == ClipboardRecordKind.Image;
     public bool IsPinned => Record.IsPinned;
+    public int Position
+    {
+        get => _position;
+        set
+        {
+            if (_position == value) return;
+            _position = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Position)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PositionLabel)));
+        }
+    }
+    public string? PositionLabel => Position is >= 1 and <= 9 ? Position.ToString() : null;
+    public event PropertyChangedEventHandler? PropertyChanged;
     public string? ImagePath { get; }
     public string TypeLabel => IsImage ? "图片" : "文本";
     public string PinToolTip => IsPinned ? "取消固定" : "固定记录";

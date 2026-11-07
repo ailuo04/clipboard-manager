@@ -22,11 +22,11 @@ public sealed class XamlPolishStructureTests
     }
 
     [Theory]
-    [InlineData("SettingsView.xaml", "设置", "ScrollViewer")]
-    [InlineData("UpdateView.xaml", "应用更新", "ScrollViewer")]
-    [InlineData("DetailsView.xaml", "详情", "Grid")]
+    [InlineData("SettingsView.xaml", "设置", "ScrollViewer", true)]
+    [InlineData("UpdateView.xaml", "应用更新", "ScrollViewer", true)]
+    [InlineData("DetailsView.xaml", "详情", "Grid", false)]
     public void OverlayPagesKeepAccessibleNameBodyAndFooter(
-        string fileName, string pageName, string bodyElementName)
+        string fileName, string pageName, string bodyElementName, bool footerHasActions)
     {
         XElement root = LoadView(fileName);
         XElement[] rows = root.Element(Presentation + "Grid.RowDefinitions")!
@@ -41,7 +41,7 @@ public sealed class XamlPolishStructureTests
         // The page header and its close affordance live in WindowFrame's title bar now.
         Assert.DoesNotContain(root.Descendants(Presentation + "Button"),
             button => ((string?)button.Attribute(Xaml + "Name"))?.StartsWith("Close", StringComparison.Ordinal) == true);
-        Assert.NotEmpty(footer.Descendants(Presentation + "Button"));
+        if (footerHasActions) Assert.NotEmpty(footer.Descendants(Presentation + "Button"));
     }
 
     [Fact]

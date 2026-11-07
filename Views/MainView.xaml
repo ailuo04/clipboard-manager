@@ -181,6 +181,8 @@
             </ListBox>
         </Border>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,1,0">
+            <TextBlock Text="搜索仅匹配文本" Style="{StaticResource SecondaryText}" FontSize="10.5" Margin="0,0,10,0"
+                       Visibility="{Binding SearchHidesImages, Converter={StaticResource BoolVisibility}}" />
             <Ellipse Width="5" Height="5" Fill="{DynamicResource AccentBrush}" Margin="0,0,5,0" />
             <TextBlock Text="最新在前" Style="{StaticResource SecondaryText}" FontSize="11" />
         </StackPanel>
@@ -265,9 +267,12 @@
                                         <Grid Margin="0,0,0,4">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
                                             </Grid.ColumnDefinitions>
-                                            <Border CornerRadius="4" Padding="5,1" BorderThickness="1">
+                                            <TextBlock Text="{Binding PositionLabel}" FontSize="10" FontWeight="SemiBold"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center"
+                                                       MinWidth="12" Margin="0,0,5,0" ToolTip="按数字键可直接复制" />
+                                            <Border Grid.Column="1" CornerRadius="4" Padding="5,1" BorderThickness="1">
                                                 <Border.Style>
                                                     <Style TargetType="Border">
                                                         <Setter Property="Background" Value="{DynamicResource TagBackgroundBrush}" />
@@ -281,12 +286,12 @@
                                                 </Border.Style>
                                                 <TextBlock Text="{Binding TypeLabel}" FontSize="10.5" Foreground="{DynamicResource TagTextBrush}" />
                                             </Border>
-                                            <TextBlock Grid.Column="1" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="10"
+                                            <TextBlock Grid.Column="2" Style="{StaticResource Icon}" Text="&#xE718;" FontSize="10"
                                                        Foreground="{DynamicResource AccentBrush}" Margin="5,0,0,0"
                                                        Visibility="{Binding IsPinned, Converter={StaticResource BoolVisibility}}" ToolTip="已固定" />
-                                            <TextBlock Grid.Column="2" Text="{Binding ShortTimeLabel}" Style="{StaticResource SecondaryText}" FontSize="10.5"
+                                            <TextBlock Grid.Column="3" Text="{Binding ShortTimeLabel}" Style="{StaticResource SecondaryText}" FontSize="10.5"
                                                        VerticalAlignment="Center" ToolTip="{Binding FullTime}" Margin="6,0,0,0" />
-                                            <TextBlock Grid.Column="3" Text="{Binding ContentInfo}" Style="{StaticResource SecondaryText}" FontSize="10.5"
+                                            <TextBlock Grid.Column="4" Text="{Binding ContentInfo}" Style="{StaticResource SecondaryText}" FontSize="10.5"
                                                        TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip="{Binding ContentInfo}"
                                                        Margin="6,0,2,0" HorizontalAlignment="Stretch" TextAlignment="Right" />
                                         </Grid>
