@@ -1,4 +1,5 @@
-<Grid AutomationProperties.Name="应用更新" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<Grid x:Class="ClipboardManager.Views.UpdateView"
+      AutomationProperties.Name="应用更新" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Margin="24">
     <Grid.RowDefinitions>
         <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
@@ -27,22 +28,7 @@
             <Separator Margin="0,22,0,16" />
             <TextBlock Text="发布源" Style="{StaticResource SecondaryText}" />
             <TextBlock Text="GitHub · ailuo04/clipboard-manager" TextWrapping="Wrap" Margin="0,6,0,0" />
-            <Expander Header="私有仓库访问" Margin="0,18,0,0">
-                <StackPanel Margin="0,12,0,0">
-                    <TextBlock Text="GitHub 只读访问令牌" Margin="0,0,0,8" />
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <PasswordBox x:Name="UpdateTokenBox" MaxLength="255" Padding="10,8" VerticalContentAlignment="Center" AutomationProperties.Name="GitHub 只读访问令牌" />
-                        <Button x:Name="SaveUpdateTokenButton" Grid.Column="1" Style="{StaticResource IconButton}" ToolTip="保存到 Windows 凭据管理器" AutomationProperties.Name="保存访问令牌" Margin="8,0,0,0">
-                            <TextBlock Style="{StaticResource Icon}" Text="&#xE74E;" />
-                        </Button>
-                        <Button x:Name="DeleteUpdateTokenButton" Grid.Column="2" Style="{StaticResource IconButton}" ToolTip="删除已保存的访问令牌" AutomationProperties.Name="删除访问令牌" Margin="6,0,0,0">
-                            <TextBlock Style="{StaticResource Icon}" Text="&#xE74D;" />
-                        </Button>
-                    </Grid>
-                    <TextBlock x:Name="UpdateCredentialText" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,8,0,0" />
-                </StackPanel>
-            </Expander>
+            <TextBlock Text="读取最新正式版，只下载发生变化的文件。" Style="{StaticResource SecondaryText}" TextWrapping="Wrap" Margin="0,6,0,0" />
         </StackPanel>
     </ScrollViewer>
     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">

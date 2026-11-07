@@ -51,10 +51,9 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
 
         wpf.Run(() =>
         {
-            Grid view = ViewLoader.Load<Grid>("Views/DetailsView.xaml");
+            var view = new ClipboardManager.Views.DetailsView();
             Assert.Equal("详情", System.Windows.Automation.AutomationProperties.GetName(view));
-            Assert.Equal("完整文本内容", System.Windows.Automation.AutomationProperties.GetName((TextBox)view.Children
-                .OfType<TextBox>().Single()));
+            Assert.Equal("完整文本内容", System.Windows.Automation.AutomationProperties.GetName(view.RecordText));
         });
     }
 
@@ -83,10 +82,10 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
                 overlay.OnDismissed(value);
             };
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
-            var image = (Image)((Grid)overlay.Content!).FindName("FullImage");
+            var image = ((ClipboardManager.Views.DetailsView)overlay.Content!).FullImage;
             image.Source = CreateBitmap();
 
-            Click((Button)((Grid)overlay.Content!).FindName("CloseDetailsButton"));
+            Click(((ClipboardManager.Views.DetailsView)overlay.Content!).CloseDetailsButton);
 
             Assert.Null(result);
             Assert.True(observedToken.IsCancellationRequested);
@@ -138,14 +137,14 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
                 copied = text;
                 return Task.CompletedTask;
             });
-            Grid root = (Grid)overlay.Content!;
+            var view = (ClipboardManager.Views.DetailsView)overlay.Content!;
 
-            Click((Button)root.FindName("CopyButton"));
+            Click(view.CopyButton);
 
             Assert.Same(item, overlay.DataContext);
             Assert.Equal(item.Record.Text, copied);
-            Assert.Equal("已复制到系统剪贴板", ((TextBlock)root.FindName("StatusLabel")).Text);
-            Assert.True(((Button)root.FindName("CopyButton")).IsEnabled);
+            Assert.Equal("已复制到系统剪贴板", view.StatusLabel.Text);
+            Assert.True(view.CopyButton.IsEnabled);
         });
     }
 
@@ -156,14 +155,14 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         {
             DetailsOverlay overlay = CreateOverlay(item, copyTextAsync: (_, _) =>
                 Task.FromException(new IOException("clipboard unavailable")));
-            Grid root = (Grid)overlay.Content!;
+            var view = (ClipboardManager.Views.DetailsView)overlay.Content!;
 
-            Click((Button)root.FindName("CopyButton"));
+            Click(view.CopyButton);
 
             string expected = "复制失败：clipboard unavailable";
-            Assert.Equal(expected, ((TextBlock)root.FindName("StatusLabel")).Text);
-            Assert.Equal(expected, ((TextBlock)root.FindName("StatusLabel")).ToolTip);
-            Assert.True(((Button)root.FindName("CopyButton")).IsEnabled);
+            Assert.Equal(expected, view.StatusLabel.Text);
+            Assert.Equal(expected, view.StatusLabel.ToolTip);
+            Assert.True(view.CopyButton.IsEnabled);
         });
     }
 
@@ -235,7 +234,7 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
 
             Assert.Equal("原图加载失败：image unavailable",
-                ((TextBlock)((Grid)overlay.Content!).FindName("ImageStatus")).Text);
+                ((ClipboardManager.Views.DetailsView)overlay.Content!).ImageStatus.Text);
         });
     }
 
@@ -251,10 +250,12 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
                 return Task.CompletedTask;
             });
 
-            Click((Button)((Grid)overlay.Content!).FindName("CopyButton"));
+            var view = (ClipboardManager.Views.DetailsView)overlay.Content!;
+
+            Click(view.CopyButton);
 
             Assert.Equal(item.ImagePath, copiedPath);
-            Assert.Equal("已复制到系统剪贴板", ((TextBlock)((Grid)overlay.Content!).FindName("StatusLabel")).Text);
+            Assert.Equal("已复制到系统剪贴板", view.StatusLabel.Text);
         });
     }
 
@@ -264,11 +265,11 @@ public sealed class DetailsOverlayTests(SettingsOverlayWpfFixture wpf)
         WithItem(image: true, (owner, item) =>
         {
             DetailsOverlay overlay = CreateOverlay(item, (_, _) => Task.FromResult<BitmapSource>(CreateBitmap(1200, 800)));
-            Grid root = (Grid)overlay.Content!;
-            var scroll = (ScrollViewer)root.FindName("ImageScroll");
-            var image = (Image)root.FindName("FullImage");
-            var fit = (CheckBox)root.FindName("FitCheckBox");
-            var slider = (Slider)root.FindName("ZoomSlider");
+            var view = (ClipboardManager.Views.DetailsView)overlay.Content!;
+            var scroll = view.ImageScroll;
+            var image = view.FullImage;
+            var fit = view.FitCheckBox;
+            var slider = view.ZoomSlider;
             overlay.Measure(new Size(800, 760));
             overlay.Arrange(new Rect(0, 0, 800, 760));
             overlay.UpdateLayout();

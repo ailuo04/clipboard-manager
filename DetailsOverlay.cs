@@ -44,19 +44,19 @@ internal sealed class DetailsOverlay : OverlayView
         _copyImageAsync = copyImageAsync ?? throw new ArgumentNullException(nameof(copyImageAsync));
         _loadImageAsync = loadImageAsync ?? throw new ArgumentNullException(nameof(loadImageAsync));
 
-        var view = ViewLoader.Load<Grid>("Views/DetailsView.xaml");
+        var view = new Views.DetailsView();
         Content = view;
         DataContext = item;
-        _copy = (Button)view.FindName("CopyButton");
-        _status = (TextBlock)view.FindName("StatusLabel");
-        _image = (Image)view.FindName("FullImage");
-        _imageStatus = (TextBlock)view.FindName("ImageStatus");
-        _fit = (CheckBox)view.FindName("FitCheckBox");
-        _slider = (Slider)view.FindName("ZoomSlider");
-        _zoomLabel = (TextBlock)view.FindName("ZoomLabel");
-        _scroll = (ScrollViewer)view.FindName("ImageScroll");
+        _copy = view.CopyButton;
+        _status = view.StatusLabel;
+        _image = view.FullImage;
+        _imageStatus = view.ImageStatus;
+        _fit = view.FitCheckBox;
+        _slider = view.ZoomSlider;
+        _zoomLabel = view.ZoomLabel;
+        _scroll = view.ImageScroll;
 
-        ((Button)view.FindName("CloseDetailsButton")).Click += (_, _) => Complete(null);
+        view.CloseDetailsButton.Click += (_, _) => Complete(null);
         _copy.Click += async (_, _) => await CopyAsync(item);
         _fit.Checked += (_, _) => UpdateZoom();
         _fit.Unchecked += (_, _) => UpdateZoom();

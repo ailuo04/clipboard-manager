@@ -4,3 +4,5 @@ dist/
 .verification/
 *.user
 *.suo
+
+.superpowers/

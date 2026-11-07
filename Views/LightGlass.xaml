@@ -1,4 +1,5 @@
-<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+<ResourceDictionary x:Class="ClipboardManager.Views.LightGlass"
+                    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Light "liquid glass" palette. Keep every key in sync with LiquidGlass.xaml. -->
     <Color x:Key="AccentColor">#167D6B</Color>

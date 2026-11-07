@@ -33,23 +33,22 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("应用更新", (string?)root.Attribute("AutomationProperties.Name"));
         Assert.Equal("1", (string?)scrollViewer.Attribute("Grid.Row"));
         Assert.Equal("2", (string?)footer.Attribute("Grid.Row"));
-        Assert.Contains("UpdateTokenBox", names);
-        Assert.Contains("SaveUpdateTokenButton", names);
-        Assert.Contains("DeleteUpdateTokenButton", names);
+        Assert.DoesNotContain("UpdateTokenBox", names);
+        Assert.DoesNotContain("SaveUpdateTokenButton", names);
+        Assert.DoesNotContain("DeleteUpdateTokenButton", names);
         Assert.Contains("CloseUpdateButton", names);
         Assert.Contains("InstallUpdateButton", names);
 
         wpf.Run(() =>
         {
-            Grid view = ViewLoader.Load<Grid>("Views/UpdateView.xaml");
+            var view = new ClipboardManager.Views.UpdateView();
             Assert.Equal("应用更新", System.Windows.Automation.AutomationProperties.GetName(view));
-            Assert.Equal("GitHub 只读访问令牌", System.Windows.Automation.AutomationProperties.GetName(
-                (PasswordBox)view.FindName("UpdateTokenBox")));
+            Assert.Null(typeof(ClipboardManager.Views.UpdateView).GetField("UpdateTokenBox"));
         });
     }
 
     [Fact]
-    public void CloseButtonCompletesWithNullCancelsPendingCheckAndClearsCredentialInput()
+    public void CloseButtonCompletesWithNullAndCancelsPendingCheck()
     {
         wpf.Run(() =>
         {
@@ -70,16 +69,13 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
                 overlay.OnDismissed(value);
             };
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
-            Grid root = (Grid)overlay.Content!;
-            var tokenBox = (PasswordBox)root.FindName("UpdateTokenBox");
-            tokenBox.Password = "test-token";
+            var view = (ClipboardManager.Views.UpdateView)overlay.Content!;
 
-            Click((Button)root.FindName("CloseUpdateButton"));
+            Click(view.CloseUpdateButton);
 
             Assert.True(callbackCalled);
             Assert.Null(result);
             Assert.True(observedToken.IsCancellationRequested);
-            Assert.Equal(string.Empty, tokenBox.Password);
         });
     }
 
@@ -100,7 +96,7 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
 
             Assert.Equal(1, checks);
-            Assert.Equal("已是最新版本", ((TextBlock)((Grid)overlay.Content!).FindName("UpdateStatusText")).Text);
+            Assert.Equal("已是最新版本", ((ClipboardManager.Views.UpdateView)overlay.Content!).UpdateStatusText.Text);
         });
     }
 
@@ -139,7 +135,6 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
             Assert.True(escape.Handled);
             Assert.Null(result.GetAwaiter().GetResult());
             Assert.True(observedToken.IsCancellationRequested);
-            Assert.Equal(string.Empty, ((PasswordBox)((Grid)overlay.Content!).FindName("UpdateTokenBox")).Password);
             owner.Content = null;
         });
     }
@@ -214,12 +209,13 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
                 overlay.OnDismissed(result);
             };
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
-            Click((Button)((Grid)overlay.Content!).FindName("InstallUpdateButton"));
+            var installView = (ClipboardManager.Views.UpdateView)overlay.Content!;
+            Click(installView.InstallUpdateButton);
 
             Assert.False(overlay.WhenIdle.IsCompleted);
             prepareCompleted.SetResult();
             Assert.False(downloadToken.IsCancellationRequested);
-            Click((Button)((Grid)overlay.Content!).FindName("CancelDownloadButton"));
+            Click(((ClipboardManager.Views.UpdateView)overlay.Content!).CancelDownloadButton);
         });
 
         await overlay!.WhenIdle.WaitAsync(TimeSpan.FromSeconds(5));
@@ -270,11 +266,11 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
             };
             var settings = new SettingsOverlay(new AppSettings(), Path.GetTempPath(), showUpdates);
             Task<bool?> settingsResult = host.ShowAsync(settings, OverlaySize.Settings);
-            Grid settingsRoot = (Grid)settings.Content!;
-            var maxRecords = (TextBox)settingsRoot.FindName("MaxRecordsBox");
+            var settingsView = (ClipboardManager.Views.SettingsView)settings.Content!;
+            var maxRecords = settingsView.MaxRecordsBox;
             maxRecords.Text = "875";
 
-            Click((Button)settingsRoot.FindName("OpenUpdatesButton"));
+            Click(settingsView.OpenUpdatesButton);
 
             Assert.Same(child, ((ContentControl)hostRoot.FindName("OverlayContent")).Content);
             host.CompleteCurrent(null);

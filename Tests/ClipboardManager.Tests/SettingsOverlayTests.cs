@@ -97,7 +97,7 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
 
         wpf.Run(() =>
         {
-            Grid view = ViewLoader.Load<Grid>("Views/SettingsView.xaml");
+            var view = new ClipboardManager.Views.SettingsView();
             Assert.Equal("设置", System.Windows.Automation.AutomationProperties.GetName(view));
         });
     }
@@ -116,7 +116,7 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
                 overlay.OnDismissed(value);
             };
 
-            Click((Button)((Grid)overlay.Content!).FindName("CloseSettingsButton"));
+            Click(((ClipboardManager.Views.SettingsView)overlay.Content!).CloseSettingsButton);
 
             Assert.Null(result);
             Assert.Equal(AppTheme.Light, ThemeManager.Preference);
@@ -131,14 +131,14 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
             SettingsOverlay overlay = CreateOverlay(new AppSettings(), showUpdates: null);
             bool? result = null;
             overlay.CloseRequest = value => result = value;
-            Grid root = (Grid)overlay.Content!;
-            var storage = (TextBox)root.FindName("MaxStorageBox");
+            var view = (ClipboardManager.Views.SettingsView)overlay.Content!;
+            var storage = view.MaxStorageBox;
             storage.Text = "4097";
 
-            Click((Button)root.FindName("SaveButton"));
+            Click(view.SaveButton);
 
             Assert.Null(result);
-            Assert.Contains("64–4096", ((TextBlock)root.FindName("ValidationText")).Text, StringComparison.Ordinal);
+            Assert.Contains("64–4096", view.ValidationText.Text, StringComparison.Ordinal);
             Assert.True(storage.IsFocused);
             Assert.Equal(512, ReadSettings(overlay).MaxStorageMb);
         });
@@ -157,10 +157,10 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
                 cancelResult = value;
                 canceled.OnDismissed(value);
             };
-            Grid canceledRoot = (Grid)canceled.Content!;
-            ((RadioButton)canceledRoot.FindName("ThemeLightRadio")).IsChecked = true;
+            var canceledView = (ClipboardManager.Views.SettingsView)canceled.Content!;
+            canceledView.ThemeLightRadio.IsChecked = true;
             Assert.Equal(AppTheme.Light, ThemeManager.Preference);
-            Click((Button)canceledRoot.FindName("CancelButton"));
+            Click(canceledView.CancelButton);
 
             Assert.False(cancelResult);
             Assert.Equal(AppTheme.Dark, ThemeManager.Preference);
@@ -172,7 +172,7 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
             owner.Content = hostRoot;
             using var host = new WindowOverlayHost(owner, hostRoot);
             var pending = host.ShowAsync(escaped, OverlaySize.Settings);
-            ((RadioButton)((Grid)escaped.Content!).FindName("ThemeDarkRadio")).IsChecked = true;
+            ((ClipboardManager.Views.SettingsView)escaped.Content!).ThemeDarkRadio.IsChecked = true;
             Assert.Equal(AppTheme.Dark, ThemeManager.Preference);
 
             using var keySource = new HwndSource(new HwndSourceParameters("SettingsEscapeTest")
@@ -204,15 +204,15 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
             SettingsOverlay overlay = CreateOverlay(original, showUpdates: null);
             bool? result = null;
             overlay.CloseRequest = value => result = value;
-            Grid root = (Grid)overlay.Content!;
-            ((TextBox)root.FindName("MaxRecordsBox")).Text = "600";
-            ((TextBox)root.FindName("MaxStorageBox")).Text = "768";
-            ((CheckBox)root.FindName("AlwaysOnTopCheckBox")).IsChecked = true;
-            ((CheckBox)root.FindName("AutoCheckUpdatesCheckBox")).IsChecked = false;
-            ((CheckBox)root.FindName("MinimizeToTrayCheckBox")).IsChecked = true;
-            ((RadioButton)root.FindName("ThemeDarkRadio")).IsChecked = true;
+            var view = (ClipboardManager.Views.SettingsView)overlay.Content!;
+            view.MaxRecordsBox.Text = "600";
+            view.MaxStorageBox.Text = "768";
+            view.AlwaysOnTopCheckBox.IsChecked = true;
+            view.AutoCheckUpdatesCheckBox.IsChecked = false;
+            view.MinimizeToTrayCheckBox.IsChecked = true;
+            view.ThemeDarkRadio.IsChecked = true;
 
-            Click((Button)root.FindName("SaveButton"));
+            Click(view.SaveButton);
 
             Assert.True(result);
             Assert.NotSame(original, ReadSettings(overlay));
@@ -235,7 +235,7 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         {
             bool invoked = false;
             SettingsOverlay overlay = CreateOverlay(new AppSettings(), () => { invoked = true; return Task.CompletedTask; });
-            var updateButton = (Button)((Grid)overlay.Content!).FindName("OpenUpdatesButton");
+            var updateButton = ((ClipboardManager.Views.SettingsView)overlay.Content!).OpenUpdatesButton;
 
             Assert.True(updateButton.IsEnabled);
             Click(updateButton);

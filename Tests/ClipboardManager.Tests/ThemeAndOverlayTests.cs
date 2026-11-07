@@ -17,55 +17,6 @@ namespace ClipboardManager.Tests;
 public sealed class ThemeAndOverlayTests
 {
     [Fact]
-    public void OverlayPageStackPopsNestedPagesInLastInFirstOutOrder()
-    {
-        var stack = new OverlayPageStack<string>();
-
-        stack.Push("settings");
-        stack.Push("updates");
-
-        Assert.Equal("updates", stack.Current);
-        Assert.Equal("updates", stack.Pop());
-        Assert.Equal("settings", stack.Current);
-        Assert.Equal("settings", stack.Pop());
-        Assert.Null(stack.Current);
-        Assert.Equal(0, stack.Count);
-    }
-
-    [Fact]
-    public void OverlayPageStackPopOnEmptyReturnsNull()
-    {
-        var stack = new OverlayPageStack<string>();
-
-        Assert.Null(stack.Pop());
-        Assert.Null(stack.Current);
-        Assert.Equal(0, stack.Count);
-    }
-
-    [Fact]
-    public void OverlayPageStackRejectsNullPages()
-    {
-        var stack = new OverlayPageStack<string>();
-
-        Action pushNull = () => stack.Push(null!);
-        Assert.Throws<ArgumentNullException>(pushNull);
-    }
-
-    [Fact]
-    public void OverlayPageStackClearRemovesAllPages()
-    {
-        var stack = new OverlayPageStack<string>();
-        stack.Push("settings");
-        stack.Push("updates");
-
-        stack.Clear();
-
-        Assert.Null(stack.Current);
-        Assert.Equal(0, stack.Count);
-        Assert.Null(stack.Pop());
-    }
-
-    [Fact]
     public void OverlayViewCompleteForwardsNullableResultAndDismissal()
     {
         var closeResults = new List<bool?>();

@@ -24,7 +24,7 @@
 
 以下为实际自动化验证结果；构建/测试结果不代表上方手工矩阵通过。
 
-- `dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj --configuration Release`：通过，74/74 测试通过，0 失败、0 跳过。
+- `dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj --configuration Release`：通过，75/75 测试通过，0 失败、0 跳过。
 - `dotnet build ClipboardManager.csproj --configuration Release`：成功，0 警告、0 错误。
 - `git diff --check`：通过，无输出。
 - XML/资源扫描：`App.xaml` 和全部 7 个 `Views/*.xaml` 均可解析；扫描到 89 处 `{DynamicResource ...}` 引用，缺失键 0 个；Light/Dark 调色板键集合相同，4 个覆盖层键全部存在。

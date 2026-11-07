@@ -2,8 +2,7 @@
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
     [string]$Version = '0.0.3',
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
-    [switch]$RuntimeCompiler
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,42 +24,16 @@ try {
     [IO.Directory]::CreateDirectory($payload) | Out-Null
     $sdks = @(& $dotnet --list-sdks)
     if ($LASTEXITCODE -ne 0) { throw 'Cannot query .NET SDKs.' }
-    if ($sdks.Count -gt 0 -and -not $RuntimeCompiler) {
-        & $dotnet publish (Join-Path $PSScriptRoot 'ClipboardManager.csproj') --configuration Release `
-            --runtime win-x64 --self-contained true --output $payload "-p:Version=$Version" `
-            -p:PublishTrimmed=false -p:PublishReadyToRun=false
-        if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed: $LASTEXITCODE" }
-        $mode = 'sdk-self-contained'
-        $runtimeVersion = (Get-Content -LiteralPath (Join-Path $payload 'ClipboardManager.runtimeconfig.json') -Raw | ConvertFrom-Json).runtimeOptions.includedFrameworks |
-            Where-Object name -eq 'Microsoft.WindowsDesktop.App' | Select-Object -ExpandProperty version
-        if (-not $runtimeVersion) { throw 'Published application is missing its self-contained desktop runtime.' }
-        & (Join-Path $PSScriptRoot 'build-update-tools.ps1') -OutputDirectory $payload -Version $Version -SelfContainedAppHost
-    }
-    else {
-        if ([Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -ne 'X64') {
-            throw 'The offline packaging path requires x64 PowerShell and .NET.'
-        }
-        & (Join-Path $PSScriptRoot 'build.ps1') -OutputDirectory $payload -RuntimeCompiler -Version $Version
-        $root = Split-Path $dotnet
-        $desktop = Get-ChildItem -LiteralPath (Join-Path $root 'shared\Microsoft.WindowsDesktop.App') -Directory |
-            Where-Object { $_.Name -match '^8\.0\.\d+$' } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
-        if (-not $desktop) { throw 'An installed .NET 8 Windows Desktop Runtime is required for offline packaging.' }
-        $runtimeVersion = $desktop.Name
-        $runtime = Join-Path $payload 'runtime'
-        foreach ($relative in @("shared\Microsoft.NETCore.App\$runtimeVersion", "shared\Microsoft.WindowsDesktop.App\$runtimeVersion", "host\fxr\$runtimeVersion")) {
-            $source = Join-Path $root $relative
-            if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Matching runtime component is missing: $source" }
-            $target = Join-Path $runtime $relative
-            [IO.Directory]::CreateDirectory((Split-Path $target)) | Out-Null
-            Copy-Item -LiteralPath $source -Destination $target -Recurse
-        }
-        foreach ($file in @('dotnet.exe', 'LICENSE.txt', 'ThirdPartyNotices.txt')) {
-            Copy-Item -LiteralPath (Join-Path $root $file) -Destination $runtime
-        }
-        & (Join-Path $runtime 'dotnet.exe') --list-runtimes
-        if ($LASTEXITCODE -ne 0) { throw 'The bundled .NET host failed verification.' }
-        $mode = 'offline-bundled-runtime'
-    }
+    if ($sdks.Count -eq 0) { throw 'The .NET 8 SDK is required to package ClipboardManager.' }
+    & $dotnet publish (Join-Path $PSScriptRoot 'ClipboardManager.csproj') --configuration Release `
+        --runtime win-x64 --self-contained true --output $payload "-p:Version=$Version" `
+        -p:PublishTrimmed=false -p:PublishReadyToRun=false
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed: $LASTEXITCODE" }
+    $mode = 'sdk-self-contained'
+    $runtimeVersion = (Get-Content -LiteralPath (Join-Path $payload 'ClipboardManager.runtimeconfig.json') -Raw | ConvertFrom-Json).runtimeOptions.includedFrameworks |
+        Where-Object name -eq 'Microsoft.WindowsDesktop.App' | Select-Object -ExpandProperty version
+    if (-not $runtimeVersion) { throw 'Published application is missing its self-contained desktop runtime.' }
+    & (Join-Path $PSScriptRoot 'build-update-tools.ps1') -OutputDirectory $payload -Version $Version -SelfContainedAppHost
 
     foreach ($file in @('ClipboardManager.exe', 'ClipboardManager.dll', 'ClipboardManager.runtimeconfig.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $payload $file) -PathType Leaf)) { throw "Missing application file: $file" }

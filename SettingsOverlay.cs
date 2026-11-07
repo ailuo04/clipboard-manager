@@ -16,15 +16,15 @@ internal sealed class SettingsOverlay : OverlayView
         ArgumentNullException.ThrowIfNull(settings);
         _openedTheme = ThemeManager.Preference;
         Settings = settings.Clone();
-        var view = ViewLoader.Load<Grid>("Views/SettingsView.xaml");
+        var view = new Views.SettingsView();
         Content = view;
 
-        var records = (TextBox)view.FindName("MaxRecordsBox");
-        var storage = (TextBox)view.FindName("MaxStorageBox");
-        var validation = (TextBlock)view.FindName("ValidationText");
-        var themeDark = (RadioButton)view.FindName("ThemeDarkRadio");
-        var themeLight = (RadioButton)view.FindName("ThemeLightRadio");
-        var themeSystem = (RadioButton)view.FindName("ThemeSystemRadio");
+        var records = view.MaxRecordsBox;
+        var storage = view.MaxStorageBox;
+        var validation = view.ValidationText;
+        var themeDark = view.ThemeDarkRadio;
+        var themeLight = view.ThemeLightRadio;
+        var themeSystem = view.ThemeSystemRadio;
         switch (_openedTheme)
         {
             case AppTheme.Light: themeLight.IsChecked = true; break;
@@ -38,22 +38,22 @@ internal sealed class SettingsOverlay : OverlayView
         themeLight.Checked += PreviewTheme;
         themeSystem.Checked += PreviewTheme;
 
-        var alwaysOnTop = (CheckBox)view.FindName("AlwaysOnTopCheckBox");
-        var autoUpdates = (CheckBox)view.FindName("AutoCheckUpdatesCheckBox");
-        var minimizeToTray = (CheckBox)view.FindName("MinimizeToTrayCheckBox");
+        var alwaysOnTop = view.AlwaysOnTopCheckBox;
+        var autoUpdates = view.AutoCheckUpdatesCheckBox;
+        var minimizeToTray = view.MinimizeToTrayCheckBox;
         autoUpdates.IsChecked = Settings.AutoCheckUpdates;
         minimizeToTray.IsChecked = Settings.MinimizeToTray;
-        var updateButton = (Button)view.FindName("OpenUpdatesButton");
+        var updateButton = view.OpenUpdatesButton;
         updateButton.IsEnabled = showUpdates is not null;
         updateButton.Click += (_, _) => { if (showUpdates is not null) StartOperation(showUpdates); };
-        ((TextBlock)view.FindName("SettingsVersionText")).Text = "当前版本 " + UpdateService.CurrentVersion;
+        view.SettingsVersionText.Text = "当前版本 " + UpdateService.CurrentVersion;
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
         alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
-        ((TextBox)view.FindName("DirectoryBox")).Text = dataDirectory;
-        ((Button)view.FindName("CloseSettingsButton")).Click += (_, _) => Complete(null);
-        ((Button)view.FindName("CancelButton")).Click += (_, _) => Complete(false);
-        ((Button)view.FindName("SaveButton")).Click += (_, _) =>
+        view.DirectoryBox.Text = dataDirectory;
+        view.CloseSettingsButton.Click += (_, _) => Complete(null);
+        view.CancelButton.Click += (_, _) => Complete(false);
+        view.SaveButton.Click += (_, _) =>
         {
             if (!int.TryParse(records.Text, out int count) || count is < 50 or > 5000)
             {
@@ -88,8 +88,8 @@ internal sealed class SettingsOverlay : OverlayView
             SelectedTheme = selectedTheme;
             Complete(true);
         };
-        ((Button)view.FindName("OpenDirectoryButton")).Click += (_, _) => OpenPath(dataDirectory, validation);
-        ((Button)view.FindName("OpenLogButton")).Click += (_, _) =>
+        view.OpenDirectoryButton.Click += (_, _) => OpenPath(dataDirectory, validation);
+        view.OpenLogButton.Click += (_, _) =>
         {
             if (!File.Exists(AppPaths.LogFilePath)) { validation.Text = "暂无日志文件。"; return; }
             OpenPath(AppPaths.LogFilePath, validation);

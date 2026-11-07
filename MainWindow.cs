@@ -48,19 +48,19 @@ public sealed class MainWindow : Window
             GlassFrameThickness = new Thickness(-1),
             CornerRadius = new CornerRadius(16)
         });
-        _windowFrame = ViewLoader.Load<Grid>("Views/WindowFrame.xaml");
-        _titleBar = (Grid)_windowFrame.FindName("TitleBar");
-        _maximizeGlyph = (TextBlock)_windowFrame.FindName("MaximizeGlyph");
-        ((Button)_windowFrame.FindName("MinimizeButton")).Click += (_, _) => WindowState = WindowState.Minimized;
-        ((Button)_windowFrame.FindName("MaximizeButton")).Click += (_, _) =>
+        _windowFrame = new Views.WindowFrame();
+        _titleBar = _windowFrame.TitleBar;
+        _maximizeGlyph = _windowFrame.MaximizeGlyph;
+        _windowFrame.MinimizeButton.Click += (_, _) => WindowState = WindowState.Minimized;
+        _windowFrame.MaximizeButton.Click += (_, _) =>
             WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        ((Button)_windowFrame.FindName("CloseButton")).Click += (_, _) => Close();
-        var view = ViewLoader.Load<Grid>("Views/MainView.xaml");
-        ((Grid)_windowFrame.FindName("WindowContent")).Children.Add(view);
+        _windowFrame.CloseButton.Click += (_, _) => Close();
+        var view = new Views.MainView();
+        _windowFrame.WindowContent.Children.Add(view);
         Content = _windowFrame;
         _overlayHost = new WindowOverlayHost(this, _windowFrame);
-        _historyList = (ListBox)view.FindName("HistoryList");
-        _searchBox = (TextBox)view.FindName("SearchBox");
+        _historyList = view.HistoryList;
+        _searchBox = view.SearchBox;
         _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()),
             UpdateTrayMode, _overlayHost);
         _trayIcon = new SystemTrayIcon(this);
@@ -190,8 +190,6 @@ public sealed class MainWindow : Window
         if (_viewModel.IsClosing) return;
         if (!IsVisible) Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-        var dialog = OwnedWindows.Cast<Window>().LastOrDefault(window => window.IsVisible);
-        if (dialog is not null) { dialog.Activate(); return; }
         Activate();
         if (_overlayHost.IsOpen) return;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>

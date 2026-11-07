@@ -26,7 +26,7 @@ public sealed class RecordViewModel
     public string TimeLabel => Record.CopiedAtUtc.ToLocalTime().ToString("MM-dd HH:mm:ss");
     public string ShortTimeLabel => Record.CopiedAtUtc.ToLocalTime().ToString("MM-dd HH:mm");
     public string FullTime => Record.CopiedAtUtc.ToLocalTime().ToString("yyyy年MM月dd日 HH:mm:ss");
-    public string ContentInfo => IsImage ? $"{Record.ImageWidth} × {Record.ImageHeight} · {FormatSize(Record.ByteLength)}" : $"{Record.Text?.Length:N0} 字符";
+    public string ContentInfo => IsImage ? $"{Record.ImageWidth} × {Record.ImageHeight} · {Formatters.FormatSize(Record.ByteLength)}" : $"{Record.Text?.Length:N0} 字符";
     public string Preview
     {
         get
@@ -49,7 +49,4 @@ public sealed class RecordViewModel
         ((AsyncRelayCommand)PinCommand).RaiseCanExecuteChanged();
         ((AsyncRelayCommand)DetailsCommand).RaiseCanExecuteChanged();
     }
-
-    public static string FormatSize(long bytes) => bytes >= 1024 * 1024
-        ? $"{bytes / 1024d / 1024d:0.0} MB" : bytes >= 1024 ? $"{bytes / 1024d:0.#} KB" : $"{bytes} B";
 }

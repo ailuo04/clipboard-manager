@@ -51,7 +51,7 @@ public static class ThemeManager
 
         var application = Application.Current;
         if (application is null) return;
-        var palette = ViewLoader.Load<ResourceDictionary>(dark ? "Views/LiquidGlass.xaml" : "Views/LightGlass.xaml");
+        var palette = dark ? (ResourceDictionary)new Views.LiquidGlass() : new Views.LightGlass();
         if (_palette is not null) application.Resources.MergedDictionaries.Remove(_palette);
         application.Resources.MergedDictionaries.Insert(0, palette);
         _palette = palette;

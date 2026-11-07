@@ -125,7 +125,7 @@ public sealed class MainViewModel : ObservableObject
     public string AllLabel => $"全部  {_allRecords.Count}";
     public string TextLabel => $"文本  {_allRecords.Count(item => !item.IsImage)}";
     public string ImageLabel => $"图片  {_allRecords.Count(item => item.IsImage)}";
-    public string CountLabel => $"{VisibleRecords.Count} / {_allRecords.Count} 条 · {RecordViewModel.FormatSize(_allRecords.Sum(item => item.Record.ByteLength))}";
+    public string CountLabel => $"{VisibleRecords.Count} / {_allRecords.Count} 条 · {Formatters.FormatSize(_allRecords.Sum(item => item.Record.ByteLength))}";
     public bool IsEmpty => !IsLoading && VisibleRecords.Count == 0;
     public bool CanRetry => !IsLoading && !IsReady;
     public string EmptyTitle => !IsReady ? "历史记录加载失败" : _allRecords.Count == 0 ? "暂无剪贴板记录" : "没有匹配的记录";
@@ -314,7 +314,7 @@ public sealed class MainViewModel : ObservableObject
         {
             var update = await _updates.CheckAsync(_lifetime.Token);
             if (update is null || IsClosing) return;
-            string message = $"发现新版本 {update.Manifest.Version} · 下载 {UpdateService.FormatSize(update.DownloadSize)}";
+            string message = $"发现新版本 {update.Manifest.Version} · 下载 {Formatters.FormatSize(update.DownloadSize)}";
             Notice = string.IsNullOrEmpty(Notice) ? message : Notice.Contains(message, StringComparison.Ordinal) ? Notice : Notice + "\n" + message;
         }
         catch (OperationCanceledException) when (IsClosing) { }

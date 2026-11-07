@@ -13,9 +13,17 @@
 
 ## 异步操作
 
-当前更新页在首次 `Loaded` 时自动检查一次；通过 `StartOperation` 跟踪并观察异步任务、记录异常，检查和下载使用页面生命周期令牌。页面关闭时 `OnDismissed` 取消令牌并清空访问令牌输入。主视图模型等待更新页关闭后还会等待该页的 `WhenIdle`，再继续安装交接或收尾。详情页的图片加载与复制同样使用页面生命周期令牌，并在 `await` 后检查页面是否已关闭。
+当前更新页在首次 `Loaded` 时自动检查一次；通过 `StartOperation` 跟踪并观察异步任务、记录异常，检查和下载使用页面生命周期令牌。页面关闭时 `OnDismissed` 取消页面生命周期令牌。主视图模型等待更新页关闭后还会等待该页的 `WhenIdle`，再继续安装交接或收尾。详情页的图片加载与复制同样使用页面生命周期令牌，并在 `await` 后检查页面是否已关闭。
 
 新增异步检查或网络/文件操作时，沿用这些现有约束：异步任务必须被等待或显式观察，使用可取消令牌，捕获并报告失败；每次 `await` 返回后，在触碰控件前检查页面仍然有效。不要留下未观察的任务或让已关闭页面继续修改界面。
+
+## 视图与控件访问
+
+`Views/*.xaml` 现在是编译式 XAML（`<Page>` + `x:Class`），对应 `.xaml.cs` 中的 `partial class` 调用 `InitializeComponent()`。业务代码直接用生成的字段访问命名控件（例如 `view.SaveButton`），**不要再写 `FindName("...")` 加类型转换**：控件名写错会在编译期报错，而不是等到运行时才抛异常。页面类是内部实现细节，但仍需保留 `x:Name`，因为测试会直接读取这些字段。
+
+新增视图时同步在 `ClipboardManager.csproj` 的 `<ItemGroup>` 中加 `<Page Include="Views\XxxView.xaml" />`，并创建同名 `.xaml.cs`。`App.xaml` 例外：它仍是 `EmbeddedResource`，由 `ViewLoader` 在启动时解析成 `ResourceDictionary`。
+
+两套调色板 `LightGlass.xaml` 与 `LiquidGlass.xaml` 也是编译式 `ResourceDictionary`（`partial class : ResourceDictionary`），`ThemeManager` 通过 `new LightGlass()` / `new LiquidGlass()` 切换。
 
 ## 主题资源
 

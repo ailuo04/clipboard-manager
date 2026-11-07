@@ -14,7 +14,6 @@ internal enum OverlaySize
 {
     Settings,
     Update,
-    Updates = Update,
     Details
 }
 
@@ -39,7 +38,7 @@ internal sealed class WindowOverlayHost : IDisposable
     private readonly Grid _overlayLayer;
     private readonly Border _overlayPanel;
     private readonly ContentControl _overlayContent;
-    private readonly OverlayPageStack<OverlayFrame> _parents = new();
+    private readonly Stack<OverlayFrame> _parents = new();
     private bool _mainSurfaceWasEnabled;
     private bool _mainSurfaceWasHitTestVisible;
     private OverlayFrame? _current;
@@ -96,10 +95,10 @@ internal sealed class WindowOverlayHost : IDisposable
             try { frame.Page.OnDismissed(null); }
             catch (Exception exception) { AppLogger.LogException("清理未能显示的覆盖层页面失败", exception); }
             frame.Completion.TrySetResult(null);
-            if (hasParent && _parents.Pop() is OverlayFrame parent)
+            if (hasParent && _parents.TryPop(out OverlayFrame? prior) && prior is not null)
             {
-                _current = parent;
-                try { ShowFrame(parent, restoreWindowState: true); }
+                _current = prior;
+                try { ShowFrame(prior, restoreWindowState: true); }
                 catch (Exception exception)
                 {
                     AppLogger.LogException("恢复父覆盖层页面失败", exception);
@@ -129,7 +128,7 @@ internal sealed class WindowOverlayHost : IDisposable
         finally { frame.Completion.TrySetResult(result); }
 
         if (!_sessionActive) return;
-        if (_parents.Pop() is OverlayFrame parent)
+        if (_parents.TryPop(out OverlayFrame? parent) && parent is not null)
         {
             _current = parent;
             try { ShowFrame(parent, restoreWindowState: true); }
@@ -151,7 +150,7 @@ internal sealed class WindowOverlayHost : IDisposable
         _closingAll = true;
         var frames = new List<OverlayFrame>();
         if (_current is not null) frames.Add(_current);
-        while (_parents.Pop() is OverlayFrame parent) frames.Add(parent);
+        while (_parents.TryPop(out OverlayFrame? parent) && parent is not null) frames.Add(parent);
         _current = null;
         _sessionActive = false;
 

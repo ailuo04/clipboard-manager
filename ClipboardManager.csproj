@@ -20,6 +20,15 @@
     <Compile Remove="UpdateHelper\**\*.cs" />
     <Compile Remove="Tests/**/*.cs" />
     <Using Include="System.IO" />
-    <EmbeddedResource Include="App.xaml;Views\*.xaml;Assets\Clipboard.ico" />
+    <EmbeddedResource Include="App.xaml;Assets\Clipboard.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <Page Include="Views\WindowFrame.xaml" />
+    <Page Include="Views\MainView.xaml" />
+    <Page Include="Views\SettingsView.xaml" />
+    <Page Include="Views\DetailsView.xaml" />
+    <Page Include="Views\UpdateView.xaml" />
+    <Page Include="Views\LightGlass.xaml" />
+    <Page Include="Views\LiquidGlass.xaml" />
   </ItemGroup>
 </Project>
