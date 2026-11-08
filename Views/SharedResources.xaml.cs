@@ -4,9 +4,11 @@ namespace ClipboardManager.Views;
 
 public partial class SharedResources : ResourceDictionary
 {
-    private static SharedResources? _instance;
-
     public SharedResources() => InitializeComponent();
 
-    public static ResourceDictionary Instance => _instance ??= new SharedResources();
+    /// <summary>
+    /// Creates a fresh instance per call. WPF ResourceDictionary is thread-affine, so a
+    /// shared static instance would throw when touched from a second UI thread.
+    /// </summary>
+    public static ResourceDictionary Create() => new SharedResources();
 }

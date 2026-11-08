@@ -33,7 +33,7 @@ public sealed class SettingsOverlayWpfFixture : IDisposable
             try
             {
                 var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-                application.Resources = ClipboardManager.Views.SharedResources.Instance;
+                application.Resources = ClipboardManager.Views.SharedResources.Create();
                 ThemeManager.Apply(AppTheme.Light);
                 _dispatcherReady.TrySetResult(Dispatcher.CurrentDispatcher);
                 Dispatcher.Run();
