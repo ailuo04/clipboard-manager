@@ -17,14 +17,10 @@ public sealed class MainViewModel : ObservableObject
     private readonly ClipboardReader _clipboard = new();
     private readonly ClipboardMonitor _monitor;
     private readonly ClipboardCaptureCoordinator _capture;
+    private readonly UpdateCoordinator _updateCoordinator;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _actionGate = new(1, 1);
     private readonly DispatcherTimer _searchTimer;
-    private readonly DispatcherTimer _updateTimer;
-    private readonly UpdateService _updates = new();
-    private Task _updateTask = Task.CompletedTask;
-    private Task _updateOverlayTask = Task.CompletedTask;
-    private Task _updateCleanupTask = Task.CompletedTask;
     private List<RecordViewModel> _allRecords = [];
     private Task _initializationTask = Task.CompletedTask;
     private bool _isLoading = true;
@@ -54,10 +50,10 @@ public sealed class MainViewModel : ObservableObject
             _lifetime, RunOperationAsync, RefreshRecords, value => Notice = value ?? string.Empty,
             value => Status = value);
         _capture.Attach(_monitor);
+        _updateCoordinator = new UpdateCoordinator(owner, history, overlays, _lifetime,
+            () => IsClosing, () => Notice, value => Notice = value, Report);
         _searchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(160) };
         _searchTimer.Tick += OnSearchTimer;
-        _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-        _updateTimer.Tick += OnUpdateTimer;
         ClearCommand = new AsyncRelayCommand(ClearAsync, () => CanAct && _allRecords.Count > 0);
         SettingsCommand = new AsyncRelayCommand(ShowSettingsAsync, () => CanAct);
         UpdateCommand = new AsyncRelayCommand(ShowUpdatesAsync, () => CanAct);
@@ -143,10 +139,7 @@ public sealed class MainViewModel : ObservableObject
             _monitor.Start();
             ApplyTrayMode(_history.Settings.MinimizeToTray);
             IsReady = true;
-            try { _updates.MarkStartupReady(); }
-            catch (Exception exception) { AppLogger.LogException("标记更新启动状态失败", exception); }
-            _updateCleanupTask = CleanUpdateFilesAsync();
-            _updateTimer.Start();
+            _updateCoordinator.StartAfterLoad();
             Status = "历史记录已加载";
             if (warning is not null) Notice = warning;
         }
@@ -205,23 +198,19 @@ public sealed class MainViewModel : ObservableObject
         if (IsClosing) return;
         IsClosing = true;
         _searchTimer.Stop();
-        _updateTimer.Stop();
-        _updateTimer.Tick -= OnUpdateTimer;
         _searchTimer.Tick -= OnSearchTimer;
         Task captureTask = _capture.ShutdownAsync();
+        Task updateTask = _updateCoordinator.ShutdownAsync();
         _monitor.Dispose();
         _lifetime.Cancel();
         _overlays?.CloseAll(null);
-        await _updateOverlayTask;
         await _initializationTask;
         await captureTask;
-        await _updateTask;
-        await _updateCleanupTask;
+        await updateTask;
         await _actionGate.WaitAsync();
         _actionGate.Release();
         await _history.FlushAsync();
         await _clipboard.DisposeAsync();
-        _updates.Dispose();
         _lifetime.Dispose();
     }
 
@@ -252,7 +241,7 @@ public sealed class MainViewModel : ObservableObject
                 ThemeManager.SetPreference(dialog.SelectedTheme);
                 ApplyWindowSettings();
                 ApplyTrayMode(_history.Settings.MinimizeToTray);
-                _updateTimer.Interval = TimeSpan.FromSeconds(5);
+                _updateCoordinator.ResetAutoCheckDelay();
                 RefreshRecords();
                 Status = "设置已保存";
                 if (warning is not null) Notice = warning;
@@ -262,71 +251,7 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception exception) { Report("打开设置失败", exception); }
     }
 
-    private Task ShowUpdatesAsync()
-    {
-        if (_overlays is null || IsClosing) return Task.CompletedTask;
-        Task? operation = null;
-        operation = ShowUpdatesCoreAsync(() =>
-        {
-            if (ReferenceEquals(_updateOverlayTask, operation)) _updateOverlayTask = Task.CompletedTask;
-        });
-        _updateOverlayTask = operation;
-        return operation;
-    }
-
-    private async Task ShowUpdatesCoreAsync(Action clearTracking)
-    {
-        bool handedOff = false;
-        try
-        {
-            if (_overlays is null || IsClosing) return;
-            var overlay = new UpdateOverlay(_updates);
-            bool? result = await _overlays.ShowAsync(overlay, OverlaySize.Update);
-            await overlay.WhenIdle;
-            if (result != true || IsClosing) return;
-            clearTracking();
-            handedOff = true;
-            _overlays.CloseAll(null);
-            if (_owner is MainWindow mainWindow) mainWindow.ExitApplication();
-            else _owner.Close();
-        }
-        catch (Exception exception)
-        {
-            try { _updates.CancelPrepared(); }
-            catch (Exception cleanup) { AppLogger.LogException("清理未启动的更新失败", cleanup); }
-            Report("启动更新失败", exception);
-        }
-        finally
-        {
-            if (!handedOff) clearTracking();
-        }
-    }
-    private void OnUpdateTimer(object? sender, EventArgs args)
-    {
-        _updateTimer.Interval = TimeSpan.FromHours(6);
-        if (IsClosing || !_history.Settings.AutoCheckUpdates || !_updateTask.IsCompleted) return;
-        _updateTask = CheckForUpdatesAsync();
-    }
-
-    private async Task CheckForUpdatesAsync()
-    {
-        try
-        {
-            var update = await _updates.CheckAsync(_lifetime.Token);
-            if (update is null || IsClosing) return;
-            string message = $"发现新版本 {update.Manifest.Version} · 下载 {Formatters.FormatSize(update.DownloadSize)}";
-            Notice = string.IsNullOrEmpty(Notice) ? message : Notice.Contains(message, StringComparison.Ordinal) ? Notice : Notice + "\n" + message;
-        }
-        catch (OperationCanceledException) when (IsClosing) { }
-        catch (Exception exception) { AppLogger.LogException("自动检查更新失败", exception); }
-    }
-
-    private async Task CleanUpdateFilesAsync()
-    {
-        try { await _updates.CleanFinishedAsync(_lifetime.Token); }
-        catch (OperationCanceledException) when (IsClosing) { }
-        catch (Exception exception) { AppLogger.LogException("清理更新临时文件失败", exception); }
-    }
+    private Task ShowUpdatesAsync() => _updateCoordinator.ShowUpdatesAsync();
 
     private async Task ToggleAlwaysOnTopAsync()
     {
