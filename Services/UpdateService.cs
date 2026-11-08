@@ -1,10 +1,6 @@
 using System.Diagnostics;
-using System.IO.Compression;
-using System.Net;
 using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Reflection;
-using System.Security.Cryptography;
 using System.Text.Json;
 using ClipboardManager.Updates;
 using ClipboardManager.Utilities;
@@ -18,27 +14,23 @@ public sealed record AvailableUpdate(UpdateManifest Manifest, byte[] ManifestByt
     public long DownloadSize => Plan.Changes.Sum(file => file.CompressedSize);
 }
 
+/// <summary>Orchestrates update checks and installs on top of GitHubReleaseClient and UpdateFiles.</summary>
 public sealed class UpdateService : IDisposable
 {
     public const string Repository = "ailuo04/clipboard-manager";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
-    private readonly HttpClient _client;
+    private readonly GitHubReleaseClient _http;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly string _root;
     private bool _prepared;
     private bool _disposed;
-    private string? _latestReleaseETag;
-    private byte[]? _latestReleaseMetadata;
     public static string CurrentVersion => Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.3";
 
     public UpdateService(string? root = null, HttpMessageHandler? handler = null)
     {
         _root = Path.GetFullPath(root ?? AppContext.BaseDirectory);
-        _client = handler is null ? new HttpClient() : new HttpClient(handler);
-        _client.Timeout = TimeSpan.FromSeconds(30);
-        _client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipboardManager/" + CurrentVersion);
-        _client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+        _http = new GitHubReleaseClient(handler);
     }
 
     public async Task<AvailableUpdate?> CheckAsync(CancellationToken cancellationToken = default)
@@ -49,7 +41,7 @@ public sealed class UpdateService : IDisposable
         try
         {
             var current = LoadCurrentManifest();
-            byte[] metadata = await GetLatestReleaseMetadataAsync(token);
+            byte[] metadata = await _http.GetLatestReleaseAsync(token);
             using var release = JsonDocument.Parse(metadata);
             var data = release.RootElement;
             if (data.GetProperty("draft").GetBoolean() || data.GetProperty("prerelease").GetBoolean()) return null;
@@ -61,7 +53,7 @@ public sealed class UpdateService : IDisposable
             if (!assets.ContainsKey(manifestName))
             {
                 string updateTag = "updates-" + tag;
-                byte[] updateMetadata = await GetMetadataAsync($"https://api.github.com/repos/{Repository}/releases/tags/{updateTag}", false, token);
+                byte[] updateMetadata = await _http.GetBytesAsync($"https://api.github.com/repos/{Repository}/releases/tags/{updateTag}", asset: false, token);
                 using var updateRelease = JsonDocument.Parse(updateMetadata);
                 var updateData = updateRelease.RootElement;
                 if (updateData.GetProperty("tag_name").GetString() != updateTag || updateData.GetProperty("draft").GetBoolean()
@@ -71,7 +63,7 @@ public sealed class UpdateService : IDisposable
             }
             if (!assets.TryGetValue(manifestName, out var manifestAsset)) throw new InvalidDataException("此发行版没有增量更新清单，不会下载完整安装包。");
             if (manifestAsset.Size > 4 * 1024 * 1024) throw new InvalidDataException("更新清单过大。");
-            byte[] manifestBytes = await GetMetadataAsync(manifestAsset.DownloadUrl, true, token);
+            byte[] manifestBytes = await _http.GetBytesAsync(manifestAsset.DownloadUrl, asset: true, token);
             if (manifestBytes.LongLength != manifestAsset.Size) throw new InvalidDataException("更新清单长度不符。");
             var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestBytes, JsonOptions) ?? throw new InvalidDataException("更新清单为空。");
             UpdateFiles.ValidateManifest(manifest);
@@ -148,7 +140,7 @@ public sealed class UpdateService : IDisposable
                 token.ThrowIfCancellationRequested();
                 string path = UpdateFiles.ResolvePath(Path.Combine(workspace, "new"), file.Path);
                 Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                await DownloadAsync(update.Assets[file.AssetName], file, path, downloaded, total, progress, token);
+                await _http.DownloadToAsync(update.Assets[file.AssetName], file, path, downloaded, total, progress, token);
                 downloaded += file.CompressedSize;
             }
             await Task.Run(() => UpdateFiles.PrepareOperations(_root, workspace), token);
@@ -164,45 +156,6 @@ public sealed class UpdateService : IDisposable
             throw;
         }
         finally { _gate.Release(); }
-    }
-
-    private async Task DownloadAsync(UpdateAsset asset, UpdateFile file, string path, long completed, long total,
-        IProgress<UpdateProgress>? progress, CancellationToken token)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromMinutes(5));
-        token = timeout.Token;
-        using var request = CreateRequest(asset.DownloadUrl, true);
-        using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
-        GitHubHttp.EnsureSuccess(response);
-        if (response.Content.Headers.ContentLength is long length && length != file.CompressedSize) throw new InvalidDataException("下载长度不符：" + file.Path);
-        await using var network = await response.Content.ReadAsStreamAsync(token);
-        using var limited = new BoundedReadStream(network, file.CompressedSize);
-        using var gzip = new GZipStream(limited, CompressionMode.Decompress, leaveOpen: true);
-        await using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 65536, useAsync: true);
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        byte[] buffer = new byte[65536];
-        long written = 0;
-        var reportTime = Stopwatch.StartNew();
-        int count;
-        progress?.Report(new UpdateProgress("正在下载 " + file.Path, completed, total));
-        while ((count = await gzip.ReadAsync(buffer, token)) != 0)
-        {
-            written = checked(written + count);
-            if (written > file.Size) throw new InvalidDataException("解压长度超过清单限制：" + file.Path);
-            hash.AppendData(buffer, 0, count);
-            await output.WriteAsync(buffer.AsMemory(0, count), token);
-            if (reportTime.ElapsedMilliseconds >= 100)
-            {
-                progress?.Report(new UpdateProgress("正在下载 " + file.Path, completed + limited.BytesRead, total));
-                reportTime.Restart();
-            }
-        }
-        if (written != file.Size || limited.BytesRead != file.CompressedSize || Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant() != file.Sha256)
-            throw new InvalidDataException("更新文件 SHA256 校验失败：" + file.Path);
-        await output.FlushAsync(token);
-        output.Flush(true);
-        progress?.Report(new UpdateProgress("已校验 " + file.Path, completed + file.CompressedSize, total));
     }
 
     public void LaunchPrepared()
@@ -283,86 +236,11 @@ public sealed class UpdateService : IDisposable
         finally { _gate.Release(); }
     }
 
-    private HttpRequestMessage CreateRequest(string url, bool asset)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(asset ? "application/octet-stream" : "application/vnd.github+json"));
-        return request;
-    }
-
-    private async Task<byte[]> GetLatestReleaseMetadataAsync(CancellationToken token)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
-        token = timeout.Token;
-        using var request = CreateRequest($"https://api.github.com/repos/{Repository}/releases/latest", false);
-        if (_latestReleaseETag is not null) request.Headers.IfNoneMatch.ParseAdd(_latestReleaseETag);
-        using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
-        if (response.StatusCode == HttpStatusCode.NotModified)
-            return _latestReleaseMetadata ?? throw new InvalidDataException("GitHub 返回了未修改状态，但本地没有缓存的发行版信息。");
-        GitHubHttp.EnsureSuccess(response);
-        _latestReleaseMetadata = await ReadMetadataContentAsync(response.Content, token);
-        _latestReleaseETag = response.Headers.ETag?.ToString();
-        return _latestReleaseMetadata;
-    }
-
-    private async Task<byte[]> GetMetadataAsync(string url, bool asset, CancellationToken token)
-    {
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
-        token = timeout.Token;
-        using var request = CreateRequest(url, asset);
-        using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
-        GitHubHttp.EnsureSuccess(response);
-        return await ReadMetadataContentAsync(response.Content, token);
-    }
-
-    private static async Task<byte[]> ReadMetadataContentAsync(HttpContent content, CancellationToken token)
-    {
-        await using var stream = await content.ReadAsStreamAsync(token);
-        using var output = new MemoryStream();
-        byte[] buffer = new byte[16384];
-        int count;
-        while ((count = await stream.ReadAsync(buffer, token)) != 0)
-        {
-            if (output.Length + count > 4 * 1024 * 1024) throw new InvalidDataException("更新元数据超过大小限制。");
-            output.Write(buffer, 0, count);
-        }
-        return output.ToArray();
-    }
-
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _lifetime.Cancel();
-        _client.Dispose();
-    }
-
-    private sealed class BoundedReadStream(Stream stream, long limit) : Stream
-    {
-        public long BytesRead { get; private set; }
-        public override bool CanRead => true;
-        public override bool CanSeek => false;
-        public override bool CanWrite => false;
-        public override long Length => throw new NotSupportedException();
-        public override long Position { get => BytesRead; set => throw new NotSupportedException(); }
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            int read = stream.Read(buffer, offset, count);
-            Count(read);
-            return read;
-        }
-        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            int read = await stream.ReadAsync(buffer, cancellationToken);
-            Count(read);
-            return read;
-        }
-        private void Count(int read) { BytesRead = checked(BytesRead + read); if (BytesRead > limit) throw new InvalidDataException("压缩文件超过大小限制。"); }
-        public override void Flush() { }
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
-        public override void SetLength(long value) => throw new NotSupportedException();
-        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        _http.Dispose();
     }
 }
