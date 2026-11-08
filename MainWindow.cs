@@ -27,6 +27,7 @@ public sealed class MainWindow : Window
     private bool _exitRequested;
     private bool _closeToTray;
     private bool _hideAfterCopy = true;
+    private IntPtr _foregroundBeforeShow;
     private bool _backdropAttempted;
 
     public MainWindow(HistoryService? history = null)
@@ -235,10 +236,20 @@ public sealed class MainWindow : Window
     private void OnCopyCompleted(object? sender, EventArgs args)
     {
         if (!_hideAfterCopy || !IsVisible || _overlayHost.IsOpen) return;
+        IntPtr previous = _foregroundBeforeShow;
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
-            if (IsVisible) Hide();
+            if (!IsVisible) return;
+            Hide();
+            RestoreForeground(previous);
         }));
+    }
+
+    private void RestoreForeground(IntPtr window)
+    {
+        if (window == IntPtr.Zero || window == new WindowInteropHelper(this).Handle) return;
+        try { NativeMethods.SetForegroundWindow(window); }
+        catch (Exception exception) { AppLogger.LogException("恢复复制前的前台窗口失败", exception); }
     }
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs args)
@@ -257,6 +268,8 @@ public sealed class MainWindow : Window
     private void OnHotKeyPressed(object? sender, EventArgs args)
     {
         if (_viewModel.IsClosing) return;
+        if (!IsVisible || WindowState == WindowState.Minimized)
+            _foregroundBeforeShow = NativeMethods.GetForegroundWindow();
         if (!IsVisible) Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
         Activate();
