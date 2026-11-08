@@ -16,9 +16,9 @@ public sealed class MainViewModel : ObservableObject
     private readonly WindowOverlayHost? _overlays;
     private readonly ClipboardReader _clipboard = new();
     private readonly ClipboardMonitor _monitor;
+    private readonly ClipboardCaptureCoordinator _capture;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _actionGate = new(1, 1);
-    private readonly DispatcherTimer _captureTimer;
     private readonly DispatcherTimer _searchTimer;
     private readonly DispatcherTimer _updateTimer;
     private readonly UpdateService _updates = new();
@@ -26,11 +26,7 @@ public sealed class MainViewModel : ObservableObject
     private Task _updateOverlayTask = Task.CompletedTask;
     private Task _updateCleanupTask = Task.CompletedTask;
     private List<RecordViewModel> _allRecords = [];
-    private Task _captureTask = Task.CompletedTask;
     private Task _initializationTask = Task.CompletedTask;
-    private bool _captureRunning;
-    private bool _captureRequested;
-    private uint? _lastSequence;
     private bool _isLoading = true;
     private bool _isReady;
     private bool _isBusy;
@@ -53,9 +49,11 @@ public sealed class MainViewModel : ObservableObject
         _trayModeChanged = trayModeChanged;
         _overlays = overlays;
         _monitor = new ClipboardMonitor(owner);
-        _monitor.ClipboardChanged += OnClipboardChanged;
-        _captureTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        _captureTimer.Tick += OnCaptureTimer;
+        _capture = new ClipboardCaptureCoordinator(_clipboard, _history,
+            () => IsReady && !IsPaused && !IsClosing, () => IsPaused, () => IsClosing,
+            _lifetime, RunOperationAsync, RefreshRecords, value => Notice = value ?? string.Empty,
+            value => Status = value);
+        _capture.Attach(_monitor);
         _searchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(160) };
         _searchTimer.Tick += OnSearchTimer;
         _updateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
@@ -65,12 +63,7 @@ public sealed class MainViewModel : ObservableObject
         UpdateCommand = new AsyncRelayCommand(ShowUpdatesAsync, () => CanAct);
         ToggleAlwaysOnTopCommand = new AsyncRelayCommand(ToggleAlwaysOnTopAsync, () => CanAct);
         RetryCommand = new AsyncRelayCommand(InitializeAsync, () => !IsLoading && !IsClosing);
-        PauseCommand = new RelayCommand(() =>
-        {
-            IsPaused = !IsPaused;
-            _captureTimer.Stop();
-            _captureRequested = false;
-        }, () => IsReady && !IsClosing);
+        PauseCommand = new RelayCommand(() => { IsPaused = !IsPaused; _capture.Pause(); }, () => IsReady && !IsClosing);
         DismissNoticeCommand = new RelayCommand(() => Notice = string.Empty);
         ClearSearchCommand = new RelayCommand(() => SearchTerm = string.Empty);
     }
@@ -211,19 +204,17 @@ public sealed class MainViewModel : ObservableObject
     {
         if (IsClosing) return;
         IsClosing = true;
-        _captureTimer.Stop();
         _searchTimer.Stop();
         _updateTimer.Stop();
         _updateTimer.Tick -= OnUpdateTimer;
-        _captureTimer.Tick -= OnCaptureTimer;
         _searchTimer.Tick -= OnSearchTimer;
-        _monitor.ClipboardChanged -= OnClipboardChanged;
+        Task captureTask = _capture.ShutdownAsync();
         _monitor.Dispose();
         _lifetime.Cancel();
         _overlays?.CloseAll(null);
         await _updateOverlayTask;
         await _initializationTask;
-        await _captureTask;
+        await captureTask;
         await _updateTask;
         await _updateCleanupTask;
         await _actionGate.WaitAsync();
@@ -370,47 +361,7 @@ public sealed class MainViewModel : ObservableObject
         }
     }
 
-    private void OnClipboardChanged(object? sender, EventArgs args) => ScheduleCapture();
-    private void ScheduleCapture()
-    {
-        if (!IsReady || IsPaused || IsClosing) return;
-        _captureTimer.Stop();
-        _captureTimer.Start();
-    }
     private void OnSearchTimer(object? sender, EventArgs args) { _searchTimer.Stop(); ApplyFilter(); }
-    private void OnCaptureTimer(object? sender, EventArgs args)
-    {
-        _captureTimer.Stop();
-        if (IsPaused || IsClosing) return;
-        _captureRequested = true;
-        if (!_captureRunning) _captureTask = CaptureLoopAsync();
-    }
-
-    private async Task CaptureLoopAsync()
-    {
-        _captureRunning = true;
-        try
-        {
-            while (_captureRequested && !IsClosing && !IsPaused)
-            {
-                _captureRequested = false;
-                await RunOperationAsync(async () =>
-                {
-                    var result = await _clipboard.ReadAsync(_lifetime.Token);
-                    if (IsPaused || IsClosing) return;
-                    if (result.Warning is not null) Notice = result.Warning;
-                    if (_lastSequence == result.Sequence) return;
-                    _lastSequence = result.Sequence;
-                    if (result.Snapshot is null) return;
-                    var saved = await _history.AddAsync(result.Snapshot, _lifetime.Token);
-                    RefreshRecords();
-                    Status = result.Snapshot.Kind == ClipboardRecordKind.Image ? "已保存图片" : "已保存文本";
-                    if (saved.Warning is not null) Notice = saved.Warning;
-                }, "读取或保存剪贴板失败");
-            }
-        }
-        finally { _captureRunning = false; }
-    }
 
     private async Task RunOperationAsync(Func<Task> action, string context)
     {
