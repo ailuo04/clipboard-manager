@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '0.0.5',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '0.0.6',
     [switch]$SelfContainedAppHost
 )
 

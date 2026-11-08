@@ -1,7 +1,7 @@
 param(
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'bin\Release\net8.0-windows'),
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.5'
+    [string]$Version = '0.0.6'
 )
 
 $ErrorActionPreference = 'Stop'
