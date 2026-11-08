@@ -94,7 +94,7 @@ public sealed class UpdateService : IDisposable
             long id = asset.GetProperty("id").GetInt64();
             long size = asset.GetProperty("size").GetInt64();
             string downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-            if (id <= 0 || size < 0 || !IsReleaseDownloadUrl(downloadUrl) || !assets.TryAdd(name, new UpdateAsset(id, size, downloadUrl)))
+            if (id <= 0 || size < 0 || !GitHubHttp.IsReleaseDownloadUrl(Repository, downloadUrl) || !assets.TryAdd(name, new UpdateAsset(id, size, downloadUrl)))
                 throw new InvalidDataException("发行附件信息不正确。");
         }
         return assets;
@@ -174,7 +174,7 @@ public sealed class UpdateService : IDisposable
         token = timeout.Token;
         using var request = CreateRequest(asset.DownloadUrl, true);
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
-        EnsureSuccess(response);
+        GitHubHttp.EnsureSuccess(response);
         if (response.Content.Headers.ContentLength is long length && length != file.CompressedSize) throw new InvalidDataException("下载长度不符：" + file.Path);
         await using var network = await response.Content.ReadAsStreamAsync(token);
         using var limited = new BoundedReadStream(network, file.CompressedSize);
@@ -300,7 +300,7 @@ public sealed class UpdateService : IDisposable
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         if (response.StatusCode == HttpStatusCode.NotModified)
             return _latestReleaseMetadata ?? throw new InvalidDataException("GitHub 返回了未修改状态，但本地没有缓存的发行版信息。");
-        EnsureSuccess(response);
+        GitHubHttp.EnsureSuccess(response);
         _latestReleaseMetadata = await ReadMetadataContentAsync(response.Content, token);
         _latestReleaseETag = response.Headers.ETag?.ToString();
         return _latestReleaseMetadata;
@@ -313,7 +313,7 @@ public sealed class UpdateService : IDisposable
         token = timeout.Token;
         using var request = CreateRequest(url, asset);
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
-        EnsureSuccess(response);
+        GitHubHttp.EnsureSuccess(response);
         return await ReadMetadataContentAsync(response.Content, token);
     }
 
@@ -329,47 +329,6 @@ public sealed class UpdateService : IDisposable
             output.Write(buffer, 0, count);
         }
         return output.ToArray();
-    }
-
-    private static bool IsReleaseDownloadUrl(string value)
-    {
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps || !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
-            return false;
-        return uri.AbsolutePath.StartsWith($"/{Repository}/releases/download/", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static void EnsureSuccess(HttpResponseMessage response)
-    {
-        if (response.StatusCode == HttpStatusCode.NotFound)
-            throw new HttpRequestException("GitHub 未找到可公开访问的正式发行版或附件（HTTP 404）。请确认仓库公开可访问，并且已发布正式版本。", null, response.StatusCode);
-        if (response.StatusCode == HttpStatusCode.Unauthorized)
-            throw new HttpRequestException("公开更新源拒绝了匿名请求（HTTP 401）。更新器不使用个人访问令牌；请检查仓库可见性或网络代理设置。", null, response.StatusCode);
-        if ((int)response.StatusCode == 429 || response.StatusCode == HttpStatusCode.Forbidden)
-        {
-            bool rateLimited = (int)response.StatusCode == 429 || response.Headers.RetryAfter is not null
-                || (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) && remaining.Any(value => value == "0"));
-            if (rateLimited)
-                throw new HttpRequestException($"GitHub API 请求频率已达上限（HTTP {(int)response.StatusCode}）。{GetRateLimitRetryHint(response)}", null, response.StatusCode);
-            if (response.StatusCode == HttpStatusCode.Forbidden)
-                throw new HttpRequestException("GitHub 拒绝了公开更新请求（HTTP 403）。请确认仓库可公开访问；若仓库已公开，可能是 GitHub 临时限制或网络代理拦截，请稍后重试。", null, response.StatusCode);
-        }
-        response.EnsureSuccessStatusCode();
-    }
-
-    private static string GetRateLimitRetryHint(HttpResponseMessage response)
-    {
-        var retryAfter = response.Headers.RetryAfter;
-        if (retryAfter?.Delta is TimeSpan delay)
-            return $"请在约 {Math.Max(1, (int)Math.Ceiling(delay.TotalSeconds))} 秒后重试。";
-        if (retryAfter?.Date is DateTimeOffset retryAt)
-            return $"请于 {retryAt.ToLocalTime():yyyy-MM-dd HH:mm:ss} 后重试。";
-        if (response.Headers.TryGetValues("X-RateLimit-Reset", out var resetValues)
-            && long.TryParse(resetValues.FirstOrDefault(), out long resetSeconds))
-        {
-            try { return $"请于 {DateTimeOffset.FromUnixTimeSeconds(resetSeconds).ToLocalTime():yyyy-MM-dd HH:mm:ss} 后重试。"; }
-            catch (ArgumentOutOfRangeException) { }
-        }
-        return "请稍后重试。";
     }
 
     public void Dispose()
