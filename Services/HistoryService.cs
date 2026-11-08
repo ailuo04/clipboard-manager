@@ -17,7 +17,6 @@ public sealed class HistoryService
     public HistoryService(HistoryStore store) => _store = store;
     public IReadOnlyList<ClipboardRecord> Records => _records.ToArray();
     public AppSettings Settings => _settings.Clone();
-    public bool IsLoaded => _loaded;
     public string RootDirectory => _store.RootDirectory;
     public string GetImagePath(ClipboardRecord record) => _store.GetImagePath(record.ImageFileName ?? string.Empty);
 

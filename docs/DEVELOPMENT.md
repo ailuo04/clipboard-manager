@@ -4,6 +4,13 @@
 
 原生确认 `MessageBox` 是有意保留的例外（例如降低保留上限、确认安装更新）；它不是承载设置或其他页面的替代窗口。
 
+## 架构分层
+
+- `MainViewModel` 只负责可绑定状态、命令与设置/窗口行为；剪贴板采集在 `ClipboardCaptureCoordinator`，更新管线在 `UpdateCoordinator`。
+- `WindowOverlayHost` 只负责页面栈、生命周期与焦点；窗口几何与状态快照在 `OverlayWindowPresenter`。
+- `UpdateService` 只做编排；GitHub 流量在 `GitHubReleaseClient`，HTTP 错误处理在 `GitHubHttp`，文件差分与工作区在 `UpdateFiles`（后者同时被 .NET Framework 更新器编译，必须保持旧语法）。
+- 视图为编译式 XAML（`x:Class` partial 类），代码通过生成字段访问控件，不要写 `FindName("...")`。
+
 ## 页面与返回
 
 - 页面继承 `OverlayView`，在其 `UserControl` 内容中加载相应的 `Views/*.xaml`。页面通过 `Complete(bool?)` 请求关闭，不直接关闭窗口。
