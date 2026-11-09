@@ -63,4 +63,4 @@
 - **常用命令**（新方案建立后）：`dotnet restore ClipboardManager.sln`、`dotnet test ClipboardManager.sln -c Release`、`dotnet build src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -p:Platform=x64`。旧基线仍可单独运行：`dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Release --nologo`。只有在实际执行并核对退出码/测试数后才可声称通过。
 - **数据边界**：用户数据根目录保持 `%LOCALAPPDATA%\ClipboardManager`；SQLite 是迁移完成后的唯一运行时权威，旧 JSON 只导入一次且原文件与备份不被自动删除。更新 worker 只操作清单管理的程序文件，永不读写该数据目录。
 - **首发切换**：在隔离环境用合成数据完成升级验证并留存证据之前，WPF → WinUI 首发必须要求用户运行完整安装器覆盖安装，不允许旧 `ClipboardManager.Update.exe` 直接增量替换新架构；发行说明也不得暗示可无缝增量升级。协议见 `legacy-baseline.md` 第 6 节。
-- **迁移演练的隔离边界**：本机演练只能通过 `USERPROFILE`/`LOCALAPPDATA`/`APPDATA`/`TEMP`/`TMP` 重定向文件路径（`AppPaths` 的数据根目录跟随 `USERPROFILE`，不是 `LOCALAPPDATA`）；`HKCU` 卸载注册表项、开始菜单/桌面快捷方式与应用互斥体不受这些变量影响。无法接受这些副作用时改用一次性 VM/CI runner。
+- **迁移演练的隔离边界**：本机演练只能通过 `USERPROFILE`/`LOCALAPPDATA`/`APPDATA`/`TEMP`/`TMP` 重定向文件路径（`AppPaths` 的数据根目录跟随 `USERPROFILE`，不是 `LOCALAPPDATA`）；`HKCU` 卸载注册表项、开始菜单/桌面快捷方式与应用互斥体不受这些变量影响，且 `GetFolderPath` 在同一进程内首次调用后会被缓存。**升级/卸载演练必须在一次性 VM 或 CI runner 上执行**，禁止在普通开发桌面运行；收尾必须核对卸载注册表项与快捷方式已移除、合成用户数据哈希未变。
