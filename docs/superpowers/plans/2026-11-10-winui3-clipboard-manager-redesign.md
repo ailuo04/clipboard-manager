@@ -140,7 +140,7 @@ public interface IDatabaseSchemaMigrator
 - Test: `Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj`（只运行，不改现有测试）
 
 - [ ] 在当前干净工作树运行 `dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Release --nologo`，记录实际总数、通过数和耗时到 `legacy-baseline.md`。
-- [ ] 在同文件记录当前 WPF 数据布局、发布资产命名、安装默认路径、互斥体名及旧应用入口；仅据 `AppPaths.cs`、`installer.ps1`、`UpdateFiles.cs` 与 release workflow 逐项核实。
+- [ ] 在同文件记录当前 WPF 数据布局、发布资产命名、安装默认路径、互斥体名及旧应用入口。数据布局与发布资产仅据 `AppPaths.cs`、`installer.ps1`、`UpdateFiles.cs` 与 release workflow 核实；互斥体与旧应用入口链另据 `App.xaml.cs`、`installer/ClipboardManager.iss`、`UpdateHelper/Launcher.cs`、`UpdateHelper/Program.cs`、`build-update-tools.ps1` 核实（这些补充来源仅用于互斥体/入口链，不用于推导数据布局或发布资产）。
 - [ ] 写隔离升级验证协议：旧版样本安装到临时目录、复制合成 JSON/PNG 到独立 LocalAppData、安装新包、核对 DB/图片哈希、旧 JSON 留存；若完整流程无法证明可靠则首发文案要求安装版覆盖安装，不允许旧 helper 直接增量替换新架构。
 - [ ] 运行 `git diff --check` 并检查证据不包含真实剪贴板数据、用户路径以外的敏感信息或私钥。
 

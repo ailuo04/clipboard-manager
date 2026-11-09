@@ -104,7 +104,14 @@ dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Releas
 | 更新互斥体 | `Local\ClipboardManager.Update.<SHA256(安装根目录全路径，去尾部分隔符并转大写)>`（64 位**大写**十六进制） | `Updates/UpdateFiles.cs` `LockName(string root)` |
 | 安装器互斥体声明 | `AppMutex=Local\ClipboardManager.Desktop.v1` | 补充核对：`installer/ClipboardManager.iss` |
 
-应用单实例互斥体的补充说明：任务简报指定的四个核对来源（`AppPaths.cs`、`installer.ps1`、`UpdateFiles.cs`、release workflow）中只包含**更新**互斥体；`Local\ClipboardManager.Desktop.v1` 实际出现在 `App.xaml.cs`（`new Mutex(true, "Local\\ClipboardManager.Desktop.v1", out bool created)`）与 `installer/ClipboardManager.iss` 的 `AppMutex` 声明中，此处按实际文件标注来源，不臆测为四个来源之一。
+**核对来源（已按控制器裁定放宽）。** 数据布局与发布资产仍只依据 `Utilities/AppPaths.cs`、`installer.ps1`、`Updates/UpdateFiles.cs` 与 `.github/workflows/release.yml`。互斥体与入口链补充依据以下文件，且**仅用于这两项**，不用于推导数据布局或发布资产：
+
+- `App.xaml.cs`：`Local\ClipboardManager.Desktop.v1` 的创建与释放。
+- `installer/ClipboardManager.iss`：`AppMutex=Local\ClipboardManager.Desktop.v1` 声明。
+- `UpdateHelper/Launcher.cs`、`UpdateHelper/Program.cs`：启动器与 worker 的入口、参数（`--apply`/`--recover`/`--uninstall-managed`/`--verify-update`）与健康标记等待。
+- `build-update-tools.ps1`：两个 helper 的编译方式与产物文件名（含自包含发布时把应用主机改名为 `ClipboardManager.App.exe`）。
+
+上述放宽的原因：仅凭原四个来源无法核实应用单实例互斥体与旧应用入口链——原四个来源只包含**更新**互斥体（`UpdateFiles.LockName`）。范围仍严格限定为文档证据，不改动任何源码。
 
 旧应用入口链（依据 `build-update-tools.ps1`、`UpdateHelper/Launcher.cs`、`UpdateHelper/Program.cs`、`ClipboardManager.csproj`）：
 
@@ -120,45 +127,160 @@ dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Releas
 
 **状态：未执行。** 本节是可重演的协议与判定标准，不是结果记录。任何“升级已通过”的结论都必须来自实际执行并保存输出；在此之前一律按“未证明”处理。
 
-隔离要求：
+### 6.0 隔离边界与前提
 
 - 首选一次性 Windows VM 或一次性 CI runner；不得在开发者日常桌面或真实用户数据目录上执行。
-- 若必须本机演练，则为子进程显式覆盖 `LOCALAPPDATA`、`APPDATA`、`USERPROFILE`、`TEMP` 指向一次性根目录，并在结束后整体删除该根目录。安装器与应用的“用户数据保留”检查只针对该隔离根目录。
-- 环境变量无法隔离的副作用必须提前确认并接受：安装器会写 `HKCU` 卸载注册表项（`{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1`）与开始菜单/桌面快捷方式。演练前确认本机没有同 AppId 的正式安装，结束后核对注册表项与快捷方式已被卸载移除；否则优先使用一次性 VM/CI runner。
-- 上面的 `$env:` 覆盖只作用于当前 PowerShell 会话及其子进程；演练结束应关闭该会话（或在 VM 中整体丢弃），避免影响后续正常的开发与测试。
+- 本机演练时，安装器与应用只通过**当前 PowerShell 会话及其子进程**的环境变量被重定向。`Start-Process` 启动的安装器/应用会继承这些值，因此必须在**同一个会话**里完成准备、安装与核对，结束后关闭该会话。
+- 环境变量**只能**重定向 `LOCALAPPDATA`、`APPDATA`、`USERPROFILE`、`TEMP`/`TMP` 覆盖到的文件路径。它们**不能**隔离以下副作用：
+  1. `HKCU` 卸载注册表项 `{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1`；
+  2. 开始菜单与桌面快捷方式（由 Shell 已知文件夹解析，不跟随 `USERPROFILE`/`APPDATA` 覆盖；实测覆盖后 `GetFolderPath('Desktop')`/`('Programs')` 返回空值，而不是隔离目录）；
+  3. 应用单实例互斥体 `Local\ClipboardManager.Desktop.v1`（会话/机器级内核对象）。
+- 因此**不要**把本机演练当作“完全隔离”。只要本机存在同 AppId 的正式安装，或无法接受注册表/快捷方式被改写，就必须改用一次性 VM/CI runner。
+
+#### 6.0.1 一个必须知道的实现细节
+
+旧应用的数据根目录来自 `Environment.GetFolderPath(LocalApplicationData)`，而不是直接读 `%LOCALAPPDATA%`。实测（Windows，PowerShell 7.6.9，全新子进程）表明：
+
+- 只覆盖 `LOCALAPPDATA` 时，`GetFolderPath(LocalApplicationData)` 仍解析到 `<USERPROFILE>\AppData\Local`；
+- 覆盖 `USERPROFILE` 后，它解析为 `<USERPROFILE>\AppData\Local`，即**跟随 `USERPROFILE`**；
+- `APPDATA` 与 `TEMP` 分别直接对应 `GetFolderPath(ApplicationData)` 与 `GetTempPath()`。
+
+结论：要让 `AppPaths.RootDirectory` 真正落在隔离根内，`USERPROFILE`、`LOCALAPPDATA`、`APPDATA`、`TEMP`、`TMP` **必须一起**指向隔离根下的子目录，且 `LOCALAPPDATA` 要与 `USERPROFILE` 下的 `AppData\Local` 一致。6.1 的片段按此编写，并用 6.1.1 的断言在真正安装前先证明重定向生效。
+
+另外，`GetFolderPath` 在**同一进程内首次调用后会被缓存**：实测先调用一次再修改 `USERPROFILE`，后续调用仍返回旧值。因此：
+
+- 环境变量必须在**尚未解析过已知文件夹的新会话**里设置，或在设置后由**新启动的子进程**执行安装与核对；
+- 判断“是否真的隔离”必须在**子进程**里断言（6.1.1），不能在可能已缓存旧值的当前进程里断言；
+- 若在已运行很久的会话里演练，宁可新开一个 PowerShell 7 会话重来，也不要依赖当前会话的结果。
+
+#### 6.0.2 前置条件
+
+- 隔离根位于可写磁盘，剩余空间足够容纳旧版 + 新版两份程序与合成数据（建议 ≥ 2 GB）。
+- 演练前检查 `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1` 是否存在；存在则停止本机演练。
 - 全程只用**合成数据**：虚构文本（例如 `sample-text-001`）、程序生成的小 PNG、合成设置值；不得复制任何真实剪贴板内容。
 
-### 6.1 准备隔离目录
+### 6.1 准备隔离目录并重定向环境
+
+在**一个**新的 PowerShell 7 会话中执行；后续 6.2–6.6 全部在同一会话内继续。
 
 ```powershell
-$base = Join-Path $env:TEMP ('cm-mig-' + [guid]::NewGuid().ToString('N'))
-$installOld = Join-Path $base 'old-app'
-$installNew = Join-Path $base 'new-app'
-$isolatedLocalAppData = Join-Path $base 'LocalAppData'
-$dataRoot = Join-Path $isolatedLocalAppData 'ClipboardManager'
-New-Item -ItemType Directory -Force -Path $installOld, $installNew, (Join-Path $dataRoot 'images') | Out-Null
+$ErrorActionPreference = 'Stop'
+
+# 1) 先记录原始值，便于事后核对（新会话可直接关闭，无需还原）。
+$original = @{
+  LOCALAPPDATA = $env:LOCALAPPDATA
+  APPDATA      = $env:APPDATA
+  USERPROFILE  = $env:USERPROFILE
+  TEMP         = $env:TEMP
+  TMP          = $env:TMP
+}
+
+# 2) 隔离根与所有写入点都放在它下面。
+$base         = Join-Path $env:TEMP ('cm-mig-' + [guid]::NewGuid().ToString('N'))
+$profileDir   = Join-Path $base 'Profile'
+$localAppData = Join-Path $profileDir 'AppData\Local'
+$roamingDir   = Join-Path $profileDir 'AppData\Roaming'
+$tempDir      = Join-Path $base 'Temp'
+$logsDir      = Join-Path $base 'logs'
+$installDir   = Join-Path $base 'app'          # 旧版与新覆盖安装共用同一目录
+$dataRoot     = Join-Path $localAppData 'ClipboardManager'
+New-Item -ItemType Directory -Force -Path $localAppData, $roamingDir, $tempDir, $logsDir, $installDir, (Join-Path $dataRoot 'images') | Out-Null
+
+# 3) 一次性设置全部五个变量；之后启动的安装器/应用会继承。
+$env:USERPROFILE  = $profileDir
+$env:LOCALAPPDATA = $localAppData
+$env:APPDATA      = $roamingDir
+$env:TEMP         = $tempDir
+$env:TMP          = $tempDir
 ```
 
-### 6.2 安装旧版样本
+#### 6.1.1 安装前断言（必须在子进程中通过）
+
+在**子进程**里断言，避免把“本进程已缓存的值”误当成“新进程会看到的值”：
 
 ```powershell
-# 旧版安装器与校验文件来自已发布资产（示例版本号，按实际替换）
-$oldSetup = Join-Path $base 'ClipboardManager-0.0.7-win-x64-setup.exe'
+$assertPath = Join-Path $base 'assert-isolation.ps1'
+@'
+$ErrorActionPreference = 'Stop'
+$base = $env:CM_EXPECT_BASE
+function InRoot([string]$p) {
+  if ([string]::IsNullOrWhiteSpace($p)) { return $false }
+  return ([IO.Path]::GetFullPath($p)).StartsWith([IO.Path]::GetFullPath($base), [StringComparison]::OrdinalIgnoreCase)
+}
+$checks = [ordered]@{
+  'env:LOCALAPPDATA'                    = $env:LOCALAPPDATA
+  'env:APPDATA'                         = $env:APPDATA
+  'env:USERPROFILE'                     = $env:USERPROFILE
+  'env:TEMP'                            = $env:TEMP
+  'env:TMP'                             = $env:TMP
+  'GetFolderPath(LocalApplicationData)' = [Environment]::GetFolderPath('LocalApplicationData')
+  'GetFolderPath(ApplicationData)'      = [Environment]::GetFolderPath('ApplicationData')
+  'GetTempPath()'                       = [IO.Path]::GetTempPath()
+  'expected AppPaths.RootDirectory'     = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'ClipboardManager'
+}
+$failed = @()
+foreach ($name in $checks.Keys) {
+  $ok = InRoot $checks[$name]
+  if (-not $ok) { $failed += $name }
+  '{0,-38} inRoot={1,-5} {2}' -f $name, $ok, $checks[$name]
+}
+if ($failed.Count) { throw ('Isolation failed for: ' + ($failed -join ', ')) }
+'END-ASSERT-OK'
+'@ | Set-Content -LiteralPath $assertPath -Encoding utf8
+
+$env:CM_EXPECT_BASE = $base
+$assertOut = Join-Path $logsDir 'assert-isolation.out.txt'
+$assertErr = Join-Path $logsDir 'assert-isolation.err.txt'
+$assert = Start-Process -FilePath (Get-Process -Id $PID).Path `
+  -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$assertPath) `
+  -NoNewWindow -Wait -PassThru -WorkingDirectory $base `
+  -RedirectStandardOutput $assertOut -RedirectStandardError $assertErr
+Get-Content -LiteralPath $assertOut
+if ($assert.ExitCode -ne 0) { Get-Content -LiteralPath $assertErr; throw "Isolation assertion failed: $($assert.ExitCode)" }
+if (-not (Select-String -LiteralPath $assertOut -Pattern '^END-ASSERT-OK$' -Quiet)) { throw 'Isolation assertion did not complete.' }
+```
+
+只有输出出现 `END-ASSERT-OK` 才继续；否则停止，不要安装任何东西。
+
+说明：`expected AppPaths.RootDirectory` 是按第 2 节记录的布局（`GetFolderPath(LocalApplicationData)` + `ClipboardManager`）推导出的期望值，不是运行时读取类型；它的作用是证明“数据根目录会落在隔离根内”。
+
+### 6.2 安装旧版样本（安装到隔离目录）
+
+```powershell
+# 旧版安装器与校验文件来自已发布资产（示例版本号，按实际替换）。
+$oldSetup     = Join-Path $base 'ClipboardManager-0.0.7-win-x64-setup.exe'
 $oldSetupHash = Join-Path $base 'ClipboardManager-0.0.7-win-x64-setup.sha256'
-(Get-Content -LiteralPath $oldSetupHash -Raw).Trim().Split(' ')[0] -eq (Get-FileHash -LiteralPath $oldSetup -Algorithm SHA256).Hash.ToLowerInvariant()
+$expected = ((Get-Content -LiteralPath $oldSetupHash -Raw).Trim() -split '\s+', 2)[0]
+if ((Get-FileHash -LiteralPath $oldSetup -Algorithm SHA256).Hash -ne $expected) { throw 'Old installer checksum mismatch.' }
 
-$env:LOCALAPPDATA = $isolatedLocalAppData
-$env:APPDATA = Join-Path $base 'AppData\Roaming'
-Start-Process -FilePath $oldSetup -Wait -ArgumentList @(
+# /LOG 与安装目录都在 $base 下；安装器继承上面设置的五个环境变量。
+$oldInstall = Start-Process -FilePath $oldSetup -Wait -PassThru -ArgumentList @(
   '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',
-  "/DIR=$installOld","/LOG=$base\install-old.log")
+  "/DIR=$installDir", "/LOG=$(Join-Path $logsDir 'install-old.log')")
+if ($oldInstall.ExitCode -ne 0) { throw "Old installer failed: $($oldInstall.ExitCode)" }
 ```
 
-判定：`<安装目录>\ClipboardManager.exe`、`ClipboardManager.dll`、`ClipboardManager.runtimeconfig.json`、`ClipboardManager.Update.exe`、`update-manifest.json` 均存在；注册表项指向 `$installOld`。
+判定：
+
+- `$installDir` 下存在 `ClipboardManager.exe`、`ClipboardManager.dll`、`ClipboardManager.runtimeconfig.json`、`ClipboardManager.Update.exe`、`update-manifest.json`；
+- 卸载注册表项指向 `$installDir`（该注册表项**不受**环境变量隔离，属 6.0 已声明的副作用）。
 
 ### 6.3 写入合成历史、图片与主题
 
+先用旧版启动一次并正常关闭（让旧版自行创建数据目录与默认文件，避免其退出时覆盖下面写入的合成数据）：
+
 ```powershell
+$oldApp = Start-Process -FilePath (Join-Path $installDir 'ClipboardManager.exe') -PassThru -WorkingDirectory $installDir
+Start-Sleep -Seconds 10
+if ($oldApp.HasExited) { throw "Old application exited early: $($oldApp.ExitCode)" }
+$oldApp.CloseMainWindow() | Out-Null
+if (-not $oldApp.WaitForExit(15000)) { throw 'Old application did not close within 15 seconds.' }
+```
+
+旧版关闭后再写入合成数据：
+
+```powershell
+New-Item -ItemType Directory -Force -Path (Join-Path $dataRoot 'images') | Out-Null
 $imageName = ('{0}.png' -f [guid]::NewGuid().ToString('N'))
 # 2x2 不透明 PNG（红/绿/蓝/白，126 字节；固定字节便于哈希与像素双重比对）
 $png = [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAATSURBVBhXY/jPwPAfDBkY/oMBAEnICfeW3k0uAAAAAElFTkSuQmCC')
@@ -178,25 +300,52 @@ $doc = [ordered]@{
 
 # 说明：上面的 contentHash 是 64 位十六进制占位值，仅用于满足旧版字段形状与去重校验，
 # 不是真实内容的 SHA-256；核对以文本/图片本身为准，不要断言这些占位哈希。
+
 # 记录基线哈希（后续逐项比对）
 $baseline = @{}
 Get-ChildItem -LiteralPath $dataRoot -Recurse -File | ForEach-Object {
   $baseline[$_.FullName] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
 }
+$baseline.Count
 ```
 
-### 6.4 安装新版并启动
+### 6.4 覆盖安装新版（同目录）
+
+首发路径是**同目录覆盖安装**：新安装器使用与 6.2 完全相同的 `$installDir`，不另建安装目录。
 
 ```powershell
 $newSetup = Join-Path $base 'ClipboardManager-<new-version>-win-x64-setup.exe'
-Start-Process -FilePath $newSetup -Wait -ArgumentList @(
+
+# 覆盖安装前确认旧应用已退出（互斥体不受环境变量隔离，这里只做进程存在性检查）。
+$stillRunning = Get-Process -Name 'ClipboardManager','ClipboardManager.App' -ErrorAction SilentlyContinue
+if ($stillRunning) { throw 'Close the installed application before the overwrite install.' }
+
+$newInstall = Start-Process -FilePath $newSetup -Wait -PassThru -ArgumentList @(
   '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',
-  "/DIR=$installNew","/LOG=$base\install-new.log")
+  "/DIR=$installDir", "/LOG=$(Join-Path $logsDir 'install-new.log')")
+if ($newInstall.ExitCode -ne 0) { throw "New installer failed: $($newInstall.ExitCode)" }
 ```
 
-覆盖安装路径（首发首选）应使用**同一个** `/DIR` 覆盖旧目录，并在安装前确认旧应用已退出（应用互斥体 `Local\ClipboardManager.Desktop.v1` 未被占用）。
+判定：
 
-### 6.5 核对清单（必须全部满足）
+- `$installDir` 中的程序文件已更新为新版（例如 `update-manifest.json` 的 `version` 为新版号），旧版文件没有残留在清单之外；
+- `$dataRoot` 未被安装器改写：`history.json`、`theme.json` 与图片哈希仍与 `$baseline` 一致；
+- 注册表项 `DisplayVersion` 与 `InstallLocation` 已更新为 `$installDir` 与新版本。
+
+> 备选（非首发路径）：若需对比“全新目录安装”，另设 `$installFresh = Join-Path $base 'app-fresh'` 并单独记录。该用例**不能**替代首发覆盖安装的判定，且必须使用**独立的** `$dataRoot`，否则新旧两份程序会争用同一用户数据。
+
+### 6.5 启动新版
+
+```powershell
+$appExe = Join-Path $installDir 'ClipboardManager.exe'
+$app = Start-Process -FilePath $appExe -PassThru -WorkingDirectory $installDir
+Start-Sleep -Seconds 20            # 给首次迁移留出时间；按实际启动日志调整
+if ($app.HasExited) { throw "New application exited early: $($app.ExitCode)" }
+```
+
+随后按 6.6 的清单核对；核对完成后正常关闭应用（关闭主窗口，而不是 `Stop-Process`），以便迁移完成标记落盘。
+
+### 6.6 核对清单（必须全部满足）
 
 1. **数据库**：`<数据根目录>\clipboard.db` 存在；记录数 = 3；`sample-text-001` 文本逐字一致；图片记录 `imageFileName`、宽高一致；收藏数 = 1（`isPinned=true` 映射为收藏）；时间按 UTC 保存且顺序一致。
 2. **图片**：`<数据根目录>\images\<imageName>` 仍存在，SHA-256 与 `$baseline` 记录值比对。字节一致是首选期望；若新管线按设计“规范化”PNG 而重新编码，必须在证据中显式记录该决定，并改为核对解码后的像素尺寸与像素内容一致，不得静默接受哈希变化。
@@ -206,14 +355,14 @@ Start-Process -FilePath $newSetup -Wait -ArgumentList @(
 6. **数据与程序分离**：安装目录中不存在 `clipboard.db`、`history.json`、`images\`；更新清单不得包含数据文件。
 7. **故障注入（可选但建议）**：在数据库创建、导入事务、完成标记各阶段终止进程或制造磁盘错误，重启后旧 JSON/图片仍可恢复且可安全重试。
 
-### 6.6 判定规则
+### 6.7 判定规则
 
 - **通过**：上述 1–6 全部通过，并在实际输出中留存查询结果与哈希值。此时才可讨论保留在地增量更新。
 - **未通过或未执行**：按“WPF → WinUI 在地更新安全性未证明”处理。
 
-### 6.7 首发切换策略（硬性约束）
+### 6.8 首发切换策略（硬性约束）
 
-在 6.5 的隔离验证**实际通过并留存证据**之前：
+在 6.6 的隔离验证核对**实际通过并留存证据**之前：
 
 - 首发必须要求用户运行**完整安装器**覆盖安装，不允许旧 `ClipboardManager.Update.exe` 直接以增量方式替换为新架构程序文件。
 - 首发说明/发行说明必须明确写出“请下载并运行完整安装器升级”，不得暗示可无缝自动增量升级。
