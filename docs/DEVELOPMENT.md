@@ -51,3 +51,15 @@
 3. `OnDismissed` 清理页面拥有的异步资源、事件处理器和敏感/大型数据引用。
 4. 新增动态主题键存在于 `App.xaml` 或两套调色板，且 Light/Dark 键集合仍一致。
 5. 页面初始焦点、Tab 循环、Esc 返回和遮罩期间的背景输入约束没有被破坏。
+
+## WinUI 3 新方案开发说明（基线已锁定）
+
+本节说明迁移到 WinUI 3 / .NET 10 后的开发约定；上面的 WPF 覆盖层约定在旧工程退役前仍然有效，作为迁移参照保留。
+
+- **现状**：仓库仍以旧 WPF 工程（`ClipboardManager.csproj`，`net8.0-windows`）为正式构建/发布入口。新的 .NET 10 解决方案尚未建立；首批骨架、分层工程与命令由实施计划 Task 2 引入，完成前不要假设 `ClipboardManager.sln` 存在。
+- **基线证据**：旧版测试基线、数据布局、发布资产命名、安装默认路径、互斥体名、旧应用入口链，以及 WPF → WinUI 首发切换策略，记录在 `docs/superpowers/plans/evidence/legacy-baseline.md`。改动用户数据布局、发布资产名或互斥体前，先更新该证据文档。
+- **目标分层**：`src/ClipboardManager.Core`、`src/ClipboardManager.Storage`、`src/ClipboardManager.Windows`、`src/ClipboardManager.App`、`src/ClipboardManager.UpdateWorker`，测试位于 `tests/`。Core/Storage/UpdateWorker 不得引用 WPF 或 WinUI 控件类型；Win32/WinRT 细节集中在 Windows 适配层。
+- **工具链**：公开 .NET 10 SDK（`global.json` 固定 `10.0.403`，`rollForward: latestPatch`）、Windows App SDK 2.6.5、公开 VS C++/WinUI 工作负载、PowerShell 7。构建、测试、打包与发布都不得依赖个人私钥、代码签名证书、PAT 或开发者本机私有文件。
+- **常用命令**（新方案建立后）：`dotnet restore ClipboardManager.sln`、`dotnet test ClipboardManager.sln -c Release`、`dotnet build src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -p:Platform=x64`。旧基线仍可单独运行：`dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Release --nologo`。只有在实际执行并核对退出码/测试数后才可声称通过。
+- **数据边界**：用户数据根目录保持 `%LOCALAPPDATA%\ClipboardManager`；SQLite 是迁移完成后的唯一运行时权威，旧 JSON 只导入一次且原文件与备份不被自动删除。更新 worker 只操作清单管理的程序文件，永不读写该数据目录。
+- **首发切换**：在隔离环境用合成数据完成升级验证并留存证据之前，WPF → WinUI 首发必须要求用户运行完整安装器覆盖安装，不允许旧 `ClipboardManager.Update.exe` 直接增量替换新架构；发行说明也不得暗示可无缝增量升级。该协议见 `legacy-baseline.md` 第 6 节。
