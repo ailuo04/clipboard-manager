@@ -1,0 +1,7 @@
+<Project>
+  <Target Name="ValidateModernProjectConfiguration"
+          BeforeTargets="Build"
+          Condition="'$(ModernSolutionProject)' == 'true'">
+    <Message Importance="Low" Text="Building modern solution project $(MSBuildProjectName) from the scoped src/tests tree." />
+  </Target>
+</Project>

@@ -1,0 +1,13 @@
+<Project>
+  <PropertyGroup>
+    <ModernSolutionProject Condition="$([System.String]::Copy('$(MSBuildProjectDirectory)').ToLowerInvariant().Contains('\src\')) Or ($([System.String]::Copy('$(MSBuildProjectDirectory)').ToLowerInvariant().Contains('\tests\')) And '$(MSBuildProjectName)' != 'ClipboardManager.Tests')">true</ModernSolutionProject>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(ModernSolutionProject)' == 'true'">
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+  </PropertyGroup>
+</Project>

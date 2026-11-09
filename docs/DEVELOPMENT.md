@@ -56,13 +56,15 @@
 
 本节说明迁移到 WinUI 3 / .NET 10 后的开发约定；上面的 WPF 覆盖层约定在旧工程退役前仍然有效，作为迁移参照保留。
 
-- **现状**：仓库仍以旧 WPF 工程（`ClipboardManager.csproj`，`net8.0-windows`）为正式构建/发布入口。新的 .NET 10 解决方案尚未建立；首批骨架、分层工程与命令由实施计划 Task 2 引入，完成前不要假设 `ClipboardManager.sln` 存在。
+- **现状**：仓库仍以旧 WPF 工程（`ClipboardManager.csproj`，`net8.0-windows`）为正式构建/发布入口。新的 .NET 10 解决方案由 Task 2 引入，入口为 `ClipboardManager.sln`；旧 WPF 工程仍保留在仓库根目录，二者不共享默认编译规则。
 - **基线证据**：旧版测试基线、数据布局、发布资产命名、安装默认路径、互斥体名、旧应用入口链，以及 WPF → WinUI 首发切换策略，记录在 `docs/superpowers/plans/evidence/legacy-baseline.md`。改动用户数据布局、发布资产名或互斥体前，先更新该证据文档。
 - **目标分层**：`src/ClipboardManager.Core`、`src/ClipboardManager.Storage`、`src/ClipboardManager.Windows`、`src/ClipboardManager.App`、`src/ClipboardManager.UpdateWorker`，测试位于 `tests/`。Core/Storage/UpdateWorker 不得引用 WPF 或 WinUI 控件类型；Win32/WinRT 细节集中在 Windows 适配层。
-- **工具链**：公开 .NET 10 SDK（`global.json` 固定 `10.0.403`，`rollForward: latestPatch`）、Windows App SDK 2.6.5、公开 VS C++/WinUI 工作负载、PowerShell 7。构建、测试、打包与发布都不得依赖个人私钥、代码签名证书、PAT 或开发者本机私有文件。
-- **常用命令**（新方案建立后）：`dotnet restore ClipboardManager.sln`、`dotnet test ClipboardManager.sln -c Release`、`dotnet build src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -p:Platform=x64`。旧基线仍可单独运行：`dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Release --nologo`。只有在实际执行并核对退出码/测试数后才可声称通过。
+- **工具链**：公开 .NET 10 SDK（`global.json` 固定 `10.0.403`，`rollForward: latestPatch`）、Windows App SDK 2.6.5、公开 Visual Studio C++/WinUI 工作负载、PowerShell 7；新 App 为 WinUI 3 unpackaged、x64、自包含，Windows App SDK 运行库自包含默认开启且可由 CI 通过 `WindowsAppSDKSelfContained` 覆盖。构建、测试、打包与发布都不得依赖个人私钥、代码签名证书、PAT 或开发者本机私有文件。
+- **首次准备新方案**：安装公开 .NET SDK 10.0.403（仓库 `global.json` 允许使用该 feature band 的最新补丁版本）；Windows 开发机/CI runner 通过公开 Visual Studio Installer 安装 C++ build tools 和 Windows App SDK/WinUI 组件。不得依赖开发者本机私有路径或配置。
+- **新方案命令**：在仓库根目录执行 `dotnet restore ClipboardManager.sln`、`dotnet test ClipboardManager.sln -c Release`、`dotnet build src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -p:Platform=x64`。在具备 Windows x64 + C++/WinUI 工具链的 runner 上，再启动 `src/ClipboardManager.App` 验证 unpackaged WinUI。旧基线仍可单独运行：`dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Release --nologo`。只有在实际执行并核对退出码/测试数后才可声称通过。
 - **数据边界**：用户数据根目录保持 `%LOCALAPPDATA%\ClipboardManager`；SQLite 是迁移完成后的唯一运行时权威，旧 JSON 只导入一次且原文件与备份不被自动删除。更新 worker 只操作清单管理的程序文件，永不读写该数据目录。
 - **首发切换**：在隔离环境用合成数据完成升级验证并留存证据之前，WPF → WinUI 首发必须要求用户运行完整安装器覆盖安装，不允许旧 `ClipboardManager.Update.exe` 直接增量替换新架构；发行说明也不得暗示可无缝增量升级。协议见 `legacy-baseline.md` 第 6 节。
+- **Clean clone 验收**：只依赖公开 .NET 10 SDK 与公开 Visual Studio C++/WinUI workload；clone 后先执行上述 restore、solution test 与 x64 App build。构建、测试、打包和发布不需要个人密钥、证书、PAT 或开发者本机私有文件。
 - **迁移演练的隔离边界**：安装/升级/卸载协议**只能在一次性 VM 或 CI runner 的临时 Windows 账户里执行**，禁止在普通开发桌面运行；且**不得覆盖 `USERPROFILE`/`APPDATA`**——安装器与快捷方式按真实账户解析，覆盖后既无法验证也无法清理。
 - **本机只做重定向冒烟**：`USERPROFILE`/`LOCALAPPDATA`/`APPDATA`/`TEMP`/`TMP` 重定向只用于确认“数据根目录落在隔离根内”（`AppPaths` 跟随 `USERPROFILE`，不是 `LOCALAPPDATA`；`GetFolderPath` 同一进程内首次调用后会缓存），**不是**安装/迁移测试。
 - **收尾**：卸载后必须核对 `HKCU` 卸载项与开始菜单/桌面快捷方式已移除，且迁移前的不可变输入与迁移后的数据库/备份/图片哈希均未改变；`app.log` 与轮转日志是运行期可变的，不纳入哈希判据。
