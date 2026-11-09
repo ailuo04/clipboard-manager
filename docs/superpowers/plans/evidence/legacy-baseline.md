@@ -448,16 +448,26 @@ if ($newInstall.ExitCode -ne 0) { throw "New installer failed: $($newInstall.Exi
 启动后**不要**在这里关闭宿主：§6.6 的数据库与数据核对必须在应用运行期间完成，迁移完成标记也依赖正常关闭。
 
 ```powershell
-$newHost = Start-IsolatedHost -InstallDir $installDir
-Wait-AppWindow -Process $newHost -TimeoutSeconds 120     # 首次迁移可能较慢，按实际日志调整
-if (-not (Test-AppMutexHeld)) {
-  Stop-IsolatedHost -Process $newHost
-  throw 'App mutex is not held while the new UI host is running.'
+$newHost = $null
+$startupSucceeded = $false
+try {
+  $newHost = Start-IsolatedHost -InstallDir $installDir
+  Wait-AppWindow -Process $newHost -TimeoutSeconds 120     # 首次迁移可能较慢，按实际日志调整
+  if (-not (Test-AppMutexHeld)) { throw 'App mutex is not held while the new UI host is running.' }
+  Write-Host "New UI host ready and kept alive: pid=$($newHost.Id) hwnd=$($newHost.MainWindowHandle)"
+  $startupSucceeded = $true
 }
-Write-Host "New UI host ready and kept alive: pid=$($newHost.Id) hwnd=$($newHost.MainWindowHandle)"
+finally {
+  # 若启动后任一步失败（包括窗口超时或互斥体检查失败），正常关闭自己启动的宿主。
+  # 成功路径不关闭；宿主保持运行直到 §6.7 明确关闭。
+  if (-not $startupSucceeded -and $null -ne $newHost) {
+    Stop-IsolatedHost -Process $newHost
+    if (Test-AppMutexHeld) { throw 'App mutex is still held after failed startup cleanup.' }
+  }
+}
 ```
 
-> **失败处理**：若 §6.6 抛出异常，先执行 `Stop-IsolatedHost -Process $newHost` 关闭宿主，再退出；不要用 `Stop-Process`。
+> 若正常关闭本身失败或超时，本次演练不得继续或记为通过；保留错误并销毁一次性 VM/runner。不要改用 `Stop-Process` 或 `.Kill()`。
 
 ### 6.6 核对清单（宿主运行期间执行）
 
@@ -466,66 +476,75 @@ Write-Host "New UI host ready and kept alive: pid=$($newHost.Id) hwnd=$($newHost
 1. **数据库**：`$dataRoot\clipboard.db` 存在；记录数 = 3；`sample-text-001` 文本逐字一致；图片记录 `imageFileName`、宽高一致；收藏数 = 1（`isPinned=true` 映射为收藏）；时间按 UTC 保存且顺序一致。
 2. **图片**：`$dataRoot\images\<imageName>` 仍存在，SHA-256 与 `$legacyBaseline` 记录值比对。字节一致是首选期望；若新管线按设计“规范化”PNG 而重新编码，必须在证据中显式记录该决定，并改为核对解码后的像素尺寸与像素内容一致，不得静默接受哈希变化。
 3. **主题与设置**：主题 = `Dark`；`maxRecords`=500、`maxStorageMb`=512 等设置值与旧 `history.json` 一致。
-4. **旧文件留存**：`history.json` 与 `theme.json` 仍存在，哈希与 `$legacyBaseline` 一致；存在迁移备份/完成标记。
+4. **旧文件留存与迁移语义**：`history.json` 与 `theme.json` 仍存在，哈希与 `$legacyBaseline` 一致；按 Storage 迁移契约核对备份文件、完成标记的**确切相对路径及已完成状态/内容**。若路径或标记语义尚未由该契约定义，则本次为 `INCONCLUSIVE`，不得猜文件名或记为通过。
 5. **数据与程序分离**：安装目录中不存在 `clipboard.db`、`history.json`、`images\`；更新清单不得包含数据文件。
-6. **故障注入（可选但建议）**：在数据库创建、导入事务、完成标记各阶段终止进程或制造磁盘错误，重启后旧 JSON/图片仍可恢复且可安全重试。
+6. **健康标记（如启动契约使用）**：若启动契约要求 `.clipboard-update\ready`，每次启动后均须按该契约断言该精确路径及其 ready 语义；它位于 `$installDir`，不属于 `$dataRoot` 快照，不能因此排除数据目录内的其他标记。
+7. **故障注入（可选但建议）**：在数据库创建、导入事务、完成标记各阶段终止进程或制造磁盘错误，重启后旧 JSON/图片仍可恢复且可安全重试。
 
 ### 6.7 正常关闭、记录迁移后快照、重启验证幂等
 
 ```powershell
-# 1) 正常关闭（关闭主窗口，让迁移完成标记落盘）；不用 Stop-Process。
+function Get-MigratedStateSnapshot {
+  param([Parameter(Mandatory)][string]$DataRoot)
+  $root = [IO.Path]::GetFullPath($DataRoot)
+  # Windows 相对路径统一用 '/' 且按 Windows 大小写规则比较。
+  $snapshot = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::OrdinalIgnoreCase)
+  # 唯一排除项：数据根目录当前日志及其单份轮转文件（AppLogger 约定）。不使用 app.log* 通配。
+  $excludedMutableLogs = @('app.log', 'app.log.old')
+  foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File -Force -ErrorAction Stop) {
+    $relativePath = [IO.Path]::GetRelativePath($root, $file.FullName).Replace('\', '/')
+    if ($excludedMutableLogs -contains $relativePath) { continue }
+    $snapshot.Add($relativePath, (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToUpperInvariant())
+  }
+  return ,$snapshot
+}
+
+function Assert-MigratedStateSnapshotEqual {
+  param($Expected, $Actual)
+  # Compare the complete relative-path sets in both directions, then every shared hash.
+  $missing = @($Expected.Keys | Where-Object { -not $Actual.ContainsKey($_) })
+  $added = @($Actual.Keys | Where-Object { -not $Expected.ContainsKey($_) })
+  $changed = @($Expected.Keys | Where-Object {
+    $Actual.ContainsKey($_) -and -not [string]::Equals($Expected[$_], $Actual[$_], [StringComparison]::OrdinalIgnoreCase)
+  })
+  if ($missing.Count -gt 0 -or $changed.Count -gt 0 -or $added.Count -gt 0) {
+    throw ('Idempotency mismatch: missing=[' + ($missing -join ', ') + '] changed=[' + ($changed -join ', ') + '] added=[' + ($added -join ', ') + ']')
+  }
+}
+
+# 1) 首次宿主已在 §6.5–§6.6 正常核对后关闭；先确认互斥体释放。
 Stop-IsolatedHost -Process $newHost
 if (Test-AppMutexHeld) { throw 'App mutex is still held after the new UI host exited.' }
 
-# 2) 迁移后快照：数据库、旧版备份/标记、被引用图片等；排除 app.log 与轮转日志。
-function Get-MigratedStateFiles {
-  param([Parameter(Mandatory)][string]$DataRoot)
-  # 迁移备份/完成标记的具体文件名由 Storage 任务确定；这里用排除法，不猜文件名。
-  # 排除：app.log 与 app.log.*（运行期可变，正常启动就会改写）。
-  $files = @()
-  foreach ($f in Get-ChildItem -LiteralPath $DataRoot -Recurse -File -ErrorAction Stop) {
-    if ($f.Name -like 'app.log*') { continue }
-    $files += $f.FullName
-  }
-  return @($files | Sort-Object -Unique)
-}
+# 2) 在宿主完全退出后记录迁移后稳定快照；隐藏文件也纳入，只有上面精确列出的两种日志排除。
+$migratedBaseline = Get-MigratedStateSnapshot -DataRoot $dataRoot
+if (-not $migratedBaseline.ContainsKey('clipboard.db')) { throw 'Migrated snapshot is missing clipboard.db.' }
+Write-Host "Migrated baseline: $($migratedBaseline.Count) file(s); excluded only root app.log and app.log.old."
 
-$migratedBaseline = @{}
-foreach ($file in Get-MigratedStateFiles -DataRoot $dataRoot) {
-  $migratedBaseline[$file] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
-}
-$dbPath = Join-Path $dataRoot 'clipboard.db'
-if (-not $migratedBaseline.ContainsKey($dbPath)) { throw "Migrated snapshot is missing clipboard.db: $dbPath" }
-Write-Host "Migrated baseline: $($migratedBaseline.Count) file(s) (app.log excluded)."
-
-# 3) 重启一次，证明幂等：不重复导入、计数与哈希不变。
-$secondHost = Start-IsolatedHost -InstallDir $installDir
+# 3) 重启一次，宿主运行时重做 §6.6 的语义核对（包括记录/设置/旧输入与迁移完成标记）。
+$secondHost = $null
 try {
+  $secondHost = Start-IsolatedHost -InstallDir $installDir
   Wait-AppWindow -Process $secondHost -TimeoutSeconds 120
   if (-not (Test-AppMutexHeld)) { throw 'App mutex is not held during the idempotency run.' }
 
-  # 重做 §6.6 的 1–4：计数、文本、图片哈希、旧文件哈希都必须与第一次一致。
-  $db2 = Join-Path $dataRoot 'clipboard.db'
-  if (-not (Test-Path -LiteralPath $db2 -PathType Leaf)) { throw 'clipboard.db disappeared on restart.' }
-  $migratedAgain = @{}
-  foreach ($file in Get-MigratedStateFiles -DataRoot $dataRoot) {
-    $migratedAgain[$file] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
-  }
-  $changed = @()
-  foreach ($key in $migratedBaseline.Keys) {
-    if (-not $migratedAgain.ContainsKey($key)) { $changed += "missing:$key"; continue }
-    if (-not [string]::Equals($migratedAgain[$key], $migratedBaseline[$key], [StringComparison]::OrdinalIgnoreCase)) { $changed += "changed:$key" }
-  }
-  if ($changed.Count -gt 0) { throw ('Restart changed migrated state: ' + ($changed -join '; ')) }
-  Write-Host 'Idempotency OK: migrated state identical after restart.'
+  # 在此按 §6.6 的 1–6 项重复语义断言；不要在宿主运行时计算快照哈希。
 }
 finally {
-  Stop-IsolatedHost -Process $secondHost
+  # 成功或核对失败都正常关闭第二个宿主；不按名称查找或强制终止进程。
+  if ($null -ne $secondHost) { Stop-IsolatedHost -Process $secondHost }
 }
 if (Test-AppMutexHeld) { throw 'App mutex is still held after the idempotency run exited.' }
+
+# 4) 仅在第二个宿主正常退出且互斥体释放后，取新快照并比较完整路径集与所有哈希。
+$migratedAgain = Get-MigratedStateSnapshot -DataRoot $dataRoot
+Assert-MigratedStateSnapshotEqual -Expected $migratedBaseline -Actual $migratedAgain
+Write-Host 'Idempotency OK: complete migrated relative-path set and hashes are unchanged after restart.'
 ```
 
-> 说明：`$migratedBaseline` 与 `$legacyBaseline` 是两份独立快照。前者含数据库/备份/标记/图片，用于证明“卸载不删数据”；后者只含迁移前的不可变输入，用于证明“迁移没有篡改原始 JSON/PNG”。两者都排除 `app.log`。
+> 快照键是 `$dataRoot` 下规范化的相对文件路径，路径分隔符统一为 `/`，按 Windows 大小写不敏感规则比较；比较同时捕获缺失、内容变化和新增文件。只排除根目录的 `app.log` 与 `app.log.old`。备份/迁移标记不会被忽略：它们必须包含在完整快照中并保持哈希稳定；若实现有意在重启时改写某个标记，必须先在协议中列出该**确切相对路径**并单独断言其允许语义，不能使用通配符。安装目录的 `.clipboard-update\ready` 健康标记不在数据快照中，按 §6.6 独立语义核对。
+
+> 说明：`$migratedBaseline`（相对路径键）与 `$legacyBaseline`（绝对路径键）是两份独立快照。前者含数据库/备份/标记/图片，用于证明“卸载不删数据”；后者只含迁移前的不可变输入，用于证明“迁移没有篡改原始 JSON/PNG”。两者都排除日志；迁移后快照仅排除明确列出的两项日志。
 
 ### 6.8 收尾与清理（卸载、数据留存、丢弃 VM）
 
@@ -571,22 +590,28 @@ Write-Host 'Uninstall registration and shortcuts are gone.'
 
 # 5) 两份快照都必须原样保留（卸载不得删除或改写用户数据）。
 $missing = @()
-foreach ($snapshot in @($legacyBaseline, $migratedBaseline)) {
-  foreach ($path in $snapshot.Keys) {
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $missing += $path }
-  }
+foreach ($path in $legacyBaseline.Keys) {
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $missing += $path }
+}
+foreach ($relativePath in $migratedBaseline.Keys) {
+  $path = Join-Path $dataRoot ($relativePath.Replace('/', '\'))
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $missing += $path }
 }
 if ($missing.Count -gt 0) { throw ('Uninstall removed user data: ' + (($missing | Sort-Object -Unique) -join '; ')) }
-foreach ($snapshot in @($legacyBaseline, $migratedBaseline)) {
-  foreach ($path in $snapshot.Keys) {
-    $now = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
-    if (-not [string]::Equals($now, $snapshot[$path], [StringComparison]::OrdinalIgnoreCase)) {
-      throw "User data changed by uninstall: $path"
-    }
+foreach ($path in $legacyBaseline.Keys) {
+  $now = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+  if (-not [string]::Equals($now, $legacyBaseline[$path], [StringComparison]::OrdinalIgnoreCase)) {
+    throw "User data changed by uninstall: $path"
+  }
+}
+foreach ($relativePath in $migratedBaseline.Keys) {
+  $path = Join-Path $dataRoot ($relativePath.Replace('/', '\'))
+  $now = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+  if (-not [string]::Equals($now, $migratedBaseline[$relativePath], [StringComparison]::OrdinalIgnoreCase)) {
+    throw "User data changed by uninstall: $path"
   }
 }
 Write-Host ("User data preserved: legacy={0} migrated={1} file(s) with matching SHA256." -f $legacyBaseline.Count, $migratedBaseline.Count)
-
 # 6) 安装目录应已移除（Inno 的 unins000.exe 会自删；若仍在只报告，不递归删除）。
 if (Test-Path -LiteralPath $installDir) {
   Write-Warning "Install directory still exists after uninstall: $installDir (inspect before deleting)."
@@ -600,8 +625,8 @@ if (Test-Path -LiteralPath $installDir) {
 
 ### 6.9 判定规则
 
-- **通过**：§6.6 的 1–5、§6.7 的幂等核对、§6.8 的注册表/快捷方式/双快照核对全部实际通过，并留存查询结果与哈希值。此时才可讨论保留在地增量更新。
-- **INCONCLUSIVE**：已知文件夹无法解析、环境已存在同 AppId 安装等 runner 问题。必须修好环境重跑，不得记为通过。
+- **通过**：§6.6 的 1–6、§6.7 的幂等核对、§6.8 的注册表/快捷方式/双快照核对全部实际通过，并留存查询结果与哈希值。此时才可讨论保留在地增量更新。
+- **INCONCLUSIVE**：已知文件夹无法解析、环境已存在同 AppId 安装、或 Storage 契约尚未定义迁移标记路径/语义等问题。必须修好环境重跑，不得记为通过。
 - **未通过或未执行**：按“WPF → WinUI 在地更新安全性未证明”处理。
 
 ### 6.10 首发切换策略（硬性约束）
