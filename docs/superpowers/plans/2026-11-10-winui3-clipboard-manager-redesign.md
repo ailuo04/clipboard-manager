@@ -491,17 +491,3 @@ public interface IDatabaseSchemaMigrator
 - Tasks 16–18：发行、CI、迁移回归、性能测量与 legacy 工程停用（源码保留）；clean clone 和迁移验收为正式切换硬门槛。
 
 每个停靠点都应先运行相应层测试并查看差异。发现 SQLite 迁移、Windows App SDK self-contained 或 WPF 首发升级策略不能通过，保留旧发行入口并只修复阻塞项；不得通过删验收、忽略错误或静默清空数据来推进。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
