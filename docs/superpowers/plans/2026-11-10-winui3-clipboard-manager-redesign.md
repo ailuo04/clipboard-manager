@@ -199,7 +199,7 @@ public interface IDatabaseSchemaMigrator
 - Create: `tests/ClipboardManager.Storage.Tests/SqliteHistoryRepositoryTests.cs`
 - Create: `tests/ClipboardManager.Storage.Tests/SearchCompatibilityTests.cs`
 
-- [ ] 先用架构测试建立项目引用后写临时目录测试，要求初始化后存在 `PRAGMA user_version` 等于 `DatabaseSchemaVersion.Current`、`records`、`settings`、`pending_image_deletes`、`migration_history` 表，重复初始化无副作用，未知 schema 版本安全失败而不删库。
+- [ ] 先用架构测试建立项目引用后写临时目录测试，要求初始化后存在 `PRAGMA user_version` 等于 `DatabaseSchema.CurrentVersion`、`records`、`settings`、`pending_image_deletes`、`migration_history` 表，重复初始化无副作用，未知 schema 版本安全失败而不删库。
 - [ ] 添加事务失败注入测试：用临时 DB 中仅测试启用的 abort trigger 在 mutation 的中间写入步骤触发约束失败；断言记录、设置、待删队列都保持提交前状态。
 - [ ] 实现 Task 3 定义的 `IDatabaseSchemaMigrator`；Core 仅持有当前 schema version 与 migration contract，SQLite DDL、PRAGMA 和 provider 操作全部在 Storage。
 - [ ] 为 `records` 建 `id` 主键、`content_hash`、`copied_at_ticks`、`kind`、`is_favorite` 索引；用参数化 SQL 禁止拼接用户搜索文字；设置外键与 SQLite `busy_timeout`。
