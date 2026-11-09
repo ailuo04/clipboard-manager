@@ -117,7 +117,8 @@ public interface IDatabaseMigration
 public interface IDatabaseSchemaMigrator
 {
     Task MigrateAsync(CancellationToken cancellationToken);
-}```
+}
+```
 
 `HistoryMutation` 必须在一个 SQLite transaction 内提交记录、设置、待删图片名称、完成清理的队列移除；`migration_history` 用唯一 migrationId 保证 legacy import commit 与导入数据原子提交；coordinator 以 `HasImportedMigrationAsync` 处理 DB commit 后、文件标记前崩溃。容量策略在 Core 计算删除 ID，Storage 在同一事务提交；图片写入先落盘，元数据事务失败则删掉新图片；数据库提交后图片清理由持久待删队列重试。分页和搜索永远在 SQLite 执行，不从 UI 内存集合做全量字符串扫描。
 
