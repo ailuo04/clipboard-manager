@@ -78,6 +78,43 @@ public sealed class RetentionPolicyTests
     }
 
     [Fact]
+    public void Trim_satisfies_count_and_byte_limits_in_one_pass()
+    {
+        var oldest = Record(1, BaseTime, bytes: 10 * 1024 * 1024);
+        var nextOldest = Record(2, BaseTime.AddMinutes(1), bytes: 40 * 1024 * 1024);
+        var newerLargeRecord = Record(3, BaseTime.AddMinutes(2), bytes: 20 * 1024 * 1024);
+        var zeroByteRecords = Enumerable.Range(4, 49)
+            .Select(id => Record(id, BaseTime.AddMinutes(3), bytes: 0))
+            .ToArray();
+        var records = zeroByteRecords.Concat(new[] { newerLargeRecord, nextOldest, oldest }).ToArray();
+
+        var result = RetentionPolicy.Trim(records, Settings(maxRecords: 50, maxStorageMb: 64));
+
+        Assert.Equal(new[] { oldest.Id, nextOldest.Id }, result.DeleteIds);
+        Assert.True(records.Length - result.DeleteIds.Count <= 50);
+        var deletedIds = result.DeleteIds.ToHashSet();
+        var retainedBytes = records.Where(record => !deletedIds.Contains(record.Id))
+            .Sum(record => (decimal)record.ByteLength);
+        Assert.True(retainedBytes <= 64m * 1024 * 1024);
+        Assert.Null(result.CapacityWarning);
+    }
+
+    [Fact]
+    public void Trim_warns_when_favorite_count_alone_exceeds_limit_below_byte_budget()
+    {
+        var records = Enumerable.Range(1, 51)
+            .Select(id => Record(id, BaseTime.AddTicks(id), bytes: 1, isFavorite: true))
+            .ToArray();
+
+        var result = RetentionPolicy.Trim(records, Settings(maxRecords: 50, maxStorageMb: 64));
+
+        Assert.Empty(result.DeleteIds);
+        Assert.False(string.IsNullOrWhiteSpace(result.CapacityWarning));
+        Assert.True(records.Length > 50);
+        Assert.True(records.Sum(record => record.ByteLength) < 64L * 1024 * 1024);
+    }
+
+    [Fact]
     public void Trim_treats_exact_count_and_byte_capacity_as_within_limits()
     {
         var records = Enumerable.Range(1, 50)
