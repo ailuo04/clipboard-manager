@@ -127,129 +127,89 @@ dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Releas
 
 **状态：未执行。** 本节是可重演的协议与判定标准，不是结果记录。任何“升级已通过”的结论都必须来自实际执行并保存输出；在此之前一律按“未证明”处理。
 
+本节分两条**互不替代**的轨道：
+
+| 轨道 | 目的 | 在哪里跑 | 是否覆盖安装/卸载 |
+|---|---|---|---|
+| **A. 安装/升级/卸载协议**（§6.1–§6.10） | 证明 WPF → WinUI 首发切换与数据迁移 | 一次性 Windows VM / CI runner 的**一次性 Windows 账户**，使用该账户**正常的**已知文件夹 | 是 |
+| **B. 环境重定向冒烟**（§6.11） | 只证明“环境变量重定向后的数据根目录确实落在隔离根内” | 本机临时目录、子进程 | **否**（明确不是安装/迁移测试） |
+
+轨道 A 中**禁止**覆盖 `USERPROFILE`/`APPDATA`：安装器的快捷方式与卸载注册表项都按真实账户解析，覆盖后既无法验证也无法清理。轨道 B 只验证文件路径重定向，不能用来声称安装或迁移通过。
+
 ### 6.0 隔离边界与前提
 
-- 首选一次性 Windows VM 或一次性 CI runner；不得在开发者日常桌面或真实用户数据目录上执行。
-- 本机演练时，安装器与应用只通过**当前 PowerShell 会话及其子进程**的环境变量被重定向。`Start-Process` 启动的安装器/应用会继承这些值，因此必须在**同一个会话**里完成准备、安装与核对，结束后关闭该会话。
-- 环境变量**只能**重定向 `LOCALAPPDATA`、`APPDATA`、`USERPROFILE`、`TEMP`/`TMP` 覆盖到的文件路径。它们**不能**隔离以下副作用：
+- 轨道 A 必须在一台**可丢弃**的 Windows VM 或一次性 CI runner 上执行，并使用该环境里**新建的一次性 Windows 账户**（或 CI runner 的临时账户）。不得在开发者日常桌面或真实用户数据目录上执行。
+- 环境变量**不能**隔离以下副作用，因此轨道 A 依赖“整机/整个账户可丢弃”，而不是依赖环境变量：
   1. `HKCU` 卸载注册表项 `{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1`；
-  2. 开始菜单与桌面快捷方式（由 Shell 已知文件夹解析，不跟随 `USERPROFILE`/`APPDATA` 覆盖；实测覆盖后 `GetFolderPath('Desktop')`/`('Programs')` 返回空值，而不是隔离目录）；
+  2. 开始菜单与桌面快捷方式（由 Shell 已知文件夹解析）；
   3. 应用单实例互斥体 `Local\ClipboardManager.Desktop.v1`（会话/机器级内核对象）。
-- **结论（必须遵守）**：环境变量覆盖**不能**隔离 `HKCU`、Shell 快捷方式或互斥体。只要本机存在同 AppId 的正式安装，或无法接受注册表/快捷方式被改写，就**必须**改用一次性 VM/CI runner。
-- **禁止**在普通开发桌面上执行第 6.2–6.7 节：卸载步骤会删除 `HKCU` 卸载项与快捷方式，可能命中你日常使用的那套安装。
+- **禁止**在普通开发桌面上执行 §6.1–§6.10：卸载步骤会删除 `HKCU` 卸载项与快捷方式，可能命中你日常使用的那套安装。
+- 若本次运行环境不是一次性账户（例如本机已有同 AppId 的安装），**立即停止**，改到一次性 VM/runner 重跑。
 
-#### 6.0.1 一个必须知道的实现细节
+#### 6.0.1 为什么安装/迁移测试不能靠环境变量重定向
 
 旧应用的数据根目录来自 `Environment.GetFolderPath(LocalApplicationData)`，而不是直接读 `%LOCALAPPDATA%`。实测（Windows，PowerShell 7.6.9，全新子进程）表明：
 
 - 只覆盖 `LOCALAPPDATA` 时，`GetFolderPath(LocalApplicationData)` 仍解析到 `<USERPROFILE>\AppData\Local`；
 - 覆盖 `USERPROFILE` 后，它解析为 `<USERPROFILE>\AppData\Local`，即**跟随 `USERPROFILE`**；
-- `APPDATA` 与 `TEMP` 分别直接对应 `GetFolderPath(ApplicationData)` 与 `GetTempPath()`。
+- `APPDATA` 与 `TEMP` 分别直接对应 `GetFolderPath(ApplicationData)` 与 `GetTempPath()`；
+- `GetFolderPath` 在**同一进程内首次调用后会被缓存**，之后再改变量不会生效；
+- 覆盖 `USERPROFILE`/`APPDATA` 后，`GetFolderPath('Desktop')`/`('Programs')` 返回**空值**——快捷方式既不会被重定向，也无法再被验证。
 
-结论：要让 `AppPaths.RootDirectory` 真正落在隔离根内，`USERPROFILE`、`LOCALAPPDATA`、`APPDATA`、`TEMP`、`TMP` **必须一起**指向隔离根下的子目录，且 `LOCALAPPDATA` 要与 `USERPROFILE` 下的 `AppData\Local` 一致。6.1 的片段按此编写，并用 6.1.1 的断言在真正安装前先证明重定向生效。
+结论：环境变量重定向只适合做“数据根目录是否落在隔离根内”的冒烟（§6.11）。安装/升级/卸载必须在**真实一次性账户的正常已知文件夹**下执行。
 
-另外，`GetFolderPath` 在**同一进程内首次调用后会被缓存**：实测先调用一次再修改 `USERPROFILE`，后续调用仍返回旧值。因此：
+#### 6.0.2 前置条件（轨道 A）
 
-- 环境变量必须在**尚未解析过已知文件夹的新会话**里设置，或在设置后由**新启动的子进程**执行安装与核对；
-- 判断“是否真的隔离”必须在**子进程**里断言（6.1.1），不能在可能已缓存旧值的当前进程里断言；
-- 若在已运行很久的会话里演练，宁可新开一个 PowerShell 7 会话重来，也不要依赖当前会话的结果。
-
-#### 6.0.2 前置条件
-
-- 隔离根位于可写磁盘，剩余空间足够容纳旧版 + 新版两份程序与合成数据（建议 ≥ 2 GB）。
-- 演练前检查 `HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1` 是否存在；存在则停止本机演练。
+- 一次性账户从未安装过本应用：`HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1` 必须不存在；存在则说明环境不可用，停止并换环境。
+- 磁盘剩余空间足够容纳旧版 + 新版两份程序与合成数据（建议 ≥ 2 GB）。
 - 全程只用**合成数据**：虚构文本（例如 `sample-text-001`）、程序生成的小 PNG、合成设置值；不得复制任何真实剪贴板内容。
+- 需要能取得旧版与新版的安装器与其 `.sha256` sidecar（来自已发布资产或本地产物）。
 
-### 6.1 准备隔离目录并重定向环境
+### 6.1 确认一次性账户的已知文件夹可用
 
-在**一个**新的 PowerShell 7 会话中执行；后续 6.2–6.7 全部在同一会话内继续。
+在**一次性账户**里新开一个 PowerShell 7 会话；后续 §6.2–§6.10 全部在同一会话内继续。
 
 ```powershell
 $ErrorActionPreference = 'Stop'
 
-# 1) 先记录原始值，便于事后核对（新会话可直接关闭，无需还原）。
-$original = @{
-  LOCALAPPDATA = $env:LOCALAPPDATA
-  APPDATA      = $env:APPDATA
-  USERPROFILE  = $env:USERPROFILE
-  TEMP         = $env:TEMP
-  TMP          = $env:TMP
+# 本协议不覆盖任何环境变量：安装器与快捷方式都按这个账户的真实已知文件夹解析。
+$known = [ordered]@{
+  LocalApplicationData = [Environment]::GetFolderPath('LocalApplicationData')
+  ApplicationData      = [Environment]::GetFolderPath('ApplicationData')
+  UserProfile          = [Environment]::GetFolderPath('UserProfile')
+  Programs             = [Environment]::GetFolderPath('Programs')
+  Desktop              = [Environment]::GetFolderPath('Desktop')
 }
 
-# 2) 隔离根与所有写入点都放在它下面。
-$base         = Join-Path $env:TEMP ('cm-mig-' + [guid]::NewGuid().ToString('N'))
-$profileDir   = Join-Path $base 'Profile'
-$localAppData = Join-Path $profileDir 'AppData\Local'
-$roamingDir   = Join-Path $profileDir 'AppData\Roaming'
-$tempDir      = Join-Path $base 'Temp'
-$logsDir      = Join-Path $base 'logs'
-$installDir   = Join-Path $base 'app'          # 旧版与新覆盖安装共用同一目录
-$dataRoot     = Join-Path $localAppData 'ClipboardManager'
-New-Item -ItemType Directory -Force -Path $localAppData, $roamingDir, $tempDir, $logsDir, $installDir, (Join-Path $dataRoot 'images') | Out-Null
+$unresolved = @($known.GetEnumerator() | Where-Object { [string]::IsNullOrWhiteSpace($_.Value) } | ForEach-Object { $_.Key })
+if ($unresolved.Count -gt 0) {
+  # 不计为通过：runner 账户本身不健康，必须先修好再跑。
+  throw ('INCONCLUSIVE: this disposable profile cannot resolve: ' + ($unresolved -join ', ') + '. Fix the runner profile instead of marking the run as passed.')
+}
+foreach ($k in $known.Keys) { Write-Host ('{0,-20} {1}' -f $k, $known[$k]) }
 
-# 3) 一次性设置全部五个变量；之后启动的安装器/应用会继承。
-$env:USERPROFILE  = $profileDir
-$env:LOCALAPPDATA = $localAppData
-$env:APPDATA      = $roamingDir
-$env:TEMP         = $tempDir
-$env:TMP          = $tempDir
+$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1'
+if (Test-Path -LiteralPath $uninstallKey) {
+  throw 'INCONCLUSIVE: this profile already has an installation of the app. Use a clean disposable account.'
+}
+
+$dataRoot   = Join-Path $known.LocalApplicationData 'ClipboardManager'
+$workRoot   = Join-Path $env:TEMP ('cm-mig-' + [guid]::NewGuid().ToString('N'))
+$installDir = Join-Path $workRoot 'app'          # 旧版与新覆盖安装共用同一目录
+$logsDir    = Join-Path $workRoot 'logs'
+New-Item -ItemType Directory -Force -Path $installDir, $logsDir | Out-Null
+Write-Host "dataRoot=$dataRoot"
+Write-Host "installDir=$installDir"
 ```
 
-#### 6.1.1 安装前断言（必须在子进程中通过）
+> `$dataRoot` 是**真实**的 `%LOCALAPPDATA%\ClipboardManager`，不是重定向目录。这正是要验证的目标路径。
 
-在**子进程**里断言，避免把“本进程已缓存的值”误当成“新进程会看到的值”：
-
-```powershell
-$assertPath = Join-Path $base 'assert-isolation.ps1'
-@'
-$ErrorActionPreference = 'Stop'
-$base = $env:CM_EXPECT_BASE
-function InRoot([string]$p) {
-  if ([string]::IsNullOrWhiteSpace($p)) { return $false }
-  return ([IO.Path]::GetFullPath($p)).StartsWith([IO.Path]::GetFullPath($base), [StringComparison]::OrdinalIgnoreCase)
-}
-$checks = [ordered]@{
-  'env:LOCALAPPDATA'                    = $env:LOCALAPPDATA
-  'env:APPDATA'                         = $env:APPDATA
-  'env:USERPROFILE'                     = $env:USERPROFILE
-  'env:TEMP'                            = $env:TEMP
-  'env:TMP'                             = $env:TMP
-  'GetFolderPath(LocalApplicationData)' = [Environment]::GetFolderPath('LocalApplicationData')
-  'GetFolderPath(ApplicationData)'      = [Environment]::GetFolderPath('ApplicationData')
-  'GetTempPath()'                       = [IO.Path]::GetTempPath()
-  'expected AppPaths.RootDirectory'     = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'ClipboardManager'
-}
-$failed = @()
-foreach ($name in $checks.Keys) {
-  $ok = InRoot $checks[$name]
-  if (-not $ok) { $failed += $name }
-  '{0,-38} inRoot={1,-5} {2}' -f $name, $ok, $checks[$name]
-}
-if ($failed.Count) { throw ('Isolation failed for: ' + ($failed -join ', ')) }
-'END-ASSERT-OK'
-'@ | Set-Content -LiteralPath $assertPath -Encoding utf8
-
-$env:CM_EXPECT_BASE = $base
-$assertOut = Join-Path $logsDir 'assert-isolation.out.txt'
-$assertErr = Join-Path $logsDir 'assert-isolation.err.txt'
-$assert = Start-Process -FilePath (Get-Process -Id $PID).Path `
-  -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$assertPath) `
-  -NoNewWindow -Wait -PassThru -WorkingDirectory $base `
-  -RedirectStandardOutput $assertOut -RedirectStandardError $assertErr
-Get-Content -LiteralPath $assertOut
-if ($assert.ExitCode -ne 0) { Get-Content -LiteralPath $assertErr; throw "Isolation assertion failed: $($assert.ExitCode)" }
-if (-not (Select-String -LiteralPath $assertOut -Pattern '^END-ASSERT-OK$' -Quiet)) { throw 'Isolation assertion did not complete.' }
-```
-
-只有输出出现 `END-ASSERT-OK` 才继续；否则停止，不要安装任何东西。
-
-说明：`expected AppPaths.RootDirectory` 是按第 2 节记录的布局（`GetFolderPath(LocalApplicationData)` + `ClipboardManager`）推导出的期望值，不是运行时读取类型；它的作用是证明“数据根目录会落在隔离根内”。
-### 6.2 安装旧版样本（安装到隔离目录）
+### 6.2 安装旧版样本（安装到本次演练目录）
 
 ```powershell
 # 旧版安装器与校验文件来自已发布资产（示例版本号，按实际替换）。
-$oldSetup     = Join-Path $base 'ClipboardManager-0.0.7-win-x64-setup.exe'
-$oldSetupHash = Join-Path $base 'ClipboardManager-0.0.7-win-x64-setup.sha256'
+$oldSetup     = Join-Path $workRoot 'ClipboardManager-0.0.7-win-x64-setup.exe'
+$oldSetupHash = Join-Path $workRoot 'ClipboardManager-0.0.7-win-x64-setup.sha256'
 
 # 归一化两侧再比较：sidecar 可能带 BOM、大小写差异或前后空白；
 # 任何解析失败或长度不符都直接报错，不做“尽力而为”的比较。
@@ -277,7 +237,6 @@ if (-not [string]::Equals($actual, $expected, [StringComparison]::OrdinalIgnoreC
 }
 Write-Host "Old installer SHA256 OK: $actual"
 
-# /LOG 与安装目录都在 $base 下；安装器继承上面设置的五个环境变量。
 $oldInstall = Start-Process -FilePath $oldSetup -Wait -PassThru -ArgumentList @(
   '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',
   "/DIR=$installDir", "/LOG=$(Join-Path $logsDir 'install-old.log')")
@@ -287,18 +246,19 @@ if ($oldInstall.ExitCode -ne 0) { throw "Old installer failed: $($oldInstall.Exi
 判定：
 
 - `$installDir` 下存在 `ClipboardManager.exe`、`ClipboardManager.dll`、`ClipboardManager.runtimeconfig.json`、`ClipboardManager.Update.exe`、`update-manifest.json`；
-- 卸载注册表项指向 `$installDir`（该注册表项**不受**环境变量隔离，属 6.0 已声明的副作用）。
+- 卸载注册表项存在且 `InstallLocation` 指向 `$installDir`；
+- 开始菜单快捷方式 `$known.Programs\剪贴板\剪贴板.lnk` 与桌面快捷方式 `$known.Desktop\剪贴板.lnk` 都存在（安装器会创建它们，§6.8 必须验证它们被移除）。
 
 ### 6.3 启动实际 UI 宿主、写入合成数据
 
-**重要：`ClipboardManager.exe` 不是 UI 进程。** 它是 .NET Framework 启动器（见第 5 节），会再拉起真正的 UI 宿主并等待其退出。因此**不要**用启动器进程的句柄判断“应用是否在运行/是否显示窗口”，否则会在启动器仍存活时误判，或在 UI 已就绪时拿不到窗口。
+**重要：`ClipboardManager.exe` 不是 UI 进程。** 它是 .NET Framework 启动器（见第 5 节），会再拉起真正的 UI 宿主并等待其退出。因此**不要**用启动器进程的句柄判断“应用是否在运行/是否显示窗口”。
 
 真正的 UI 宿主按第 5 节入口链选择：
 
-1. 存在 `<安装目录>\ClipboardManager.App.exe` → 直接启动它（自包含发布时，原应用主机被改名为该文件）；
+1. 存在 `<安装目录>\ClipboardManager.App.exe` → 直接启动它；
 2. 否则 → `<安装目录>\runtime\dotnet.exe <安装目录>\ClipboardManager.dll`。
 
-下面五个辅助函数在**同一会话**内定义一次，6.3、6.4、6.5、6.7 共用（只探测互斥体与精确进程路径，从不按名字终止进程）：
+下面六个辅助函数在**同一会话**内定义一次，§6.3–§6.8 共用（只探测互斥体与精确进程路径，从不按名字终止进程）：
 
 ```powershell
 function Get-AppMutex {
@@ -331,7 +291,7 @@ function Get-IsolatedAppProcesses {
     $path = $null
     try { $path = $p.Path } catch { }            # 无权限/已退出的进程跳过
     if ($path -and [IO.Path]::GetFullPath($path).StartsWith($root + '\', [StringComparison]::OrdinalIgnoreCase)) {
-      # 只匹配本隔离目录内的可执行文件，不匹配其他安装的同名进程。
+      # 只匹配本演练目录内的可执行文件，不匹配其他安装的同名进程。
       $hits += [pscustomobject]@{ Id = $p.Id; Path = $path }
     }
   }
@@ -375,9 +335,29 @@ function Stop-IsolatedHost {
   if (-not $Process.CloseMainWindow()) { throw 'UI host did not accept a close request.' }
   if (-not $Process.WaitForExit($TimeoutSeconds * 1000)) { throw "UI host did not exit within $TimeoutSeconds seconds." }
 }
+
+function Get-LegacyInputFiles {
+  param([Parameter(Mandatory)][string]$DataRoot)
+  # 只取迁移前**不可变**的旧版输入：history.json、theme.json、被 history.json 引用的 PNG。
+  # 刻意排除 app.log（及轮转文件）：正常启动就会改写它，不能作为完整性判据。
+  $files = @()
+  $history = Join-Path $DataRoot 'history.json'
+  if (Test-Path -LiteralPath $history -PathType Leaf) { $files += $history }
+  $theme = Join-Path $DataRoot 'theme.json'
+  if (Test-Path -LiteralPath $theme -PathType Leaf) { $files += $theme }
+  if (Test-Path -LiteralPath $history -PathType Leaf) {
+    $doc = Get-Content -LiteralPath $history -Raw | ConvertFrom-Json
+    foreach ($record in @($doc.records)) {
+      if ($record -and $record.imageFileName) {
+        $files += (Join-Path (Join-Path $DataRoot 'images') $record.imageFileName)
+      }
+    }
+  }
+  return @($files | Sort-Object -Unique)
+}
 ```
 
-用**实际 UI 宿主**启动旧版一次并正常关闭，让旧版自行创建数据目录与默认文件（避免其退出时覆盖随后写入的合成数据）。判定依据是**互斥体契约**，不是启动器生命周期：
+用**实际 UI 宿主**启动旧版一次并正常关闭，让旧版自行创建数据目录与默认文件。判定依据是**互斥体契约**，不是启动器生命周期：
 
 ```powershell
 $oldHost = Start-IsolatedHost -InstallDir $installDir
@@ -416,19 +396,23 @@ $doc = [ordered]@{
 # 说明：上面的 contentHash 是 64 位十六进制占位值，仅用于满足旧版字段形状与去重校验，
 # 不是真实内容的 SHA-256；核对以文本/图片本身为准，不要断言这些占位哈希。
 
-# 记录基线哈希（后续逐项比对）
-$baseline = @{}
-Get-ChildItem -LiteralPath $dataRoot -Recurse -File | ForEach-Object {
-  $baseline[$_.FullName] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+# 迁移前快照：只含不可变旧版输入（history.json / theme.json / 被引用的 PNG）。
+$legacyBaseline = @{}
+foreach ($file in Get-LegacyInputFiles -DataRoot $dataRoot) {
+  if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing legacy input: $file" }
+  $legacyBaseline[$file] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
 }
-$baseline.Count
+if ($legacyBaseline.Count -lt 3) { throw "Expected at least history.json, theme.json and one PNG; got $($legacyBaseline.Count)." }
+Write-Host "Legacy baseline: $($legacyBaseline.Count) immutable file(s) (app.log excluded)."
 ```
+
+> `$legacyBaseline` **不含** `app.log`。旧版与新版的正常启动都会追加/轮转日志，把日志纳入哈希会把正常运行误判成数据损坏。
 
 ### 6.4 覆盖安装新版（同目录）
 
-首发路径是**同目录覆盖安装**：新安装器使用与 6.2 完全相同的 `$installDir`，不另建安装目录。
+首发路径是**同目录覆盖安装**：新安装器使用与 §6.2 完全相同的 `$installDir`，不另建安装目录。
 
-安装前必须确认隔离目录中的旧版**确实已退出**。判定以互斥体与**精确进程路径/命令行**为准，不以进程名称为准：
+安装前必须确认演练目录中的旧版**确实已退出**。判定以互斥体与**精确进程路径**为准，不以进程名称为准：
 
 ```powershell
 $leftover = @(Get-IsolatedAppProcesses -InstallDir $installDir)
@@ -436,63 +420,119 @@ if ($leftover.Count -gt 0) {
   throw ('Isolated install still has running processes: ' + (($leftover | ForEach-Object { "$($_.Id)=$($_.Path)" }) -join '; '))
 }
 if (Test-AppMutexHeld) {
-  # 互斥体是会话级对象，无法区分持有者是否来自隔离目录；这里只报告，不终止任何进程。
+  # 互斥体是会话级对象，无法区分持有者是否来自演练目录；这里只报告，不终止任何进程。
   throw 'Local\ClipboardManager.Desktop.v1 is held by some instance. Close it yourself; this script will not terminate other processes.'
 }
 
-$newSetup = Join-Path $base 'ClipboardManager-<new-version>-win-x64-setup.exe'
+$newSetup = Join-Path $workRoot 'ClipboardManager-<new-version>-win-x64-setup.exe'
 $newInstall = Start-Process -FilePath $newSetup -Wait -PassThru -ArgumentList @(
   '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-',
   "/DIR=$installDir", "/LOG=$(Join-Path $logsDir 'install-new.log')")
 if ($newInstall.ExitCode -ne 0) { throw "New installer failed: $($newInstall.ExitCode)" }
 ```
 
-> 说明：`Test-AppMutexHeld` 只会短暂申请并立即释放同名互斥体，用于“是否有人持有”的探测；脚本**从不**终止进程，也**从不**通过名字杀进程。若互斥体被隔离目录之外的真实安装占用，演练必须停下来由操作者处理（或改用一次性 VM/runner）。
+> 说明：`Test-AppMutexHeld` 只会短暂申请并立即释放同名互斥体；脚本**从不**终止进程，也**从不**通过名字杀进程。若互斥体被演练目录之外的实例占用，演练必须停下来由操作者处理。
 >
-> 该探测只在**合成互斥体**（另起进程持有一个同名互斥体）上验证过“不窃取、不终止、异常退出不挂起”；**没有**在真实安装的剪贴板应用上验证过，真实应用的互斥体行为必须在一次性 VM/runner 里观察。
+> 该探测只在**合成互斥体**（另起进程持有同名互斥体）上验证过“不窃取、不终止、异常退出不挂起”；**没有**在真实安装的剪贴板应用上验证过，真实应用的互斥体行为必须在一次性 VM/runner 里观察。
 
 判定：
 
 - `$installDir` 中的程序文件已更新为新版（例如 `update-manifest.json` 的 `version` 为新版号），旧版文件没有残留在清单之外；
-- `$dataRoot` 未被安装器改写：`history.json`、`theme.json` 与图片哈希仍与 `$baseline` 一致；
+- `$dataRoot` 未被安装器改写：`$legacyBaseline` 中每个文件仍存在且 SHA-256 一致；
 - 注册表项 `DisplayVersion` 与 `InstallLocation` 已更新为 `$installDir` 与新版本。
 
-> 备选（非首发路径）：若需对比“全新目录安装”，另设 `$installFresh = Join-Path $base 'app-fresh'` 并单独记录。该用例**不能**替代首发覆盖安装的判定，且必须使用**独立的** `$dataRoot`，否则新旧两份程序会争用同一用户数据。
+> 备选（非首发路径）：若需对比“全新目录安装”，另设 `$installFresh = Join-Path $workRoot 'app-fresh'` 并单独记录。该用例**不能**替代首发覆盖安装的判定，且必须使用**独立的** `$dataRoot`，否则两份程序会争用同一用户数据。
 
-### 6.5 启动新版并核对
+### 6.5 启动新版并**保持运行**
+
+启动后**不要**在这里关闭宿主：§6.6 的数据库与数据核对必须在应用运行期间完成，迁移完成标记也依赖正常关闭。
 
 ```powershell
 $newHost = Start-IsolatedHost -InstallDir $installDir
-try {
-  Wait-AppWindow -Process $newHost -TimeoutSeconds 120     # 首次迁移可能较慢，按实际日志调整
-  if (-not (Test-AppMutexHeld)) { throw 'App mutex is not held while the new UI host is running.' }
-  Write-Host "New UI host ready: pid=$($newHost.Id) hwnd=$($newHost.MainWindowHandle)"
-  # 首次迁移在启动后异步进行；按第 6.6 节清单核对期间保持应用运行。
-}
-finally {
+Wait-AppWindow -Process $newHost -TimeoutSeconds 120     # 首次迁移可能较慢，按实际日志调整
+if (-not (Test-AppMutexHeld)) {
   Stop-IsolatedHost -Process $newHost
+  throw 'App mutex is not held while the new UI host is running.'
 }
-if (Test-AppMutexHeld) { throw 'App mutex is still held after the new UI host exited.' }
+Write-Host "New UI host ready and kept alive: pid=$($newHost.Id) hwnd=$($newHost.MainWindowHandle)"
 ```
 
-核对期间**不要**用 `Stop-Process` 结束应用：正常关闭主窗口才会让迁移完成标记落盘（第 6.6 节第 4、5 项）。
+> **失败处理**：若 §6.6 抛出异常，先执行 `Stop-IsolatedHost -Process $newHost` 关闭宿主，再退出；不要用 `Stop-Process`。
 
-### 6.6 核对清单（必须全部满足）
+### 6.6 核对清单（宿主运行期间执行）
 
-1. **数据库**：`<数据根目录>\clipboard.db` 存在；记录数 = 3；`sample-text-001` 文本逐字一致；图片记录 `imageFileName`、宽高一致；收藏数 = 1（`isPinned=true` 映射为收藏）；时间按 UTC 保存且顺序一致。
-2. **图片**：`<数据根目录>\images\<imageName>` 仍存在，SHA-256 与 `$baseline` 记录值比对。字节一致是首选期望；若新管线按设计“规范化”PNG 而重新编码，必须在证据中显式记录该决定，并改为核对解码后的像素尺寸与像素内容一致，不得静默接受哈希变化。
+在 `$newHost` 仍运行时执行下列核对。任一项失败都先关闭宿主再中止。
+
+1. **数据库**：`$dataRoot\clipboard.db` 存在；记录数 = 3；`sample-text-001` 文本逐字一致；图片记录 `imageFileName`、宽高一致；收藏数 = 1（`isPinned=true` 映射为收藏）；时间按 UTC 保存且顺序一致。
+2. **图片**：`$dataRoot\images\<imageName>` 仍存在，SHA-256 与 `$legacyBaseline` 记录值比对。字节一致是首选期望；若新管线按设计“规范化”PNG 而重新编码，必须在证据中显式记录该决定，并改为核对解码后的像素尺寸与像素内容一致，不得静默接受哈希变化。
 3. **主题与设置**：主题 = `Dark`；`maxRecords`=500、`maxStorageMb`=512 等设置值与旧 `history.json` 一致。
-4. **旧文件留存**：`history.json` 与 `theme.json` 仍存在，哈希与 `$baseline` 一致；存在迁移备份/完成标记。
-5. **重启幂等**：关闭并再次启动新版，记录数、收藏数、图片哈希（或按第 2 项记录的等价判据）不变，不重复导入。
-6. **数据与程序分离**：安装目录中不存在 `clipboard.db`、`history.json`、`images\`；更新清单不得包含数据文件。
-7. **故障注入（可选但建议）**：在数据库创建、导入事务、完成标记各阶段终止进程或制造磁盘错误，重启后旧 JSON/图片仍可恢复且可安全重试。
+4. **旧文件留存**：`history.json` 与 `theme.json` 仍存在，哈希与 `$legacyBaseline` 一致；存在迁移备份/完成标记。
+5. **数据与程序分离**：安装目录中不存在 `clipboard.db`、`history.json`、`images\`；更新清单不得包含数据文件。
+6. **故障注入（可选但建议）**：在数据库创建、导入事务、完成标记各阶段终止进程或制造磁盘错误，重启后旧 JSON/图片仍可恢复且可安全重试。
 
-### 6.7 收尾与清理（隔离环境内）
-
-核对完成后必须走完本节，否则残留的注册表项/快捷方式会污染机器。顺序固定：**关闭实际应用 → 卸载 → 核对卸载结果 → 核对用户数据留存 → 销毁隔离根/VM**。
+### 6.7 正常关闭、记录迁移后快照、重启验证幂等
 
 ```powershell
-# 1) 确认隔离目录中的 UI 宿主已退出（脚本亲自关闭过；这里再按精确路径复查一次）。
+# 1) 正常关闭（关闭主窗口，让迁移完成标记落盘）；不用 Stop-Process。
+Stop-IsolatedHost -Process $newHost
+if (Test-AppMutexHeld) { throw 'App mutex is still held after the new UI host exited.' }
+
+# 2) 迁移后快照：数据库、旧版备份/标记、被引用图片等；排除 app.log 与轮转日志。
+function Get-MigratedStateFiles {
+  param([Parameter(Mandatory)][string]$DataRoot)
+  # 迁移备份/完成标记的具体文件名由 Storage 任务确定；这里用排除法，不猜文件名。
+  # 排除：app.log 与 app.log.*（运行期可变，正常启动就会改写）。
+  $files = @()
+  foreach ($f in Get-ChildItem -LiteralPath $DataRoot -Recurse -File -ErrorAction Stop) {
+    if ($f.Name -like 'app.log*') { continue }
+    $files += $f.FullName
+  }
+  return @($files | Sort-Object -Unique)
+}
+
+$migratedBaseline = @{}
+foreach ($file in Get-MigratedStateFiles -DataRoot $dataRoot) {
+  $migratedBaseline[$file] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+}
+$dbPath = Join-Path $dataRoot 'clipboard.db'
+if (-not $migratedBaseline.ContainsKey($dbPath)) { throw "Migrated snapshot is missing clipboard.db: $dbPath" }
+Write-Host "Migrated baseline: $($migratedBaseline.Count) file(s) (app.log excluded)."
+
+# 3) 重启一次，证明幂等：不重复导入、计数与哈希不变。
+$secondHost = Start-IsolatedHost -InstallDir $installDir
+try {
+  Wait-AppWindow -Process $secondHost -TimeoutSeconds 120
+  if (-not (Test-AppMutexHeld)) { throw 'App mutex is not held during the idempotency run.' }
+
+  # 重做 §6.6 的 1–4：计数、文本、图片哈希、旧文件哈希都必须与第一次一致。
+  $db2 = Join-Path $dataRoot 'clipboard.db'
+  if (-not (Test-Path -LiteralPath $db2 -PathType Leaf)) { throw 'clipboard.db disappeared on restart.' }
+  $migratedAgain = @{}
+  foreach ($file in Get-MigratedStateFiles -DataRoot $dataRoot) {
+    $migratedAgain[$file] = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
+  }
+  $changed = @()
+  foreach ($key in $migratedBaseline.Keys) {
+    if (-not $migratedAgain.ContainsKey($key)) { $changed += "missing:$key"; continue }
+    if (-not [string]::Equals($migratedAgain[$key], $migratedBaseline[$key], [StringComparison]::OrdinalIgnoreCase)) { $changed += "changed:$key" }
+  }
+  if ($changed.Count -gt 0) { throw ('Restart changed migrated state: ' + ($changed -join '; ')) }
+  Write-Host 'Idempotency OK: migrated state identical after restart.'
+}
+finally {
+  Stop-IsolatedHost -Process $secondHost
+}
+if (Test-AppMutexHeld) { throw 'App mutex is still held after the idempotency run exited.' }
+```
+
+> 说明：`$migratedBaseline` 与 `$legacyBaseline` 是两份独立快照。前者含数据库/备份/标记/图片，用于证明“卸载不删数据”；后者只含迁移前的不可变输入，用于证明“迁移没有篡改原始 JSON/PNG”。两者都排除 `app.log`。
+
+### 6.8 收尾与清理（卸载、数据留存、丢弃 VM）
+
+顺序固定：**关闭实际应用 → 卸载 → 核对注册表与快捷方式 → 核对两份快照仍完好 → 丢弃 VM/账户**。
+
+```powershell
+# 1) 确认演练目录中的 UI 宿主已退出（脚本亲自关闭过；这里再按精确路径复查一次）。
 $leftover = @(Get-IsolatedAppProcesses -InstallDir $installDir)
 if ($leftover.Count -gt 0) {
   throw ('Close the application before uninstalling: ' + (($leftover | ForEach-Object { "$($_.Id)=$($_.Path)" }) -join '; '))
@@ -506,62 +546,67 @@ $uninstall = Start-Process -FilePath $uninstaller -Wait -PassThru -ArgumentList 
 if ($uninstall.ExitCode -ne 0) { throw "Uninstaller failed: $($uninstall.ExitCode)" }
 ```
 
-随后逐项核对（每项都必须显式通过，不能“看起来没了”就算过）：
+随后逐项核对（每项都必须显式通过）：
 
 ```powershell
-$uninstallKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{8BCDA40E-D12B-4A21-BBD5-EF1653BD6F7B}_is1'
+# 3) 卸载注册表项必须消失。
 if (Test-Path -LiteralPath $uninstallKey) { throw "Uninstall left the HKCU registration: $uninstallKey" }
 
-# 注意：覆盖 USERPROFILE/APPDATA 后，GetFolderPath('Programs')/('Desktop') 可能返回空字符串。
-# 空值表示“本会话无法解析该 Shell 位置”，必须显式记录，不能当作“快捷方式已删除”。
-$shortcutChecks = @(
-  [pscustomobject]@{ Kind = 'StartMenu'; Root = [Environment]::GetFolderPath('Programs'); Rel = '剪贴板\剪贴板.lnk' },
-  [pscustomobject]@{ Kind = 'Desktop';   Root = [Environment]::GetFolderPath('Desktop');  Rel = '剪贴板.lnk' }
-)
-$unverifiedShortcuts = @()
-foreach ($c in $shortcutChecks) {
-  if ([string]::IsNullOrWhiteSpace($c.Root)) { $unverifiedShortcuts += $c.Kind; continue }
-  $lnk = Join-Path $c.Root $c.Rel
-  if (Test-Path -LiteralPath $lnk) { throw "Uninstall left a shortcut: $lnk" }
+# 4) 安装器创建的快捷方式必须消失。
+#    本协议在一次性账户的正常已知文件夹下运行，因此这两个路径必须能解析；
+#    解析不出来属于 runner 环境问题，必须中止为 INCONCLUSIVE，而不是当作通过。
+$shortcutPaths = [ordered]@{
+  StartMenu = Join-Path $known.Programs '剪贴板\剪贴板.lnk'
+  Desktop   = Join-Path $known.Desktop  '剪贴板.lnk'
 }
-if ($unverifiedShortcuts.Count -gt 0) {
-  # 不计为通过：这些位置无法在本会话验证，必须改在未覆盖 Shell 路径的 VM/runner 上补验。
-  throw ('Shortcut cleanup could not be verified in this session for: ' + ($unverifiedShortcuts -join ', ') + '. Re-run teardown on a disposable VM/runner.')
+$unresolvedShortcuts = @($shortcutPaths.GetEnumerator() | Where-Object { [string]::IsNullOrWhiteSpace($_.Value) } | ForEach-Object { $_.Key })
+if ($unresolvedShortcuts.Count -gt 0) {
+  throw ('INCONCLUSIVE: shortcut paths could not be resolved for: ' + ($unresolvedShortcuts -join ', ') + '. Fix the runner profile; do not record this run as passed.')
+}
+foreach ($name in $shortcutPaths.Keys) {
+  $lnk = $shortcutPaths[$name]
+  if (Test-Path -LiteralPath $lnk) { throw "Uninstall left a shortcut: $lnk" }
 }
 Write-Host 'Uninstall registration and shortcuts are gone.'
 
-# 3) 用户数据必须留存，且与安装前记录的哈希一致。
-$missing = @($baseline.Keys | Where-Object { -not (Test-Path -LiteralPath $_) })
-if ($missing.Count -gt 0) { throw ('Uninstall removed user data: ' + ($missing -join '; ')) }
-foreach ($path in $baseline.Keys) {
-  $now = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
-  if (-not [string]::Equals($now, $baseline[$path], [StringComparison]::OrdinalIgnoreCase)) {
-    throw "User data changed by uninstall: $path"
+# 5) 两份快照都必须原样保留（卸载不得删除或改写用户数据）。
+$missing = @()
+foreach ($snapshot in @($legacyBaseline, $migratedBaseline)) {
+  foreach ($path in $snapshot.Keys) {
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $missing += $path }
   }
 }
-Write-Host "User data preserved: $($baseline.Count) file(s) with matching SHA256."
+if ($missing.Count -gt 0) { throw ('Uninstall removed user data: ' + (($missing | Sort-Object -Unique) -join '; ')) }
+foreach ($snapshot in @($legacyBaseline, $migratedBaseline)) {
+  foreach ($path in $snapshot.Keys) {
+    $now = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash
+    if (-not [string]::Equals($now, $snapshot[$path], [StringComparison]::OrdinalIgnoreCase)) {
+      throw "User data changed by uninstall: $path"
+    }
+  }
+}
+Write-Host ("User data preserved: legacy={0} migrated={1} file(s) with matching SHA256." -f $legacyBaseline.Count, $migratedBaseline.Count)
 
-# 4) 安装目录应已移除（Inno 的 unins000.exe 会自删；若仍在只报告，不递归删除）。
+# 6) 安装目录应已移除（Inno 的 unins000.exe 会自删；若仍在只报告，不递归删除）。
 if (Test-Path -LiteralPath $installDir) {
   Write-Warning "Install directory still exists after uninstall: $installDir (inspect before deleting)."
 }
 ```
 
-最后销毁隔离环境：
+最后丢弃环境：
 
-- **一次性 VM/CI runner**：直接丢弃整台机器/容器，无需手工清理。
-- **本机演练**：先确认上面三项（注册表项、快捷方式、数据留存）都已记录，再删除隔离根 `$base`（它只包含本次合成的程序副本、日志与用户数据副本），并关闭本会话。删除前用 `[IO.Path]::GetFullPath($base)` 校验目标确实以 `$env:TEMP` 下的 `cm-mig-` 开头。
+- **一次性 VM / CI runner**：核对输出已留存后，直接丢弃整台机器/容器。VM 丢弃**不能**替代上面第 3–5 项——它们必须在丢弃前实际通过。
+- 仅清理本会话临时目录 `$workRoot`（安装器日志与程序副本）；**不要**删除 `$dataRoot`，它的留存正是第 5 项的证明。删除 `$workRoot` 前用 `[IO.Path]::GetFullPath($workRoot)` 校验它位于 `$env:TEMP` 下且以 `cm-mig-` 开头。
 
-> 本节的注册表与快捷方式检查**必须**在一次性环境里跑。若本机存在同 AppId 的正式安装，卸载会命中那套安装——这正是 6.0 明令禁止在普通桌面演练的原因。
+### 6.9 判定规则
 
-### 6.8 判定规则
-
-- **通过**：6.6 的 1–6 与 6.7 的卸载/留存检查全部通过，并在实际输出中留存查询结果与哈希值。此时才可讨论保留在地增量更新。
+- **通过**：§6.6 的 1–5、§6.7 的幂等核对、§6.8 的注册表/快捷方式/双快照核对全部实际通过，并留存查询结果与哈希值。此时才可讨论保留在地增量更新。
+- **INCONCLUSIVE**：已知文件夹无法解析、环境已存在同 AppId 安装等 runner 问题。必须修好环境重跑，不得记为通过。
 - **未通过或未执行**：按“WPF → WinUI 在地更新安全性未证明”处理。
 
-### 6.9 首发切换策略（硬性约束）
+### 6.10 首发切换策略（硬性约束）
 
-在 6.6–6.7 的隔离验证**实际通过并留存证据**之前：
+在 §6.6–§6.8 的隔离验证**实际通过并留存证据**之前：
 
 - 首发必须要求用户运行**完整安装器**覆盖安装，不允许旧 `ClipboardManager.Update.exe` 直接以增量方式替换为新架构程序文件。
 - 首发说明/发行说明必须明确写出“请下载并运行完整安装器升级”，不得暗示可无缝自动增量升级。
@@ -569,9 +614,68 @@ if (Test-Path -LiteralPath $installDir) {
 - 即便将来启用增量路径，也必须同时满足：旧清单与新清单 `packaging` 值相同（`UpdateFiles.Plan` 对不一致直接拒绝）、新文件清单包含 `ClipboardManager.exe`/`ClipboardManager.dll`/`ClipboardManager.runtimeconfig.json`/`ClipboardManager.Update.exe`、新启动器能启动 WinUI 进程并写出 `.clipboard-update\ready` 健康标记。
 - 上述任一条件不满足时，仍回落到完整安装器覆盖安装。
 
-## 7. 证据卫生与校验
+### 6.11 本机冒烟：环境重定向是否生效（**不是**安装/迁移测试）
 
-- 运行 `git diff --check` 检查空白/行尾问题（结果见 Task 1 报告）。
-- 本文与相关改动只包含：环境变量形式路径、合成示例文本、固定测试哈希占位值、公开文件名与版本号。
-- 未包含：真实剪贴板内容、真实用户数据、开发者本机绝对路径、令牌、证书、私钥或任何个人标识信息。
-- 第 6 节中的 PowerShell 片段只做过**语法与静态行为**的聚焦检查，没有执行安装、升级或迁移；片段中的安装器/卸载程序均未运行。
+本节只回答一个问题：**在一个子进程里重定向五个环境变量后，数据根目录是否真的落在隔离根内。** 它**不**安装、不升级、不卸载、不启动应用，因此**不能**作为 §6.10 的放行证据。
+
+适用：想在改动 §6.1 的目录约定前，先在本机确认重定向语义。
+
+```powershell
+$ErrorActionPreference = 'Stop'
+
+$base         = Join-Path $env:TEMP ('cm-redirect-' + [guid]::NewGuid().ToString('N'))
+$profileDir   = Join-Path $base 'Profile'
+$localAppData = Join-Path $profileDir 'AppData\Local'
+$roamingDir   = Join-Path $profileDir 'AppData\Roaming'
+$tempDir      = Join-Path $base 'Temp'
+$logsDir      = Join-Path $base 'logs'
+New-Item -ItemType Directory -Force -Path $localAppData, $roamingDir, $tempDir, $logsDir | Out-Null
+
+$env:USERPROFILE  = $profileDir
+$env:LOCALAPPDATA = $localAppData
+$env:APPDATA      = $roamingDir
+$env:TEMP         = $tempDir
+$env:TMP          = $tempDir
+
+$assertPath = Join-Path $base 'assert-redirect.ps1'
+@'
+$ErrorActionPreference = 'Stop'
+$base = $env:CM_EXPECT_BASE
+function InRoot([string]$p) {
+  if ([string]::IsNullOrWhiteSpace($p)) { return $false }
+  return ([IO.Path]::GetFullPath($p)).StartsWith([IO.Path]::GetFullPath($base), [StringComparison]::OrdinalIgnoreCase)
+}
+$checks = [ordered]@{
+  'env:LOCALAPPDATA'                    = $env:LOCALAPPDATA
+  'env:APPDATA'                         = $env:APPDATA
+  'env:USERPROFILE'                     = $env:USERPROFILE
+  'env:TEMP'                            = $env:TEMP
+  'env:TMP'                             = $env:TMP
+  'GetFolderPath(LocalApplicationData)' = [Environment]::GetFolderPath('LocalApplicationData')
+  'GetFolderPath(ApplicationData)'      = [Environment]::GetFolderPath('ApplicationData')
+  'GetTempPath()'                       = [IO.Path]::GetTempPath()
+  'expected AppPaths.RootDirectory'     = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'ClipboardManager'
+}
+$failed = @()
+foreach ($name in $checks.Keys) {
+  $ok = InRoot $checks[$name]
+  if (-not $ok) { $failed += $name }
+  '{0,-38} inRoot={1,-5} {2}' -f $name, $ok, $checks[$name]
+}
+if ($failed.Count) { throw ('Redirect failed for: ' + ($failed -join ', ')) }
+'END-REDIRECT-OK'
+'@ | Set-Content -LiteralPath $assertPath -Encoding utf8
+
+$env:CM_EXPECT_BASE = $base
+$assertOut = Join-Path $logsDir 'assert-redirect.out.txt'
+$assertErr = Join-Path $logsDir 'assert-redirect.err.txt'
+$assert = Start-Process -FilePath (Get-Process -Id $PID).Path `
+  -ArgumentList @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',$assertPath) `
+  -NoNewWindow -Wait -PassThru -WorkingDirectory $base `
+  -RedirectStandardOutput $assertOut -RedirectStandardError $assertErr
+Get-Content -LiteralPath $assertOut
+if ($assert.ExitCode -ne 0) { Get-Content -LiteralPath $assertErr; throw "Redirect assertion failed: $($assert.ExitCode)" }
+if (-not (Select-String -LiteralPath $assertOut -Pattern '^END-REDIRECT-OK$' -Quiet)) { throw 'Redirect assertion did not complete.' }
+```
+
+只有输出出现 `END-REDIRECT-OK` 才说明重定向生效。若要在本机继续用这个重定向会话做别的检查，请记住：**它不能证明安装/升级/卸载正确**，那些只能在 §6.1–§6.10 的一次性环境里验证。

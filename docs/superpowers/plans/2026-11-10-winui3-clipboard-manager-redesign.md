@@ -141,7 +141,7 @@ public interface IDatabaseSchemaMigrator
 
 - [ ] 在当前干净工作树运行 `dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj -c Release --nologo`，记录实际总数、通过数和耗时到 `legacy-baseline.md`。
 - [ ] 在同文件记录当前 WPF 数据布局、发布资产命名、安装默认路径、互斥体名及旧应用入口。数据布局与发布资产仅据 `AppPaths.cs`、`installer.ps1`、`UpdateFiles.cs` 与 release workflow 核实；互斥体与旧应用入口链另据 `App.xaml.cs`、`installer/ClipboardManager.iss`、`UpdateHelper/Launcher.cs`、`UpdateHelper/Program.cs`、`build-update-tools.ps1` 核实（这些补充来源仅用于互斥体/入口链，不用于推导数据布局或发布资产）。`ClipboardManager.csproj` 只用于核实 `TargetFramework` 与 `UseWPF` 两项事实，不用于数据布局、发布资产、互斥体或入口链。
-- [ ] 写隔离升级验证协议：旧版样本安装到临时目录、复制合成 JSON/PNG 到独立 LocalAppData、安装新包、核对 DB/图片哈希、旧 JSON 留存；若完整流程无法证明可靠则首发文案要求安装版覆盖安装，不允许旧 helper 直接增量替换新架构。
+- [ ] 写隔离升级验证协议（**仅文档，未来执行**）：在一次性 VM/CI runner 的临时 Windows 账户、**不覆盖** `USERPROFILE`/`APPDATA` 的正常已知文件夹下，安装旧版样本 → 写入合成 JSON/PNG → 同目录覆盖安装新版 → 保持新宿主运行并核对 DB/图片/设置 → 正常关闭并记录迁移后快照 → 重启验证幂等 → 卸载并核对注册表/快捷方式已移除、迁移前输入与迁移后数据哈希均未变（`app.log` 不纳入哈希）。另设本机-only 的子进程环境重定向冒烟，明确不是安装/迁移测试。若完整流程无法证明可靠则首发文案要求安装版覆盖安装，不允许旧 helper 直接增量替换新架构。
 - [ ] 运行 `git diff --check` 并检查证据不包含真实剪贴板数据、用户路径以外的敏感信息或私钥。
 
 **验收：** 记录中的测试数来自真实命令输出；旧文件清单和首发迁移流程有可重演的命令/检查项。
