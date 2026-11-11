@@ -28,12 +28,16 @@ if (Test-Path -LiteralPath $dataRoot) { throw 'Refusing to run portable verifica
 
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('cm-portable-verify-' + [guid]::NewGuid().ToString('N'))
 $portableRoot = Join-Path $temporary 'portable-app'
+$dumpRoot = Join-Path $temporary 'crash-dumps'
+$werKey = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\ClipboardManager.App.exe'
+$werKeyCreated = $false
 $appProcess = $null
 $dataRootCreated = $false
 $legacyHistoryHash = $null
 $legacyThemeHash = $null
 $legacyImageHash = $null
 [IO.Directory]::CreateDirectory($portableRoot) | Out-Null
+[IO.Directory]::CreateDirectory($dumpRoot) | Out-Null
 
 function Get-TreeHash([string]$Root) {
     $fullRoot = [IO.Path]::GetFullPath($Root)
@@ -45,6 +49,12 @@ function Get-TreeHash([string]$Root) {
 }
 
 try {
+    if (Test-Path -LiteralPath $werKey) { throw 'A pre-existing LocalDumps policy prevents isolated startup diagnostics.' }
+    New-Item -Path $werKey -Force | Out-Null
+    $werKeyCreated = $true
+    New-ItemProperty -LiteralPath $werKey -Name DumpFolder -PropertyType ExpandString -Value $dumpRoot -Force | Out-Null
+    New-ItemProperty -LiteralPath $werKey -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
+    New-ItemProperty -LiteralPath $werKey -Name DumpCount -PropertyType DWord -Value 1 -Force | Out-Null
     [IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $portableRoot)
     $release = Get-Content -LiteralPath (Join-Path $portableRoot 'release.json') -Raw | ConvertFrom-Json
     $manifest = Get-Content -LiteralPath (Join-Path $portableRoot 'update-manifest.json') -Raw | ConvertFrom-Json
@@ -111,6 +121,15 @@ try {
                     }
                 }
             }
+            Start-Sleep -Seconds 3
+            $dump = Get-ChildItem -LiteralPath $dumpRoot -Filter '*.dmp' -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($dump) {
+                $diagnosticDump = Join-Path $env:RUNNER_TEMP 'ClipboardManager.App-crash.dmp'
+                Copy-Item -LiteralPath $dump.FullName -Destination $diagnosticDump -Force
+                Write-Host "Native crash dump captured: $diagnosticDump ($($dump.Length) bytes)."
+            }
+            else { Write-Host 'WER did not produce a local dump for the WinUI startup failure.' }
             throw "Portable WinUI app exited during synthetic-data startup: $($appProcess.ExitCode)."
         }
         if ($appProcess.MainWindowHandle -ne [IntPtr]::Zero) { $windowOpened = $true; break }
@@ -231,6 +250,7 @@ try {
     Write-Host "Portable verification passed: v$Version manifest/hash validation, isolated launch, synthetic legacy import and data retention after removing app files."
 }
 finally {
+    if ($werKeyCreated -and (Test-Path -LiteralPath $werKey)) { Remove-Item -LiteralPath $werKey -Recurse -Force }
     if ($workerProcess) {
         try {
             if (-not $workerProcess.HasExited) {

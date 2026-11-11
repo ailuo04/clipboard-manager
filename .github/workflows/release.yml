@@ -95,6 +95,31 @@ jobs:
         env:
           RUNNER_ENVIRONMENT: ${{ runner.environment }}
         run: pwsh -NoProfile -File tests/packaging/Test-PortablePackage.ps1 -Archive 'dist/ClipboardManager-${{ steps.version.outputs.value }}-win-x64.zip' -Version '${{ steps.version.outputs.value }}'
+      - name: Analyze WinUI startup crash dump
+        if: failure()
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $dump = Join-Path $env:RUNNER_TEMP 'ClipboardManager.App-crash.dmp'
+          if (-not (Test-Path -LiteralPath $dump)) { Write-Host 'No local crash dump was produced.'; exit 0 }
+          winget install --id Microsoft.WinDbg --exact --silent --accept-source-agreements --accept-package-agreements
+          if ($LASTEXITCODE -ne 0) { throw 'WinDbg installation failed.' }
+          $debugger = Get-Command WinDbgX.exe -ErrorAction Stop
+          $log = Join-Path $env:RUNNER_TEMP 'ClipboardManager.App-crash-analysis.txt'
+          $start = [Diagnostics.ProcessStartInfo]::new($debugger.Source)
+          $start.UseShellExecute = $false
+          foreach ($argument in @('-z', $dump, '-logo', $log, '-c', '.symfix; .reload; !analyze -v; .exr -1; .ecxr; kv; q')) { $start.ArgumentList.Add($argument) }
+          $process = [Diagnostics.Process]::Start($start)
+          if (-not $process.WaitForExit(180000)) { $process.Kill($true); throw 'WinDbg dump analysis timed out.' }
+          if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Tail 250 }
+      - name: Upload WinUI startup crash analysis
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: winui-startup-crash-analysis
+          path: ${{ runner.temp }}/ClipboardManager.App-crash-analysis.txt
+          if-no-files-found: ignore
+          retention-days: 3
       - name: Build and verify per-user installer
         shell: pwsh
         run: ./installer.ps1 -Archive 'dist/ClipboardManager-${{ steps.version.outputs.value }}-win-x64.zip' -Version '${{ steps.version.outputs.value }}' -OutputDirectory ./dist -VerifyInstall
