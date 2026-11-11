@@ -57,6 +57,7 @@ public sealed class HistoryViewModelTests
         await service.BlockedQueryStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
         vm.SearchText = "fast";
         await vm.WaitForSearchAsync();
+        await service.CancellationObserved.Task.WaitAsync(TimeSpan.FromSeconds(2));
 
         Assert.Contains("slow", service.CanceledQueries);
         Assert.Equal("fast", service.Queries[^1].SearchText);
