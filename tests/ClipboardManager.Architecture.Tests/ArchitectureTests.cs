@@ -51,12 +51,12 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
-    public void App_entrypoint_uses_the_generated_winui_startup_sequence()
+    public void App_resolves_update_recovery_through_its_registered_interface()
     {
-        var source = File.ReadAllText(Path.Combine(RepositoryRoot, "src/ClipboardManager.App/Program.cs"));
+        var source = File.ReadAllText(Path.Combine(RepositoryRoot, "src/ClipboardManager.App/App.xaml.cs"));
 
-        Assert.Contains("XamlGeneratedProgram.XamlGeneratedMain();", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("Application.Start(", source, StringComparison.Ordinal);
+        Assert.Contains("GetRequiredService<IUpdateRecoveryService>()", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetRequiredService<UpdateRecoveryService>()", source, StringComparison.Ordinal);
     }
     [Fact]
     public void Update_worker_is_a_self_contained_single_file_win_x64_process_without_ui_frameworks()

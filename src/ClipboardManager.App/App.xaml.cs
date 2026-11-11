@@ -39,7 +39,7 @@ public partial class App : Application
         _paths = new AppPaths();
         _host = AppHost.Create(_paths, new WinUiAppWindowService(CreateMainWindow));
         _ = _host.GetRequiredService<UpdateCoordinator>();
-        _host.GetRequiredService<UpdateRecoveryService>().SetLaunchArguments(args.Arguments);
+        _host.GetRequiredService<IUpdateRecoveryService>().SetLaunchArguments(args.Arguments);
         _startup = _host.GetRequiredService<AppStartupCoordinator>();
         _logger = _host.GetRequiredService<AppLogger>();
         while (true)

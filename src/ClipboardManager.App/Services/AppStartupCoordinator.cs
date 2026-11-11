@@ -6,6 +6,7 @@ public enum AppStartupResult { Started, AlreadyRunning, AlreadyStarted }
 
 public interface IUpdateRecoveryService
 {
+    void SetLaunchArguments(string? arguments);
     Task RecoverIfNeededAsync(CancellationToken cancellationToken);
     Task MarkStartupHealthyAsync(CancellationToken cancellationToken);
 }
@@ -100,6 +101,7 @@ public sealed class AppStartupCoordinator
 
 public sealed class NoOpUpdateRecoveryService : IUpdateRecoveryService
 {
+    public void SetLaunchArguments(string? arguments) { }
     public Task RecoverIfNeededAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
