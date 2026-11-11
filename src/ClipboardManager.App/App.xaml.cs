@@ -56,6 +56,8 @@ public partial class App : Application
             }
             catch (Exception exception)
             {
+                if (Environment.GetEnvironmentVariable("CLIPBOARDMANAGER_STARTUP_DIAGNOSTICS") == "1")
+                    Program.WriteStartupFailure(exception);
                 try { _logger.LogException(AppLogOperation.Startup, AppLogErrorCategory.Startup, exception); }
                 catch { }
                 try

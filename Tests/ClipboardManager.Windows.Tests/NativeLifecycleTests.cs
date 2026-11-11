@@ -176,6 +176,17 @@ public sealed class NativeLifecycleTests
         Assert.Equal(0, native.RemoveTrayIconCalls);
     }
     [Fact]
+    public void WindowsMessageNativeApi_uses_the_user32_hotkey_exports()
+    {
+        var register = typeof(WindowsMessageNativeApi).GetMethod("NativeRegisterHotKey", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        var unregister = typeof(WindowsMessageNativeApi).GetMethod("NativeUnregisterHotKey", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+
+        Assert.Equal("RegisterHotKey", register?.GetCustomAttributes(typeof(System.Runtime.InteropServices.DllImportAttribute), false)
+            .Cast<System.Runtime.InteropServices.DllImportAttribute>().Single().EntryPoint);
+        Assert.Equal("UnregisterHotKey", unregister?.GetCustomAttributes(typeof(System.Runtime.InteropServices.DllImportAttribute), false)
+            .Cast<System.Runtime.InteropServices.DllImportAttribute>().Single().EntryPoint);
+    }
+    [Fact]
     public void SystemThemeService_refreshes_only_when_system_settings_change()
     {
         var native = new FakeWindowsMessageNativeApi();

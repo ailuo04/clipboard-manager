@@ -381,8 +381,8 @@ public sealed class WindowsMessageNativeApi : IWindowsMessageNativeApi
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint RegisterWindowMessage(string message);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool NativeAddClipboardFormatListener(IntPtr handle);
     [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool NativeRemoveClipboardFormatListener(IntPtr handle);
-    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool NativeRegisterHotKey(IntPtr handle, int id, uint modifiers, uint virtualKey);
-    [DllImport("user32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool NativeUnregisterHotKey(IntPtr handle, int id);
+    [DllImport("user32.dll", EntryPoint = "RegisterHotKey", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool NativeRegisterHotKey(IntPtr handle, int id, uint modifiers, uint virtualKey);
+    [DllImport("user32.dll", EntryPoint = "UnregisterHotKey", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool NativeUnregisterHotKey(IntPtr handle, int id);
     [DllImport("shell32.dll", EntryPoint = "Shell_NotifyIconW", CharSet = CharSet.Unicode, SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool ShellNotifyIcon(uint action, ref NotifyIconData data);
     [DllImport("user32.dll", EntryPoint = "LoadIconW", SetLastError = true)] private static extern IntPtr LoadIcon(IntPtr instance, IntPtr iconName);
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] private static extern IntPtr CreatePopupMenu();

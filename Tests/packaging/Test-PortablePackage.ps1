@@ -90,6 +90,7 @@ try {
     $start.WorkingDirectory = $portableRoot
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
+    $start.Environment["CLIPBOARDMANAGER_STARTUP_DIAGNOSTICS"] = "1"
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
     foreach ($argument in @('-accepteula', '-ma', '-e', '-x', $dumpRoot, $appPath)) { $start.ArgumentList.Add($argument) }

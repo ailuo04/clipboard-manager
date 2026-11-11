@@ -58,6 +58,7 @@ public sealed class ArchitectureTests
         Assert.Contains("GetRequiredService<IUpdateRecoveryService>()", source, StringComparison.Ordinal);
         Assert.DoesNotContain("GetRequiredService<UpdateRecoveryService>()", source, StringComparison.Ordinal);
     }
+
     [Fact]
     public void Update_worker_is_a_self_contained_single_file_win_x64_process_without_ui_frameworks()
     {
