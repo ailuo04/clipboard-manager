@@ -281,4 +281,3 @@ public sealed partial class MainWindow : Window
 }
 
 public sealed record ShellPageState(string Title, string Description, string EmptyTitle, string EmptyDescription, string Hint);
-
