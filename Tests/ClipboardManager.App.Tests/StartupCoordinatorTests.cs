@@ -121,6 +121,7 @@ public sealed class StartupCoordinatorTests
     }
     private sealed class FakeUpdateRecoveryService(List<string> events) : IUpdateRecoveryService
     {
+        public void SetLaunchArguments(string? arguments) { }
         public Task RecoverIfNeededAsync(CancellationToken token)
         {
             events.Add("update-recovery");
