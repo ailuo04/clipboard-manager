@@ -240,7 +240,7 @@ public sealed class MainWindow : Window
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
             if (!IsVisible) return;
-            Hide();
+            HideToBackground();
             RestoreForeground(previous);
         }));
     }
@@ -261,9 +261,18 @@ public sealed class MainWindow : Window
             _viewModel.ClearSearchCommand.Execute(null);
             return;
         }
-        if (_closeToTray) Hide();
-        else Close();
+        HideToBackground();
     }
+
+    private void HideToBackground()
+    {
+        // A hidden window has no taskbar button; without the tray icon or the hotkey, minimize so it stays reachable.
+        if (_closeToTray || _hotKey.IsRegistered) Hide();
+        else WindowState = WindowState.Minimized;
+    }
+
+    /// <summary>Brings the window back when a second launch finds this instance already running.</summary>
+    public void ShowFromExternalRequest() => OnHotKeyPressed(this, EventArgs.Empty);
 
     private void OnHotKeyPressed(object? sender, EventArgs args)
     {

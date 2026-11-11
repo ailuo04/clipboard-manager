@@ -6,3 +6,4 @@ dist/
 *.suo
 
 .superpowers/
+*_wpftmp.csproj

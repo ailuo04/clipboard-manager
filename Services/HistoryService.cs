@@ -63,7 +63,22 @@ public sealed class HistoryService
                 }, cancellationToken).ConfigureAwait(false);
             }
             string? cleanupWarning = await CleanupPendingAsync().ConfigureAwait(false);
-            return JoinWarnings(skipped == 0 ? null : $"有 {skipped} 条记录格式异常或图片文件缺失，已跳过；原文件未被覆盖。", cleanupWarning);
+            string? skippedWarning = null;
+            if (skipped > 0)
+            {
+                // The next save rewrites history.json without the skipped records.
+                try
+                {
+                    string backup = await Task.Run(_store.BackupHistoryFile, cancellationToken).ConfigureAwait(false);
+                    skippedWarning = $"有 {skipped} 条记录格式异常或图片文件缺失，已跳过；原文件已备份为 {Path.GetFileName(backup)}。";
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    AppLogger.LogException("备份含异常记录的历史文件失败", exception);
+                    skippedWarning = $"有 {skipped} 条记录格式异常或图片文件缺失，已跳过；原文件备份失败，下次保存后这些记录将无法恢复。";
+                }
+            }
+            return JoinWarnings(skippedWarning, cleanupWarning);
         }
         finally { _gate.Release(); }
     }

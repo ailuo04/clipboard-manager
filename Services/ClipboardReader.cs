@@ -154,10 +154,18 @@ public sealed class ClipboardReader : IAsyncDisposable
 
             if (NativeMethods.IsClipboardFormatAvailable(NativeMethods.CfUnicodeText))
             {
-                var bytes = ReadBytes(NativeMethods.CfUnicodeText, 8 * 1024 * 1024);
-                int length = 0;
-                while (length + 1 < bytes.Length && (bytes[length] != 0 || bytes[length + 1] != 0)) length += 2;
-                text = Encoding.Unicode.GetString(bytes, 0, length);
+                // Unreadable or oversized text must not discard an image copied alongside it.
+                try
+                {
+                    var bytes = ReadBytes(NativeMethods.CfUnicodeText, 8 * 1024 * 1024);
+                    int length = 0;
+                    while (length + 1 < bytes.Length && (bytes[length] != 0 || bytes[length + 1] != 0)) length += 2;
+                    text = Encoding.Unicode.GetString(bytes, 0, length);
+                }
+                catch (Exception exception) when (IsExpectedReadError(exception))
+                {
+                    LogFormatError("文本", exception, errors);
+                }
             }
         }
         finally { Close(); }
@@ -209,7 +217,7 @@ public sealed class ClipboardReader : IAsyncDisposable
         }
 
         if (bitmap is not null) return new ClipboardReadResult(sequence, ClipboardSnapshot.FromImage(bitmap, source), null);
-        var warning = errors.Count == 0 ? null : "剪贴板图片无法读取：" + string.Join("；", errors.Distinct().Take(3));
+        var warning = errors.Count == 0 ? null : "剪贴板内容无法读取：" + string.Join("；", errors.Distinct().Take(3));
         return new ClipboardReadResult(sequence, string.IsNullOrEmpty(text) ? null : ClipboardSnapshot.FromText(text), warning);
     }
 

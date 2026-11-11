@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 using ClipboardManager.Models;
 using ClipboardManager.Utilities;
@@ -68,6 +69,16 @@ public sealed class HistoryStore
             try { if (File.Exists(temporaryPath)) File.Delete(temporaryPath); }
             catch (Exception exception) { AppLogger.LogException("删除历史记录临时文件失败", exception); }
         }
+    }
+
+    /// <summary>Copies the history file aside before a later save drops records that failed validation.</summary>
+    public string BackupHistoryFile()
+    {
+        string hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(HistoryFilePath)))[..12].ToLowerInvariant();
+        // Naming by content keeps repeated launches from piling up identical copies.
+        string backupPath = Path.Combine(RootDirectory, $"history.skipped-{hash}.json");
+        if (!File.Exists(backupPath)) File.Copy(HistoryFilePath, backupPath);
+        return backupPath;
     }
 
     public string GetImagePath(string name)

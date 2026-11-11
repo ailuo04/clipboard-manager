@@ -61,13 +61,13 @@ dotnet build .\ClipboardManager.csproj --configuration Release
 dotnet run --project .\ClipboardManager.csproj
 ```
 
-没有 SDK、但已安装 .NET 8 Windows Desktop Runtime 和 PowerShell 7 时，项目提供不下载、不安装依赖的替代构建：
+需要同时生成无控制台启动器和更新工具时，在 PowerShell 7 中运行：
 
 ```powershell
 .\build.ps1
 ```
 
-脚本优先使用已有 SDK；没有 SDK 时，使用 PowerShell 7 已有的 Roslyn 编译器和本机 .NET 8 Windows Desktop Runtime。XAML 作为嵌入资源加载，两条构建路径使用同一套应用代码和界面。备用构建还利用 Windows 自带的 .NET Framework 编译器生成无控制台启动器；主程序仍运行在 .NET 8 WPF 上。单独执行 `build.ps1` 不是自包含发行包，换机器需要运行时；对外分发请使用下面的打包脚本。
+脚本同样需要 .NET 8 或更新的 SDK，没有 SDK 时会直接报错。它先用 SDK 构建主程序，再利用 Windows 自带的 .NET Framework 编译器生成启动器和更新工具；主程序仍运行在 .NET 8 WPF 上。单独执行 `build.ps1` 不是自包含发行包，换机器需要运行时；对外分发请使用下面的打包脚本。
 
 ## 打包与发布
 

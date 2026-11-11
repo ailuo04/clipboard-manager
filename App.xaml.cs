@@ -7,7 +7,10 @@ namespace ClipboardManager;
 
 public partial class App : Application
 {
+    private const string ActivationEventName = "Local\\ClipboardManager.Desktop.v1.Activate";
     private Mutex? _instanceMutex;
+    private EventWaitHandle? _activationEvent;
+    private RegisteredWaitHandle? _activationWait;
     private int _exitCode;
 
     protected override void OnStartup(StartupEventArgs e)
@@ -15,6 +18,12 @@ public partial class App : Application
         _instanceMutex = new Mutex(true, "Local\\ClipboardManager.Desktop.v1", out bool created);
         if (!created)
         {
+            if (SignalRunningInstance())
+            {
+                _exitCode = 0;
+                Shutdown();
+                return;
+            }
             MessageBox.Show("剪贴板管理器已经在运行。", "剪贴板", MessageBoxButton.OK, MessageBoxImage.Information);
             _exitCode = 0;
             Shutdown();
@@ -33,6 +42,7 @@ public partial class App : Application
             };
             MainWindow = new MainWindow();
             MainWindow.Show();
+            ListenForActivationRequests();
         }
         catch (Exception exception)
         {
@@ -43,9 +53,42 @@ public partial class App : Application
         }
     }
 
+    // The running instance may be hidden with no taskbar button, so a second launch asks it to show itself.
+    private static bool SignalRunningInstance()
+    {
+        try
+        {
+            if (!EventWaitHandle.TryOpenExisting(ActivationEventName, out var activation)) return false;
+            using (activation)
+            {
+                NativeMethods.AllowSetForegroundWindow(-1);
+                return activation.Set();
+            }
+        }
+        catch (Exception exception)
+        {
+            AppLogger.LogException("通知已运行的实例显示窗口失败", exception);
+            return false;
+        }
+    }
+
+    private void ListenForActivationRequests()
+    {
+        try
+        {
+            _activationEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ActivationEventName);
+            _activationWait = ThreadPool.RegisterWaitForSingleObject(_activationEvent, (_, _) =>
+                Dispatcher.BeginInvoke(new Action(() => (MainWindow as MainWindow)?.ShowFromExternalRequest())),
+                null, Timeout.Infinite, executeOnlyOnce: false);
+        }
+        catch (Exception exception) { AppLogger.LogException("监听再次启动的显示请求失败", exception); }
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         base.OnExit(e);
+        _activationWait?.Unregister(null);
+        _activationEvent?.Dispose();
         try { _instanceMutex?.ReleaseMutex(); }
         catch (ApplicationException) { }
         finally { _instanceMutex?.Dispose(); }
