@@ -85,6 +85,7 @@ try {
     $start.WorkingDirectory = $portableRoot
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
+    $appStartedAt = Get-Date
     $appProcess = [Diagnostics.Process]::Start($start)
     $windowOpened = $false
     for ($attempt = 0; $attempt -lt 80; $attempt++) {
@@ -94,6 +95,22 @@ try {
             if (Test-Path -LiteralPath $earlyDiagnostic) { Write-Host 'Early WinUI initialization failure:'; Get-Content -LiteralPath $earlyDiagnostic }
             $logPath = Join-Path $dataRoot 'app.log'
             if (Test-Path -LiteralPath $logPath) { Write-Host 'Portable app startup log:'; Get-Content -LiteralPath $logPath }
+            $events = @(Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = $appStartedAt } -ErrorAction SilentlyContinue |
+                Where-Object { $_.Message -match 'ClipboardManager\.App|0xc000027b|stowed exception' } |
+                Select-Object -First 10 TimeCreated, Id, ProviderName, Message)
+            if ($events.Count -gt 0) { Write-Host 'Windows application failure events:'; $events | Format-List | Out-String | Write-Host }
+            foreach ($werRoot in @('%LOCALAPPDATA%\Microsoft\Windows\WER\ReportQueue', '%LOCALAPPDATA%\Microsoft\Windows\WER\ReportArchive')) {
+                $resolvedWerRoot = [Environment]::ExpandEnvironmentVariables($werRoot)
+                if (Test-Path -LiteralPath $resolvedWerRoot) {
+                    foreach ($report in Get-ChildItem -LiteralPath $resolvedWerRoot -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 8) {
+                        $reportFile = Join-Path $report.FullName 'Report.wer'
+                        if (Test-Path -LiteralPath $reportFile -PathType Leaf) {
+                            $reportText = Get-Content -LiteralPath $reportFile -Raw
+                            if ($reportText -match 'ClipboardManager\.App|0xc000027b') { Write-Host "Windows Error Reporting: $reportFile"; Write-Host $reportText }
+                        }
+                    }
+                }
+            }
             throw "Portable WinUI app exited during synthetic-data startup: $($appProcess.ExitCode)."
         }
         if ($appProcess.MainWindowHandle -ne [IntPtr]::Zero) { $windowOpened = $true; break }
