@@ -119,7 +119,7 @@ jobs:
           $log = Join-Path $env:RUNNER_TEMP 'ClipboardManager.App-crash-analysis.txt'
           $start = [Diagnostics.ProcessStartInfo]::new($debugger.Source)
           $start.UseShellExecute = $false
-          foreach ($argument in @('-z', $dump, '-logo', $log, '-c', '.loadby sos coreclr; !threads; !pe; !clrstack -a; .exr -1; dpp @$exr_param0 L1; dt combase!STOWED_EXCEPTION_INFORMATION_V2 poi(@$exr_param0) -r; q')) { $start.ArgumentList.Add($argument) }
+          foreach ($argument in @('-z', $dump, '-logo', $log, '-c', '.loadby sos coreclr; .exr -1; !help dumpccw; !dumpccw poi(poi(@$exr_param0)+0x30); qq')) { $start.ArgumentList.Add($argument) }
           $process = [Diagnostics.Process]::Start($start)
           if (-not $process.WaitForExit(240000)) {
             $process.Kill($true)
