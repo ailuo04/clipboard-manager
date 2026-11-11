@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using ClipboardManager.App.Views;
 using ClipboardManager.App.Services;
@@ -42,7 +43,17 @@ public sealed partial class MainWindow : Window
         _isTrayEnabled = isTrayEnabled ?? throw new ArgumentNullException(nameof(isTrayEnabled));
         _updateCoordinator = updateCoordinator ?? throw new ArgumentNullException(nameof(updateCoordinator));
         _createUpdatesViewModel = createUpdatesViewModel ?? throw new ArgumentNullException(nameof(createUpdatesViewModel));
-        InitializeComponent();
+        StartupExceptionRecorder? startupExceptionRecorder =
+            Environment.GetEnvironmentVariable("CLIPBOARDMANAGER_STARTUP_DIAGNOSTICS") == "1"
+                ? new StartupExceptionRecorder()
+                : null;
+        try { InitializeComponent(); }
+        catch
+        {
+            startupExceptionRecorder?.WriteToStartupLog();
+            throw;
+        }
+        finally { startupExceptionRecorder?.Dispose(); }
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(TitleBarGrid);
         IntPtr handle = WindowNative.GetWindowHandle(this);
@@ -270,3 +281,4 @@ public sealed partial class MainWindow : Window
 }
 
 public sealed record ShellPageState(string Title, string Description, string EmptyTitle, string EmptyDescription, string Hint);
+
