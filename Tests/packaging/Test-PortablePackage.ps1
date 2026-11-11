@@ -90,6 +90,8 @@ try {
     for ($attempt = 0; $attempt -lt 80; $attempt++) {
         $appProcess.Refresh()
         if ($appProcess.HasExited) {
+            $earlyDiagnostic = Join-Path $dataRoot 'startup-failure.log'
+            if (Test-Path -LiteralPath $earlyDiagnostic) { Write-Host 'Early WinUI initialization failure:'; Get-Content -LiteralPath $earlyDiagnostic }
             $logPath = Join-Path $dataRoot 'app.log'
             if (Test-Path -LiteralPath $logPath) { Write-Host 'Portable app startup log:'; Get-Content -LiteralPath $logPath }
             throw "Portable WinUI app exited during synthetic-data startup: $($appProcess.ExitCode)."
