@@ -15,12 +15,19 @@ internal static class Program
 
     internal static void WriteStartupFailure(Exception exception)
     {
+        string details = $"HRESULT: 0x{exception.HResult:X8}{Environment.NewLine}{exception}";
+        WriteStartupDiagnostic(details);
+    }
+
+    internal static void WriteStartupDiagnostic(string details, string? directory = null)
+    {
         try
         {
-            string directory = Path.Combine(
+            directory ??= Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClipboardManager");
             Directory.CreateDirectory(directory);
-            File.WriteAllText(Path.Combine(directory, "startup-failure.log"), exception.ToString());
+            string path = Path.Combine(directory, "startup-failure.log");
+            File.AppendAllText(path, $"[{DateTimeOffset.UtcNow:O}] {details}{Environment.NewLine}");
         }
         catch { }
     }

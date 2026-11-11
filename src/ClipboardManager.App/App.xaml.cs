@@ -3,7 +3,9 @@ using ClipboardManager.App.Utilities;
 using ClipboardManager.App.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
+using System.Reflection;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Markup;
 using ClipboardManager.Windows.Tray;
 
 namespace ClipboardManager.App;
@@ -24,7 +26,25 @@ public partial class App : Application
             Program.WriteStartupFailure(exception);
             throw;
         }
+        if (Environment.GetEnvironmentVariable("CLIPBOARDMANAGER_STARTUP_DIAGNOSTICS") == "1")
+        {
+            DebugSettings.IsXamlResourceReferenceTracingEnabled = true;
+            DebugSettings.XamlResourceReferenceFailed += OnXamlResourceReferenceFailed;
+        }
         UnhandledException += OnUnhandledException;
+    }
+
+    private static void OnXamlResourceReferenceFailed(object sender, XamlResourceReferenceFailedEventArgs args)
+    {
+        string properties = string.Join(Environment.NewLine,
+            args.GetType().GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                .Where(property => property.GetIndexParameters().Length == 0)
+                .Select(property =>
+                {
+                    try { return $"{property.Name}: {property.GetValue(args)}"; }
+                    catch { return $"{property.Name}: <unavailable>"; }
+                }));
+        Program.WriteStartupDiagnostic($"XAML resource reference failed:{Environment.NewLine}{properties}");
     }
 
     protected override async void OnLaunched(LaunchActivatedEventArgs args)
