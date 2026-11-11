@@ -77,7 +77,10 @@ public partial class App : Application
             catch (Exception exception)
             {
                 if (Environment.GetEnvironmentVariable("CLIPBOARDMANAGER_STARTUP_DIAGNOSTICS") == "1")
+                {
                     Program.WriteStartupFailure(exception);
+                    Environment.FailFast("Failing fast to preserve the WinUI startup exception for isolated diagnostics.", exception);
+                }
                 try { _logger.LogException(AppLogOperation.Startup, AppLogErrorCategory.Startup, exception); }
                 catch { }
                 try
