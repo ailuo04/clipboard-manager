@@ -93,7 +93,7 @@ try {
     $start.Environment["CLIPBOARDMANAGER_STARTUP_DIAGNOSTICS"] = "1"
     $start.RedirectStandardOutput = $true
     $start.RedirectStandardError = $true
-    foreach ($argument in @('-accepteula', '-ma', '-n', '1', '-e', '-x', $dumpRoot, $appPath)) { $start.ArgumentList.Add($argument) }
+    foreach ($argument in @('-accepteula', '-ma', '-n', '1', '-e', '-t', '-x', $dumpRoot, $appPath)) { $start.ArgumentList.Add($argument) }
     $monitorProcess = [Diagnostics.Process]::Start($start)
     $monitorOutput = $monitorProcess.StandardOutput.ReadToEndAsync()
     $monitorError = $monitorProcess.StandardError.ReadToEndAsync()
