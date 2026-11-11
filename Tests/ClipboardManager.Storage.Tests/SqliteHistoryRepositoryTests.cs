@@ -81,6 +81,94 @@ public sealed class SqliteHistoryRepositoryTests
     }
 
     [Fact]
+    public async Task Initialize_rejects_a_nonempty_unversioned_database_without_changing_database_bytes()
+    {
+        await using var database = new SqliteTestDatabase();
+        await using (var connection = await database.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "CREATE TABLE user_data (value TEXT NOT NULL); INSERT INTO user_data VALUES ('preserve me');";
+            await command.ExecuteNonQueryAsync();
+        }
+        byte[] before = await File.ReadAllBytesAsync(database.DatabasePath);
+        var repository = new SqliteHistoryRepository(database.ConnectionFactory);
+
+        await Assert.ThrowsAsync<SqliteStorageException>(() => repository.InitializeAsync(CancellationToken.None));
+
+        Assert.Equal(before, await File.ReadAllBytesAsync(database.DatabasePath));
+    }
+
+    [Fact]
+    public async Task Initialize_rejects_an_existing_truncated_database_without_changing_bytes()
+    {
+        await using var database = new SqliteTestDatabase();
+        await File.WriteAllBytesAsync(database.DatabasePath, []);
+        var repository = new SqliteHistoryRepository(database.ConnectionFactory);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => repository.InitializeAsync(CancellationToken.None));
+
+        Assert.Empty(await File.ReadAllBytesAsync(database.DatabasePath));
+    }
+
+    [Fact]
+    public async Task Initialize_rejects_a_versioned_database_missing_required_tables_without_changing_bytes()
+    {
+        await using var database = new SqliteTestDatabase();
+        await using (var connection = await database.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = $"CREATE TABLE unrelated (value TEXT); PRAGMA user_version = {DatabaseSchema.CurrentVersion};";
+            await command.ExecuteNonQueryAsync();
+        }
+        byte[] before = await File.ReadAllBytesAsync(database.DatabasePath);
+        var repository = new SqliteHistoryRepository(database.ConnectionFactory);
+
+        await Assert.ThrowsAsync<SqliteStorageException>(() => repository.InitializeAsync(CancellationToken.None));
+
+        Assert.Equal(before, await File.ReadAllBytesAsync(database.DatabasePath));
+    }
+
+    [Fact]
+    public async Task Initialize_does_not_create_a_database_over_an_orphaned_rollback_journal()
+    {
+        await using var database = new SqliteTestDatabase();
+        byte[] journal = [0xD9, 0xD5, 0x05, 0xF9, 0x20, 0xA1, 0x63, 0xD7, 1, 2, 3];
+        await File.WriteAllBytesAsync(database.DatabasePath + "-journal", journal);
+        var repository = new SqliteHistoryRepository(database.ConnectionFactory);
+
+        await Assert.ThrowsAsync<SqliteStorageException>(() => repository.InitializeAsync(CancellationToken.None));
+
+        Assert.False(File.Exists(database.DatabasePath));
+        Assert.Equal(journal, await File.ReadAllBytesAsync(database.DatabasePath + "-journal"));
+    }
+
+    [Fact]
+    public async Task Initialize_rejects_a_versioned_schema_missing_record_primary_key_without_changing_bytes()
+    {
+        await using var database = new SqliteTestDatabase();
+        await using (var connection = await database.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        await using (var command = connection.CreateCommand())
+        {
+            command.CommandText = $"""
+                CREATE TABLE records (id TEXT, kind INTEGER, text_value TEXT, image_file_name TEXT, byte_length INTEGER,
+                    image_width INTEGER, image_height INTEGER, content_hash TEXT, copied_at_ticks INTEGER, is_favorite INTEGER);
+                CREATE TABLE settings (singleton_id INTEGER PRIMARY KEY, max_records INTEGER, max_storage_mb INTEGER,
+                    always_on_top INTEGER, auto_check_updates INTEGER, minimize_to_tray INTEGER, hide_after_copy INTEGER, theme_preference TEXT);
+                CREATE TABLE pending_image_deletes (file_name TEXT PRIMARY KEY, queued_at_ticks INTEGER);
+                CREATE TABLE migration_history (migration_id TEXT PRIMARY KEY, imported_at_ticks INTEGER);
+                PRAGMA user_version = {DatabaseSchema.CurrentVersion};
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+        byte[] before = await File.ReadAllBytesAsync(database.DatabasePath);
+        var repository = new SqliteHistoryRepository(database.ConnectionFactory);
+
+        await Assert.ThrowsAsync<SqliteStorageException>(() => repository.InitializeAsync(CancellationToken.None));
+
+        Assert.Equal(before, await File.ReadAllBytesAsync(database.DatabasePath));
+    }
+
+    [Fact]
     public async Task ApplyAsync_rolls_back_record_settings_and_pending_deletes_when_a_write_aborts()
     {
         await using var database = new SqliteTestDatabase();
@@ -189,6 +277,26 @@ public sealed class SqliteHistoryRepositoryTests
     }
 
     [Fact]
+    public async Task ImportLegacyAsync_aborts_instead_of_silently_dropping_a_conflicting_record_id()
+    {
+        await using var database = new SqliteTestDatabase();
+        var repository = new SqliteHistoryRepository(database.ConnectionFactory);
+        await repository.InitializeAsync(CancellationToken.None);
+        Guid id = Guid.NewGuid();
+        var existing = TextRecord("existing record", id: id);
+        var conflicting = TextRecord("different legacy record", id: id);
+        await repository.ApplyAsync(new HistoryMutation(existing, [], [], [], null), CancellationToken.None);
+
+        await Assert.ThrowsAsync<SqliteException>(() => repository.ImportLegacyAsync(
+            "migration-with-id-collision", [conflicting], Settings(maxRecords: 600, theme: "Dark"), [], CancellationToken.None));
+
+        var page = await repository.SearchAsync(new HistoryQuery("", HistoryKindFilter.All, false, 0, 20), CancellationToken.None);
+        Assert.Equal([existing], page.Records);
+        Assert.False(await repository.HasImportedMigrationAsync("migration-with-id-collision", CancellationToken.None));
+        Assert.Equal(new AppSettings(500, 512, false, true, false, true, "Light"), await repository.LoadSettingsAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public async Task FindDuplicateAsync_uses_content_kind_and_hash()
     {
         await using var database = new SqliteTestDatabase();
@@ -214,6 +322,20 @@ public sealed class SqliteHistoryRepositoryTests
         IDatabaseSchemaMigrator migrator = new SqliteSchemaMigrationRunner(database.ConnectionFactory);
 
         await migrator.MigrateAsync(CancellationToken.None);
+
+        await using var connection = await database.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
+        Assert.Equal(DatabaseSchema.CurrentVersion, await ScalarIntAsync(connection, "PRAGMA user_version;"));
+    }
+
+    [Fact]
+    public async Task Schema_migration_runner_can_retry_after_schema_transaction_aborts()
+    {
+        await using var database = new SqliteTestDatabase();
+        var interrupted = new SqliteSchemaMigrationRunner(database.ConnectionFactory,
+            afterSchemaObjectsCreated: () => throw new IOException("injected interruption"));
+
+        await Assert.ThrowsAsync<IOException>(() => interrupted.MigrateAsync(CancellationToken.None));
+        await new SqliteSchemaMigrationRunner(database.ConnectionFactory).MigrateAsync(CancellationToken.None);
 
         await using var connection = await database.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
         Assert.Equal(DatabaseSchema.CurrentVersion, await ScalarIntAsync(connection, "PRAGMA user_version;"));

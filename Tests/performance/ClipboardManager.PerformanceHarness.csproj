@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>ClipboardManager.PerformanceHarness</RootNamespace>
+    <AssemblyName>ClipboardManager.PerformanceHarness</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ClipboardManager.Core\ClipboardManager.Core.csproj" />
+    <ProjectReference Include="..\..\src\ClipboardManager.Storage\ClipboardManager.Storage.csproj" />
+  </ItemGroup>
+</Project>

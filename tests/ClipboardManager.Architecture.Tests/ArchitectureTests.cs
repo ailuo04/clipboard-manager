@@ -51,6 +51,21 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void Update_worker_is_a_self_contained_single_file_win_x64_process_without_ui_frameworks()
+    {
+        var project = LoadProject("src/ClipboardManager.UpdateWorker/ClipboardManager.UpdateWorker.csproj");
+
+        Assert.Equal("win-x64", Property(project, "RuntimeIdentifier"));
+        Assert.Equal("true", Property(project, "SelfContained"));
+        Assert.Equal("true", Property(project, "PublishSingleFile"));
+        Assert.Equal("true", Property(project, "IncludeNativeLibrariesForSelfExtract"));
+        Assert.DoesNotContain(project.Descendants("PackageReference")
+            .Select(reference => (string?)reference.Attribute("Include")), include =>
+                include is not null && (include.Contains("WindowsAppSDK", StringComparison.OrdinalIgnoreCase) ||
+                                        include.Contains("PresentationFramework", StringComparison.OrdinalIgnoreCase) ||
+                                        include.Contains("WindowsDesktop", StringComparison.OrdinalIgnoreCase)));
+    }
+    [Fact]
     public void Windows_adapter_targets_windows_and_uses_windows_app_sdk()
     {
         var project = LoadProject("src/ClipboardManager.Windows/ClipboardManager.Windows.csproj");
@@ -81,6 +96,20 @@ public sealed class ArchitectureTests
 
         var targets = File.ReadAllText(Path.Combine(RepositoryRoot, "Directory.Build.targets"));
         Assert.Contains("'$(ModernSolutionProject)' == 'true'", targets, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Legacy_wpf_project_excludes_new_solution_and_test_source_trees()
+    {
+        XDocument project = LoadProject("ClipboardManager.csproj");
+        string[] excludedTrees = project.Descendants("Compile")
+            .Select(item => (string?)item.Attribute("Remove"))
+            .Where(value => value is not null)
+            .Select(value => value!.Replace('\\', '/'))
+            .ToArray();
+
+        Assert.Contains("src/**/*.cs", excludedTrees);
+        Assert.Contains("tests/**/*.cs", excludedTrees);
     }
 
     [Fact]

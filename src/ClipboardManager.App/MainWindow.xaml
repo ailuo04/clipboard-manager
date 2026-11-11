@@ -1,0 +1,87 @@
+<Window
+    x:Class="ClipboardManager.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+>
+    <Grid x:Name="RootGrid" Background="{ThemeResource PageBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="TitleBarGrid" Grid.Row="0" Padding="0"
+              Background="{ThemeResource SurfaceBackgroundBrush}"
+              AutomationProperties.Name="应用标题栏">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition x:Name="LeftTitleBarInset" Width="0" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition x:Name="RightTitleBarInset" Width="0" />
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="1" Width="28" Height="28" CornerRadius="8" Background="{ThemeResource AccentBrush}"
+                    VerticalAlignment="Center" AutomationProperties.Name="应用图标" Margin="16,0,0,0">
+                <SymbolIcon Symbol="Copy" Foreground="{ThemeResource AccentOnBrush}" Width="16" Height="16" />
+            </Border>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="12,0,0,0">
+                <TextBlock Text="剪贴板管理器" FontSize="14" FontWeight="SemiBold"
+                           Foreground="{ThemeResource PrimaryTextBrush}" />
+                <TextBlock Text="·" Foreground="{ThemeResource SecondaryTextBrush}" />
+                <TextBlock x:Name="CurrentSectionTitle" Text="历史" FontSize="13"
+                           Foreground="{ThemeResource SecondaryTextBrush}" />                <Button x:Name="UpdateNoticeButton" Visibility="Collapsed" Click="OnUpdateNoticeClicked"
+                        Padding="0" Margin="12,0,0,0" Background="Transparent" BorderThickness="0"
+                        AutomationProperties.Name="有新版本，打开更新中心">
+                    <Border Padding="10,4" CornerRadius="10" Background="{ThemeResource AccentBrush}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <Ellipse Width="6" Height="6" Fill="White" VerticalAlignment="Center" />
+                            <TextBlock Text="有新版本" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentOnBrush}" />
+                        </StackPanel>
+                    </Border>
+                </Button>
+            </StackPanel>
+            <TextBlock Grid.Column="3" Text="安全保存在本机" FontSize="12"
+                       Foreground="{ThemeResource SecondaryTextBrush}" VerticalAlignment="Center"
+                       Margin="12,0,16,0" AutomationProperties.Name="数据隐私说明" />
+        </Grid>
+
+        <NavigationView x:Name="RootNavigation" Grid.Row="1"
+                        PaneDisplayMode="Left"
+                        IsBackButtonVisible="Collapsed"
+                        IsSettingsVisible="False"
+                        IsPaneToggleButtonVisible="True"
+                        CompactModeThresholdWidth="900"
+                        ExpandedModeThresholdWidth="1180"
+                        OpenPaneLength="240"
+                        CompactPaneLength="64"
+                        Background="{ThemeResource PageBackgroundBrush}"
+                        SelectionChanged="OnNavigationSelectionChanged"
+                        AutomationProperties.Name="主导航">
+            <NavigationView.PaneHeader>
+                <TextBlock Text="工作区" Margin="18,20,0,10" FontSize="11" FontWeight="SemiBold"
+                           CharacterSpacing="80" Foreground="{ThemeResource SecondaryTextBrush}"
+                           AutomationProperties.Name="工作区导航标题" />
+            </NavigationView.PaneHeader>
+            <NavigationView.MenuItems>
+                <NavigationViewItem x:Name="HistoryNavigationItem" Content="历史" Tag="history"
+                                    AutomationProperties.Name="历史" AutomationProperties.HelpText="查看最近复制的文本和图片">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Clock" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="FavoritesNavigationItem" Content="收藏" Tag="favorites"
+                                    AutomationProperties.Name="收藏" AutomationProperties.HelpText="查看已收藏的剪贴板记录">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Favorite" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="UpdatesNavigationItem" Content="更新中心" Tag="updates"
+                                    AutomationProperties.Name="更新中心" AutomationProperties.HelpText="检查版本、查看更新状态和安装更新">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Download" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem x:Name="SettingsNavigationItem" Content="设置" Tag="settings"
+                                    AutomationProperties.Name="设置" AutomationProperties.HelpText="管理主题、容量、托盘和复制行为">
+                    <NavigationViewItem.Icon><SymbolIcon Symbol="Setting" /></NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+            <NavigationView.Content>
+                <Frame x:Name="ContentFrame" IsTabStop="False" />
+            </NavigationView.Content>
+        </NavigationView>
+    </Grid>
+</Window>

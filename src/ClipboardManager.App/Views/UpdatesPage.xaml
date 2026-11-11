@@ -1,0 +1,190 @@
+<Page
+    x:Class="ClipboardManager.App.Views.UpdatesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:ClipboardManager.App.Converters"
+    Background="{ThemeResource PageBackgroundBrush}"
+    AutomationProperties.Name="更新中心">
+    <Page.Resources>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Page.Resources>
+    <Grid x:Name="LayoutGrid" Padding="30,24,30,30" ColumnSpacing="18">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="DetailsColumn" Width="310" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.ColumnSpan="2" Spacing="6" Margin="0,0,0,22">
+            <TextBlock Text="更新中心" Style="{StaticResource PageTitleTextStyle}" />
+            <TextBlock Text="版本、安全校验与安装进度都在这里；何时下载和更新，由你决定。"
+                       Style="{StaticResource SectionDescriptionTextStyle}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto"
+                      AutomationProperties.Name="更新信息">
+            <StackPanel Spacing="16" Padding="0,2,6,12">
+                <Border Padding="24" CornerRadius="18" Background="{ThemeResource SurfaceBackgroundBrush}"
+                        BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1"
+                        AutomationProperties.Name="更新状态与操作">
+                    <StackPanel Spacing="18">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="58" Height="58" CornerRadius="18"
+                                    Background="{ThemeResource PageBackgroundBrush}" VerticalAlignment="Top">
+                                <SymbolIcon Symbol="Download" Width="26" Height="26"
+                                            Foreground="{ThemeResource AccentBrush}"
+                                            AutomationProperties.Name="更新" />
+                            </Border>
+                            <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                                           FontSize="18" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource PrimaryTextBrush}"
+                                           AutomationProperties.LiveSetting="Polite"
+                                           AutomationProperties.Name="更新状态" />
+                                <TextBlock Text="更新会先下载并验证文件，通过后再交接给独立更新程序。"
+                                           Style="{StaticResource SectionDescriptionTextStyle}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid ColumnSpacing="12" HorizontalAlignment="Left">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="当前版本" FontSize="12" Foreground="{ThemeResource SecondaryTextBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.CurrentVersion, Mode=OneWay}" FontSize="16"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource PrimaryTextBrush}" />
+                            </StackPanel>
+                            <SymbolIcon Grid.Column="1" Symbol="Forward" Width="18" Height="18"
+                                        VerticalAlignment="Center" Foreground="{ThemeResource SecondaryTextBrush}" />
+                            <StackPanel Grid.Column="2" Spacing="3">
+                                <TextBlock Text="可用版本" FontSize="12" Foreground="{ThemeResource SecondaryTextBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.AvailableVersion, Mode=OneWay}" FontSize="16"
+                                           FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}"
+                                           AutomationProperties.Name="可用版本" />
+                            </StackPanel>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <Button Content="检查更新" Click="OnCheckUpdatesClicked"
+                                    IsEnabled="{x:Bind ViewModel.CanCheck, Mode=OneWay}"
+                                    AutomationProperties.Name="立即检查更新" />
+                            <Button Content="{x:Bind ViewModel.DownloadButtonText, Mode=OneWay}"
+                                    Click="OnDownloadAndUpdateClicked"
+                                    IsEnabled="{x:Bind ViewModel.CanDownload, Mode=OneWay}"
+                                    Background="{ThemeResource AccentBrush}" Foreground="{ThemeResource AccentOnBrush}"
+                                    AutomationProperties.Name="下载并更新" />
+                            <Button Content="取消下载" Click="OnCancelDownloadClicked"
+                                    Visibility="{x:Bind ViewModel.CanCancel, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    AutomationProperties.Name="取消下载" />
+                        </StackPanel>
+
+                        <StackPanel Spacing="8"
+                                    Visibility="{x:Bind ViewModel.IsProgressVisible, Mode=OneWay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ProgressBar Minimum="0" Maximum="100" Value="{x:Bind ViewModel.ProgressPercent, Mode=OneWay}"
+                                         IsIndeterminate="{x:Bind ViewModel.IsVerifying, Mode=OneWay}"
+                                         AutomationProperties.Name="更新文件下载与校验进度" />
+                            <TextBlock Text="{x:Bind ViewModel.ProgressText, Mode=OneWay}"
+                                       Style="{StaticResource SectionDescriptionTextStyle}"
+                                       AutomationProperties.LiveSetting="Polite" />
+                        </StackPanel>
+
+                        <Border Padding="14" CornerRadius="12" Background="{ThemeResource PageBackgroundBrush}"
+                                BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1"
+                                Visibility="{x:Bind ViewModel.RecoveryMessage, Mode=OneWay, Converter={StaticResource NullToVisibilityConverter}}">
+                            <StackPanel Spacing="6">
+                                <TextBlock Text="{x:Bind ViewModel.StageText, Mode=OneWay}" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource PrimaryTextBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.RecoveryMessage, Mode=OneWay}" TextWrapping="Wrap"
+                                           Foreground="{ThemeResource PrimaryTextBrush}"
+                                           AutomationProperties.LiveSetting="Polite" />
+                                <TextBlock Text="{x:Bind ViewModel.LogFilePath, Mode=OneWay}" TextWrapping="Wrap"
+                                           IsTextSelectionEnabled="True" FontSize="12"
+                                           Foreground="{ThemeResource SecondaryTextBrush}" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="22" CornerRadius="16" Background="{ThemeResource CardBackgroundBrush}"
+                        BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1"
+                        AutomationProperties.Name="版本更新说明">
+                    <StackPanel Spacing="12">
+                        <Grid ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="版本更新说明" FontSize="17" FontWeight="SemiBold"
+                                           Foreground="{ThemeResource PrimaryTextBrush}" />
+                                <TextBlock Text="{x:Bind ViewModel.AvailableVersion, Mode=OneWay}"
+                                           Style="{StaticResource SectionDescriptionTextStyle}" />
+                            </StackPanel>
+                            <Border Grid.Column="1" Padding="10,5" CornerRadius="10"
+                                    Background="{ThemeResource PageBackgroundBrush}"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind ViewModel.DownloadSizeText, Mode=OneWay}"
+                                           FontSize="12" Foreground="{ThemeResource SecondaryTextBrush}"
+                                           AutomationProperties.Name="更新包大小" />
+                            </Border>
+                        </Grid>
+                        <Rectangle Height="1" Fill="{ThemeResource CardStrokeBrush}" />
+                        <TextBlock Text="{x:Bind ViewModel.ReleaseNotes, Mode=OneWay}"
+                                   TextWrapping="Wrap" IsTextSelectionEnabled="True"
+                                   Foreground="{ThemeResource PrimaryTextBrush}"
+                                   AutomationProperties.Name="版本更新说明正文" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel x:Name="DetailsSidebar" Grid.Row="1" Grid.Column="1" Spacing="14">
+            <Border Padding="20" CornerRadius="16" Background="{ThemeResource CardBackgroundBrush}"
+                    BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                <StackPanel Spacing="14">
+                    <TextBlock Text="自动检查" FontSize="17" FontWeight="SemiBold"
+                               Foreground="{ThemeResource PrimaryTextBrush}" />
+                    <TextBlock Text="开启后，应用启动 20 秒后首次检查，之后每 60 分钟检查一次。"
+                               TextWrapping="Wrap" Style="{StaticResource SectionDescriptionTextStyle}" />
+                    <ToggleSwitch x:Name="AutoCheckToggle" Header="自动检查更新"
+                                  IsOn="{x:Bind ViewModel.AutoCheckUpdates, Mode=OneWay}"
+                                  Toggled="OnAutoCheckToggled"
+                                  IsEnabled="{x:Bind ViewModel.CanToggleAutoCheck, Mode=OneWay}"
+                                  AutomationProperties.Name="自动检查更新" />
+                    <TextBlock Text="自动检查只获取版本信息并显示提醒，不会自动下载或安装。"
+                               TextWrapping="Wrap" FontSize="12"
+                               Foreground="{ThemeResource SecondaryTextBrush}" />
+                    <TextBlock Text="{x:Bind ViewModel.AutoCheckMessage, Mode=OneWay}" TextWrapping="Wrap"
+                               Foreground="{ThemeResource SecondaryTextBrush}"
+                               AutomationProperties.LiveSetting="Polite" />
+                </StackPanel>
+            </Border>
+
+            <Border Padding="20" CornerRadius="16" Background="{ThemeResource SurfaceBackgroundBrush}"
+                    BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                <StackPanel Spacing="12">
+                    <TextBlock Text="本机安全" FontSize="15" FontWeight="SemiBold"
+                               Foreground="{ThemeResource PrimaryTextBrush}" />
+                    <TextBlock Text="更新来源固定；每个程序文件都会按清单校验大小与 SHA-256。剪贴板内容不会发送给更新服务。"
+                               TextWrapping="Wrap" Style="{StaticResource SectionDescriptionTextStyle}" />
+                    <Rectangle Height="1" Fill="{ThemeResource CardStrokeBrush}" />
+                    <StackPanel Spacing="4">
+                        <TextBlock Text="上次检查" FontSize="12" Foreground="{ThemeResource SecondaryTextBrush}" />
+                        <TextBlock Text="{x:Bind ViewModel.LastCheckedText, Mode=OneWay}" TextWrapping="Wrap"
+                                   Foreground="{ThemeResource PrimaryTextBrush}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Grid>
+</Page>

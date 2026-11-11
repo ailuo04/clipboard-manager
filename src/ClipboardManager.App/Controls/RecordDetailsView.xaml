@@ -1,0 +1,26 @@
+<UserControl
+    x:Class="ClipboardManager.App.Controls.RecordDetailsView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ClipboardManager.App.Controls">
+    <Grid>
+        <StackPanel x:Name="EmptyDetails" VerticalAlignment="Center" Spacing="10">
+            <SymbolIcon Symbol="SelectAll" Width="32" Height="32" HorizontalAlignment="Center"
+                        Foreground="{ThemeResource SecondaryTextBrush}" />
+            <TextBlock Text="选择一条记录查看详情" TextAlignment="Center" FontSize="15"
+                       Foreground="{ThemeResource SecondaryTextBrush}" />
+        </StackPanel>
+        <ScrollViewer x:Name="RecordDetails" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="14">
+                <StackPanel Spacing="4">
+                    <TextBlock x:Name="RecordKindText" FontSize="12" Foreground="{ThemeResource SecondaryTextBrush}" />
+                    <TextBlock x:Name="CopiedAtText" FontSize="12" Foreground="{ThemeResource SecondaryTextBrush}" />
+                </StackPanel>
+                <TextBox x:Name="FullText" Visibility="Collapsed" IsReadOnly="True" AcceptsReturn="True"
+                         TextWrapping="Wrap" MinHeight="220" MaxHeight="520" IsSpellCheckEnabled="False"
+                         AutomationProperties.Name="完整文本内容" />
+                <controls:AsyncThumbnail x:Name="FullImage" Visibility="Collapsed" Height="360" MaxDecodeDimension="1200" />
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

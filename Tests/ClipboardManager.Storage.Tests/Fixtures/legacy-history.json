@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "records": [
+    {
+      "id": "00000000-0000-0000-0000-000000000011",
+      "kind": 0,
+      "text": "favorite legacy text",
+      "byteLength": 20,
+      "imageWidth": 0,
+      "imageHeight": 0,
+      "contentHash": "FB5523BF9758A8DDF29FA28A142B6FB5024910EC9CC520494B0B79EEF6AFD03C",
+      "copiedAtUtc": "2025-01-02T03:04:05Z",
+      "isPinned": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000012",
+      "kind": 1,
+      "imageFileName": "00000000000000000000000000000012.png",
+      "byteLength": 70,
+      "imageWidth": 1,
+      "imageHeight": 1,
+      "contentHash": "4FF6AB670A58C14270E034E2090D9A432CAA263A14E0A25785386B0C12F880B5",
+      "copiedAtUtc": "2025-01-02T03:05:05Z",
+      "isPinned": false
+    }
+  ],
+  "settings": {
+    "maxRecords": 321,
+    "maxStorageMb": 256,
+    "alwaysOnTop": true,
+    "autoCheckUpdates": false,
+    "minimizeToTray": true,
+    "hideAfterCopy": false
+  },
+  "pendingImageDeletes": ["00000000000000000000000000000013.png"]
+}

@@ -80,10 +80,28 @@ $downloadNames = @("$name.zip", "$name.sha256", "$name-setup.exe", "$name-setup.
 $downloads = @($downloadNames | ForEach-Object { Get-Item -LiteralPath (Join-Path $directoryPath $_) -ErrorAction Stop })
 $manifestFile = Get-Item -LiteralPath (Join-Path $directoryPath "$name-update.json")
 $manifest = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json
-if ($manifest.schema -ne 1 -or $manifest.version -ne $Version -or $manifest.platform -ne 'win-x64') { throw 'Invalid publication manifest.' }
+if ($manifest.schema -ne 1 -or $manifest.version -ne $Version -or $manifest.platform -ne 'win-x64' -or $manifest.packageKind -ne 'winui3') { throw 'Invalid WinUI 3 publication manifest.' }
+$notes = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'RELEASE_NOTES.md') -Raw
+if ($notes -notmatch '首次从 WPF 版升级' -or $notes -notmatch '完整安装器覆盖安装' -or $notes -notmatch '不要使用旧 WPF 应用内增量更新器') { throw 'Release notes must warn that the first WinUI upgrade requires the full installer.' }
 $blobNames = @($manifest.files.sha256 | Sort-Object -Unique | ForEach-Object { "update-$_.gz" })
 $updateFiles = @($manifestFile) + @($blobNames | ForEach-Object { Get-Item -LiteralPath (Join-Path $directoryPath $_) -ErrorAction Stop })
 if (@(Get-ChildItem -LiteralPath $directoryPath -File).Count -ne $downloads.Count + $updateFiles.Count) { throw 'Unexpected publication files.' }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [IO.Compression.ZipFile]::OpenRead((Join-Path $directoryPath "$name.zip"))
+try {
+    $zipNames = @($zip.Entries | ForEach-Object FullName)
+    foreach ($required in @('ClipboardManager.App.exe', 'ClipboardManager.UpdateWorker.exe', 'release.json', 'update-manifest.json')) {
+        if ($required -notin $zipNames) { throw "The portable ZIP is missing $required" }
+    }
+    $metadataReader = [IO.StreamReader]::new($zip.GetEntry('release.json').Open())
+    try { $releaseMetadata = $metadataReader.ReadToEnd() | ConvertFrom-Json }
+    finally { $metadataReader.Dispose() }
+    if ($releaseMetadata.packageKind -ne 'winui3' -or $releaseMetadata.firstUpgrade -ne 'full-installer') { throw 'The ZIP does not identify the WinUI package and full-installer first-upgrade policy.' }
+    foreach ($entry in $manifest.files) {
+        if ($entry.path -notin $zipNames) { throw "The update manifest lists a file missing from the ZIP: $($entry.path)" }
+    }
+}
+finally { $zip.Dispose() }
 foreach ($file in $manifest.files) {
     if ((Get-Item -LiteralPath (Join-Path $directoryPath "update-$($file.sha256).gz")).Length -ne $file.compressedSize) { throw "Wrong compressed file size: $($file.path)" }
 }

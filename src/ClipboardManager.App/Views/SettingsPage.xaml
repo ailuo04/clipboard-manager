@@ -1,0 +1,154 @@
+<Page
+    x:Class="ClipboardManager.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="{ThemeResource PageBackgroundBrush}">
+    <Grid x:Name="PageGrid" Padding="28,24,28,28" ColumnSpacing="22" RowSpacing="18"
+          AutomationProperties.Name="应用设置页面">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="SettingsHelpColumn" Width="300" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Column="0" Spacing="6">
+            <TextBlock Text="设置" Style="{StaticResource PageTitleTextStyle}" />
+            <TextBlock Text="外观、历史容量与应用行为。更改先预览，保存成功后才会成为永久设置。"
+                       Style="{StaticResource SectionDescriptionTextStyle}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="14" Padding="0,4,8,12">
+                <Border Padding="20" CornerRadius="14" Background="{ThemeResource CardBackgroundBrush}"
+                        BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="外观" FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource PrimaryTextBrush}" />
+                        <Grid ColumnSpacing="20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="200" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="应用主题" FontWeight="SemiBold" />
+                                <TextBlock Text="选择后立即预览；取消或保存失败会恢复已保存主题。"
+                                           Style="{StaticResource SectionDescriptionTextStyle}" />
+                            </StackPanel>
+                            <ComboBox x:Name="ThemeBox" Grid.Column="1" SelectedValuePath="Tag"
+                                      SelectedValue="{x:Bind ViewModel.ThemePreference, Mode=TwoWay}"
+                                      AutomationProperties.Name="应用主题">
+                                <ComboBoxItem Content="跟随系统" Tag="System" />
+                                <ComboBoxItem Content="浅色" Tag="Light" />
+                                <ComboBoxItem Content="深色" Tag="Dark" />
+                            </ComboBox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="20" CornerRadius="14" Background="{ThemeResource CardBackgroundBrush}"
+                        BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                    <StackPanel Spacing="14">
+                        <TextBlock Text="历史容量" FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource PrimaryTextBrush}" />
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="160" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="最多保留记录数" FontWeight="SemiBold" />
+                                <TextBlock Text="范围：50–5000 条" Style="{StaticResource SectionDescriptionTextStyle}" />
+                            </StackPanel>
+                            <TextBox Grid.Column="1" Text="{x:Bind ViewModel.MaxRecordsText, Mode=TwoWay}"
+                                     InputScope="Number" MaxLength="5" AutomationProperties.Name="最大记录数" />
+                        </Grid>
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="160" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="图片与记录容量上限" FontWeight="SemiBold" />
+                                <TextBlock Text="范围：64–4096 MB" Style="{StaticResource SectionDescriptionTextStyle}" />
+                            </StackPanel>
+                            <TextBox Grid.Column="1" Text="{x:Bind ViewModel.MaxStorageMbText, Mode=TwoWay}"
+                                     InputScope="Number" MaxLength="4" AutomationProperties.Name="最大存储容量（MB）" />
+                        </Grid>
+                        <TextBlock Text="{x:Bind ViewModel.CapacityWarning, Mode=OneWay}"
+                                   TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{ThemeResource SecondaryTextBrush}"
+                                   AutomationProperties.Name="容量与收藏保留说明" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="20" CornerRadius="14" Background="{ThemeResource CardBackgroundBrush}"
+                        BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="应用行为" FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource PrimaryTextBrush}" />
+                        <CheckBox Content="窗口置顶" IsChecked="{x:Bind ViewModel.AlwaysOnTop, Mode=TwoWay}"
+                                  AutomationProperties.Name="窗口置顶" />
+                        <CheckBox Content="关闭窗口时最小化到系统托盘" IsChecked="{x:Bind ViewModel.MinimizeToTray, Mode=TwoWay}"
+                                  AutomationProperties.Name="关闭窗口时最小化到系统托盘" />
+                        <CheckBox Content="复制后自动隐藏并返回之前的窗口" IsChecked="{x:Bind ViewModel.HideAfterCopy, Mode=TwoWay}"
+                                  AutomationProperties.Name="复制后自动隐藏窗口" />
+                        <CheckBox Content="自动检查更新（只检查，不自动下载）" IsChecked="{x:Bind ViewModel.AutoCheckUpdates, Mode=TwoWay}"
+                                  AutomationProperties.Name="自动检查更新" />
+                    </StackPanel>
+                </Border>
+
+                <Border Padding="20" CornerRadius="14" Background="{ThemeResource CardBackgroundBrush}"
+                        BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="本机数据" FontSize="17" FontWeight="SemiBold"
+                                   Foreground="{ThemeResource PrimaryTextBrush}" />
+                        <TextBlock Text="数据库、收藏和图片保存在此目录；更新不会覆盖这些数据。"
+                                   Style="{StaticResource SectionDescriptionTextStyle}" />
+                        <TextBox Text="{x:Bind ViewModel.DataDirectoryPath, Mode=OneWay}" IsReadOnly="True"
+                                 IsSpellCheckEnabled="False" AutomationProperties.Name="本机数据目录路径" />
+                        <Button Content="在文件资源管理器中打开" Click="OnOpenDataDirectoryClicked"
+                                HorizontalAlignment="Left" AutomationProperties.Name="打开本机数据目录" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border x:Name="SettingsHelp" Grid.Column="1" Grid.RowSpan="3" Padding="20" CornerRadius="14"
+                Background="{ThemeResource SurfaceBackgroundBrush}"
+                BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1"
+                AutomationProperties.Name="设置帮助">
+            <StackPanel Spacing="16">
+                <TextBlock Text="更改说明" FontSize="16" FontWeight="SemiBold"
+                           Foreground="{ThemeResource PrimaryTextBrush}" />
+                <TextBlock Text="主题、窗口置顶、托盘和复制后隐藏会即时预览；取消或保存失败时会恢复原值。"
+                           Style="{StaticResource SectionDescriptionTextStyle}" TextWrapping="Wrap" />
+                <Rectangle Height="1" Fill="{ThemeResource CardStrokeBrush}" />
+                <TextBlock Text="容量与收藏" FontSize="14" FontWeight="SemiBold"
+                           Foreground="{ThemeResource PrimaryTextBrush}" />
+                <TextBlock Text="降低容量上限可能删除较早的未收藏记录。收藏不会被自动清理；收藏总量可以超过设定上限。"
+                           Style="{StaticResource SectionDescriptionTextStyle}" TextWrapping="Wrap" />
+                <Rectangle Height="1" Fill="{ThemeResource CardStrokeBrush}" />
+                <TextBlock Text="隐私" FontSize="14" FontWeight="SemiBold"
+                           Foreground="{ThemeResource PrimaryTextBrush}" />
+                <TextBlock Text="剪贴板内容仅在本机处理，不会写入更新请求或诊断日志。"
+                           Style="{StaticResource SectionDescriptionTextStyle}" TextWrapping="Wrap" />
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="2" Grid.Column="0" Spacing="8">
+            <TextBlock Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" TextWrapping="Wrap"
+                       Foreground="{ThemeResource PrimaryTextBrush}" AutomationProperties.LiveSetting="Polite" />
+            <TextBlock Text="{x:Bind ViewModel.StatusMessage, Mode=OneWay}" TextWrapping="Wrap"
+                       Foreground="{ThemeResource SecondaryTextBrush}" AutomationProperties.LiveSetting="Polite" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="取消更改" Click="OnCancelClicked" AutomationProperties.Name="取消设置更改" />
+                <Button Content="保存设置" Click="OnSaveClicked"
+                        AutomationProperties.Name="保存设置" />
+            </StackPanel>
+        </StackPanel>
+    </Grid>
+</Page>

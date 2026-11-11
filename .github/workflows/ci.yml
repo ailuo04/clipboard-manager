@@ -1,0 +1,56 @@
+name: Windows CI
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan repository for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: '8.30.0'
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+
+  windows-build-test:
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.403'
+      - name: Restore
+        shell: pwsh
+        run: |
+          dotnet restore ClipboardManager.sln --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Solution restore failed.' }
+      - name: Test solution
+        shell: pwsh
+        run: |
+          dotnet test ClipboardManager.sln -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Solution tests failed.' }
+      - name: Build WinUI app
+        shell: pwsh
+        run: |
+          dotnet build src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -p:Platform=x64 --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI x64 Release build failed.' }
+      - name: Check packaging contracts
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/packaging/Test-Package.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Package contract failed.' }
+          pwsh -NoProfile -File tests/packaging/Test-LegacyUpgrade.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'First-upgrade policy contract failed.' }

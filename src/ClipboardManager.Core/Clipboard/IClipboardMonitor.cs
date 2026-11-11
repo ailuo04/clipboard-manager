@@ -4,4 +4,5 @@ public interface IClipboardMonitor : IDisposable
 {
     event EventHandler? ClipboardChanged;
     void Start();
+    void Stop();
 }

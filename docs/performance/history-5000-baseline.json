@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "generatedAtLocal": "2026-11-11T04:01:31.2140548+08:00",
+  "environment": {
+    "machineModel": "Dell G15 5525",
+    "operatingSystem": "Microsoft Windows 11 专业版",
+    "operatingSystemVersion": "10.0.26300",
+    "operatingSystemBuild": "26300",
+    "processor": "AMD Ryzen 7 6800H with Radeon Graphics         ",
+    "logicalProcessorCount": 16,
+    "memoryGiB": 15.0,
+    "diskMediaTypes": [
+      "SSD"
+    ],
+    "diskBusTypes": [
+      "NVMe"
+    ],
+    "dotnetSdk": "10.0.403",
+    "note": "Machine name, user paths, clipboard contents and user history are intentionally excluded."
+  },
+  "benchmark": {
+    "schema": 1,
+    "fixture": {
+      "records": 5000,
+      "textRecords": 2500,
+      "imageRecords": 2500,
+      "textLengthCharacters": 256,
+      "matchingTextRecords": 50,
+      "matchingPercent": 2,
+      "recordSource": "synthetic-only; no real clipboard or user data"
+    },
+    "runtime": {
+      "os": "Microsoft Windows 10.0.26300",
+      "architecture": "X64",
+      "framework": ".NET 10.0.14",
+      "sqliteVersion": "3.53.3",
+      "sqliteProviderVersion": "10.0.14.0"
+    },
+    "measurements": {
+      "databaseBytes": 2412544,
+      "seedMilliseconds": 317.9865,
+      "firstAllRecordsSearchMilliseconds": 30.6319,
+      "firstLongSearchMilliseconds": 28.5715,
+      "firstLongSearchMatchCount": 50,
+      "repeatLongSearchMilliseconds": {
+        "samples": 20,
+        "medianMilliseconds": 20.4973,
+        "p95Milliseconds": 32.9261,
+        "minimumMilliseconds": 14.3564,
+        "maximumMilliseconds": 32.9953
+      },
+      "shortSearchMilliseconds": 13.872,
+      "shortSearchMatchCount": 2500,
+      "repeatedSearchCountForMemorySample": 20,
+      "managedHeapBytesBeforeRepeatedSample": 5935120,
+      "managedHeapBytesAfterRepeatedSample": 5974384,
+      "managedHeapDeltaBytes": 39264,
+      "processWorkingSetBytesBeforeRepeatedSample": 62382080,
+      "processWorkingSetBytesAfterRepeatedSample": 61915136,
+      "processWorkingSetDeltaBytes": -466944
+    }
+  }
+}

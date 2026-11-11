@@ -239,8 +239,7 @@ public sealed class SqliteHistoryRepository : IHistoryRepository
                     image_height, content_hash, copied_at_ticks, is_favorite)
                 VALUES (
                     @id, @kind, @text_value, @image_file_name, @byte_length, @image_width,
-                    @image_height, @content_hash, @copied_at_ticks, @is_favorite)
-                ON CONFLICT(id) DO NOTHING;
+                    @image_height, @content_hash, @copied_at_ticks, @is_favorite);
                 """
             : """
                 INSERT INTO records (

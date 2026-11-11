@@ -29,6 +29,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClipboardManager.App.Tests"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClipboardManager.UpdateWorker.Tests", "tests\ClipboardManager.UpdateWorker.Tests\ClipboardManager.UpdateWorker.Tests.csproj", "{CC4D21E6-EC0E-4530-B345-D8C1806182D7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ClipboardManager.Update.Tests", "tests\ClipboardManager.Update.Tests\ClipboardManager.Update.Tests.csproj", "{4E2C5A72-5E53-4B65-A32C-46D356F318BE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -171,6 +173,18 @@ Global
 		{CC4D21E6-EC0E-4530-B345-D8C1806182D7}.Release|x64.Build.0 = Release|Any CPU
 		{CC4D21E6-EC0E-4530-B345-D8C1806182D7}.Release|x86.ActiveCfg = Release|Any CPU
 		{CC4D21E6-EC0E-4530-B345-D8C1806182D7}.Release|x86.Build.0 = Release|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Debug|x64.Build.0 = Debug|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Debug|x86.Build.0 = Debug|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Release|x64.ActiveCfg = Release|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Release|x64.Build.0 = Release|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Release|x86.ActiveCfg = Release|Any CPU
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -187,5 +201,6 @@ Global
 		{78AAC5CA-3DE6-42D9-B5FA-F5F69A71EA62} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{0810D1A5-59F7-4195-818D-12D1CE826D3F} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{CC4D21E6-EC0E-4530-B345-D8C1806182D7} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{4E2C5A72-5E53-4B65-A32C-46D356F318BE} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

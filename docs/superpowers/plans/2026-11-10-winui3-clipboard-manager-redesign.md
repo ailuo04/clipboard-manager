@@ -363,99 +363,89 @@ public interface IDatabaseSchemaMigrator
 - Create: `src/ClipboardManager.Core/Updates/UpdateManifest.cs`
 - Create: `src/ClipboardManager.Core/Updates/UpdateStateMachine.cs`
 - Create: `src/ClipboardManager.App/Services/GitHubReleaseClient.cs`
-- Create: `src/ClipboardManager.App/Services/UpdateCoordinator.cs`
+- Create: `src/ClipboardManager.App/Services/UpdateCoordinator.cs`、`src/ClipboardManager.App/Services/IUpdateServices.cs`、`src/ClipboardManager.App/Services/UpdatePackageService.cs`
 - Create: `tests/ClipboardManager.Core.Tests/UpdateStateMachineTests.cs`
-- Create: `tests/ClipboardManager.Update.Tests/ReleaseValidationTests.cs`
+- Create: `tests/ClipboardManager.Update.Tests/ReleaseValidationTests.cs`、`tests/ClipboardManager.Update.Tests/UpdateCoordinatorTests.cs`、`tests/ClipboardManager.Update.Tests/UpdatePackageServiceTests.cs`、`tests/ClipboardManager.Update.Tests/ClipboardManager.Update.Tests.csproj`
 
-- [ ] 先写状态 transition tests：Idle→Checking→UpToDate/Available→Downloading→Verifying→Applying→StartupHealthCheck→Complete；无效跳转拒绝；Applying 后不能取消；每种 error kind 具有 retry allowed 与 user recovery copy。
-- [ ] 编写 GitHub client contract tests（fake HttpMessageHandler）：只接受固定仓库、正式 release 非 draft/prerelease、正确 semver/platform、允许的 HTTPS 域名、release asset ID/name/size 一致；metadata ≤4 MiB，asset 大小有界，ETag 304 缓存结果正确。
-- [ ] 计划文件格式字段：`schema/application/version/platform/packageKind/files[]`；path 为规范相对路径、拒绝 traversal/reparse/device name/data-directory overlap；单文件 ≤512 MiB、总解压体积 ≤2 GiB、附件压缩长度严格匹配。
-- [ ] 仅在 20 秒启动延时后运行首次检查，后续 interval 60 分钟；settings 关闭时不请求网络；自动检查只发无阻塞导航徽标，绝不下载。
-- [ ] `UpdateCoordinator` 只通过 UI command 开始下载；取消下载删除 partial staging；状态及错误分类通过可绑定状态对外呈现；所有网络任务可取消/观察。
-- [ ] 运行 Core/Update tests，断言日志和请求中无剪贴板记录内容。
+- [x] 先写状态 transition tests：Idle→Checking→UpToDate/Available→Downloading→Verifying→Applying→StartupHealthCheck→Complete；无效跳转拒绝；Applying 后不能取消；每种 error kind 具有 retry allowed 与 user recovery copy。
+- [x] 编写 GitHub client contract tests（fake HttpMessageHandler）：只接受固定仓库、正式 release 非 draft/prerelease、正确 semver/platform、允许的 HTTPS 域名、release asset ID/name/size 一致；metadata ≤4 MiB，asset 大小有界，ETag 304 缓存结果正确。
+- [x] 清单格式字段为 `schema/application/version/platform/packageKind/files[]`；仅接受 `packageKind=winui3`，拒绝旧 WPF 清单；path 为规范相对路径、拒绝 traversal/reparse/device name/data-directory overlap；单文件 ≤512 MiB、总解压/压缩体积 ≤2 GiB、附件压缩长度严格匹配。
+- [x] 仅在 20 秒启动延时后运行首次检查，后续 interval 60 分钟；settings 关闭时不请求网络；自动检查只更新可绑定的“有更新”状态供 Task 15 导航徽标使用，绝不下载。
+- [x] `UpdateCoordinator` 将下载独立为显式 `DownloadAndVerifyAsync` 命令，不会由检查触发；取消会清除暂存区；状态及错误分类可绑定呈现；网络任务可取消/观察。UI 命令绑定由 Task 15 完成。
+- [x] 运行 Core/Update tests；日志采用不序列化异常消息的 allow-list 记录，更新请求只包含固定 Release 元数据和附件，不采集剪贴板数据。
 
-**验收：** 状态机与 GitHub 来源策略可独立测试；自动检查间隔正确且检查从不触发下载。
+**验收：** 状态机、GitHub 来源策略与清单校验可独立测试；自动检查间隔正确且检查从不触发下载。`package-updates.ps1` 需在 Task 16 输出 `packageKind=winui3`。已确认当前 WPF updater 仅接受旧 `packaging` 类型，不能应用该 WinUI 清单；Task 16 未证明隔离原地迁移安全前，首发必须要求完整安装器覆盖安装。
 
 ## Task 14：独立 UpdateWorker 的暂存、事务替换、健康标记和回滚
 
 **Files:**
-- Create: `src/ClipboardManager.UpdateWorker/UpdateTransaction.cs`
-- Create: `src/ClipboardManager.UpdateWorker/UpdateOperation.cs`
-- Create: `src/ClipboardManager.UpdateWorker/UpdateJournal.cs`
+- Create: `src/ClipboardManager.Core/Updates/UpdateOperation.cs`、`UpdateJournal.cs`、`UpdateProtocol.cs`、`UpdateTransaction.cs`
+- Modify: `src/ClipboardManager.Core/Updates/UpdateFileSystem.cs`
+- Create: `src/ClipboardManager.UpdateWorker/UpdateWorkerCommand.cs`、`UpdateWorkerRunner.cs`、`WindowsApplicationEventLog.cs`
+- Modify: `src/ClipboardManager.UpdateWorker/Program.cs`、`ClipboardManager.UpdateWorker.csproj`
 - Create: `src/ClipboardManager.App/Services/UpdateRecoveryService.cs`
-- Create: `src/ClipboardManager.UpdateWorker/Program.cs`
-- Create: `tests/ClipboardManager.Update.Tests/TransactionRecoveryTests.cs`
-- Modify: `src/ClipboardManager.App/Services/UpdateCoordinator.cs`、`src/ClipboardManager.App/Services/AppStartupCoordinator.cs`、`src/ClipboardManager.App/App.xaml.cs`
+- Modify: `src/ClipboardManager.App/Services/UpdateHandoffService.cs`、`UpdateCoordinator.cs`、`AppStartupCoordinator.cs`、`AppStartupRuntime.cs`、`AppWindowService.cs`、`MainWindow.xaml.cs`、`App.xaml.cs`
+- Create: `tests/ClipboardManager.Update.Tests/TransactionRecoveryTests.cs`、`UpdateWorkerRunnerTests.cs`、`UpdateHandoffServiceTests.cs`、`UpdateRecoveryServiceTests.cs`、`UpdateFileSystemTests.cs`
+- Modify: `tests/ClipboardManager.App.Tests/StartupCoordinatorTests.cs`、`tests/ClipboardManager.Architecture.Tests/ArchitectureTests.cs`
 
-- [ ] 通过 filesystem abstraction 写失败测试：下载/校验全部完成前正式安装目录哈希不可变化；journal 写入后逐文件备份/替换；注入任意替换故障恢复到全部旧 SHA256；恢复失败时保留 workspace 与诊断信息；成功健康标记后才清理备份。
-- [ ] helper 只接受由已校验 manifest 生成的操作列表；二次验证所有 staged 文件 size/hash、现存旧文件哈希、更新路径及目录链接；绝不把 `%LOCALAPPDATA%\ClipboardManager` 或 workspace 外路径作为目标。
-- [ ] 应用关闭后 helper 同盘备份每个目标、原子替换并写 journal 进度；每步可由启动时 `--recover` 重放/回滚；旧 manifest 最后提交。
-- [ ] 使用 transaction GUID 与受限随机令牌写 `health-request.json`；启动 app 完成 DB 初始化、关键 adapter 建立、MainWindow Loaded 后原子写 `health-ready.json`。helper 等待最多 60 秒；进程退出或超时即回滚并启动旧版。
-- [ ] helper 使用独立互斥体与 app single-instance mutex 协同，必须校验 PID + process start ticks，最多等待 app 退出 120 秒；占用/退出失败不改任何程序文件。
-- [ ] worker 错误写入工作区诊断 JSON 和本地事件日志，不把用户文本放进对话框；恢复后启动旧版。Worker 不引用 `Microsoft.WindowsAppSDK`、WPF 或 WinForms。
-- [ ] 对一次替换、删除过期文件、日志中断、app 启动崩溃、health timeout、恢复中断、便携目录只读、安装目录无权限逐项测试。
+- [x] filesystem abstraction 覆盖替换失败、恢复中断、卸载过期文件、受管文件哈希不符、journal 临时写入残留、只读写入和工作区保留；故障时安装文件恢复原 SHA256，用户数据保持不变。
+- [x] helper 只由清单校验后的暂存目录生成操作，并再次校验 staged 文件、安装文件哈希、路径与链接；安装事务目录必须与程序同卷且不与用户数据目录重叠。
+- [x] helper 获取每安装目录独立互斥后等待旧应用 PID + UTC start ticks 及应用单实例互斥；同卷备份、原子替换、旧清单最后提交；启动恢复服务可回滚中断事务。
+- [x] transaction GUID + 256-bit 随机令牌绑定 health request/ready；启动健康确认等待数据库迁移、平台服务、主窗口 `Loaded` 与剪贴板监听启动完成；应用退出或 60 秒超时会回滚并重新启动旧版本。旧 WPF 数组格式 journal 会被识别并安全保留，不会交给 WinUI 对象格式恢复器解析。
+- [x] worker 发布配置为 Windows x64 self-contained single-file；worker 错误只写 allow-list 诊断和应用事件日志，不含异常消息或剪贴板文本；未经验证的参数不会被用作诊断写入路径；错误诊断在恢复扫描中保留。
+- [x] 覆盖替换/删除、日志中断、健康超时、健康启动参数保留、恢复中断及模拟只读目录等定向测试；architecture test 确认 worker 不依赖 WinUI/WPF/WinForms。
 
-**验收：** 所有失败路径在受管程序文件中恢复旧版本或保留可继续恢复的事务；用户数据目录测试前后哈希一致。
-
+**验收：** 新版仅在健康确认后清理备份；失败路径恢复旧程序文件或保留可继续恢复的事务；用户数据目录不被更新 worker 访问。
 ## Task 15：更新中心 UI 与自动安装交互
 
 **Files:**
 - Create: `src/ClipboardManager.App/Views/UpdatesPage.xaml`、`UpdatesPage.xaml.cs`
 - Create: `src/ClipboardManager.App/ViewModels/UpdatesViewModel.cs`
+- Create: `src/ClipboardManager.App/Converters/NullToVisibilityConverter.cs`
+- Modify: `src/ClipboardManager.App/MainWindow.xaml`、`MainWindow.xaml.cs`、`App.xaml.cs`、`Services/AppHost.cs`、`Resources/ThemeResources.xaml`、`Services/UpdateCoordinator.cs`
 - Create: `tests/ClipboardManager.App.Tests/UpdatesViewModelTests.cs`
+- Modify: `tests/ClipboardManager.App.Tests/ShellStructureTests.cs`、`AppHostTests.cs`
 
-- [ ] ViewModel tests 覆盖版本/发行说明/下载量/最后检查/进度/校验/错误恢复按钮的状态映射；Checking/Downloading/Verifying 时重复点击不可启动第二个操作。
-- [ ] 实现更新中心一级页面，清楚区分“自动检查”开关、“检查更新”、“下载并更新”；展示当前与可用版本、简明 release notes、下载总量、进度、验证状态、阶段错误和重试/取消操作。
-- [ ] 发现更新仅显示 NavigationView badge/非阻塞 banner，不强制切页，不弹模态更新窗口。
-- [ ] 下载校验成功后展示“正在准备重启”短暂状态，自动交接 worker 并关闭 UI；无需第二次重启确认；apply 开始后禁用取消。
-- [ ] 无写权限时告知安装器覆盖或便携版手动替换路径；任何失败提供日志位置与可恢复动作。
-- [ ] 运行 UI tests 和窄/默认/宽窗口更新页 visual QA，键盘和屏幕阅读器能读出阶段与进度。
+- [x] ViewModel tests cover version/release notes/package size/last check/progress/verification/error recovery, preference persistence failure rollback, and duplicate checks/downloads during Checking/Downloading/Verifying.
+- [x] Implemented a dedicated Fluent update center page separating auto-check, manual check and explicit download/apply; displays installed/available versions, release notes, package size, progress, verification state, error/recovery copy and local log path.
+- [x] New releases surface through a small non-blocking title-bar notice; it does not switch pages automatically or show modal dialogs.
+- [x] After verification the existing handoff moves to “preparing restart”; apply disables cancellation and the worker closes/restarts the app automatically.
+- [x] Install/portable write failures show recovery guidance; errors include an actionable retry/check route and the local diagnostic path.
+- [x] App and architecture tests plus x64 Release build pass; markup includes live status announcements, accessible names and responsive sidebar rules.
+- [ ] Manual narrow/default/wide and keyboard/screen-reader visual smoke in an isolated app profile remains to be run; this implementation pass did not launch the live app to avoid touching the user's real clipboard or history.
 
-**验收：** 更新 UI 为主窗口页面，无旧覆盖窗；确认用户主动下载后全流程自动更新、重启和错误恢复可见。
-
+**验收：** 更新中心为主窗口页面并承接显式下载、worker 交接及恢复反馈；实时桌面视觉/读屏检查仍待隔离环境完成。
 ## Task 16：安装包、便携包、WPF 首发迁移与干净构建文档
 
 **Files:**
-- Modify: `package.ps1`
-- Modify: `installer.ps1`
-- Modify: `build.ps1`
-- Modify: `package-updates.ps1`
-- Modify: `publish-release.ps1`
-- Modify: `.github/workflows/release.yml`
-- Modify: `.github/workflows/installer.yml`
-- Modify: `README.md`、`docs/USAGE.md`、`docs/DEVELOPMENT.md`
-- Create: `tests/packaging/Test-Package.ps1`
-- Create: `tests/packaging/Test-LegacyUpgrade.ps1`
+- Modify: `package.ps1`、`package-updates.ps1`、`build.ps1`、`installer.ps1`、`publish-release.ps1`
+- Modify: `installer/ClipboardManager.iss`、`.github/workflows/release.yml`、`.github/workflows/installer.yml`
+- Modify: `README.md`、`docs/USAGE.md`、`docs/DEVELOPMENT.md`、`RELEASE_NOTES.md`
+- Create: `tests/packaging/Test-Package.ps1`、`Test-LegacyUpgrade.ps1`
 
-- [ ] 将脚本 SDK 检测改为 .NET 10 SDK；所有输出在隔离目录；构建严格从 solution 新 App 发布，不把 WPF 根 project、obj/bin、测试样例、app data、token 或个人文件打入发行包。
-- [ ] 先写 PowerShell 契约测试：相同构建产物生成 ZIP 与 installer payload；SHA256 sidecar 与 ZIP hash 一致；manifest 列出每个发行程序文件；拒绝同版本覆盖；不签名、不访问凭证存储、不使用 PAT。
-- [ ] 配置 WinUI unpackaged self-contained x64 publish，确认 Windows App SDK framework 也随包部署；分别执行便携 ZIP 解压启动与每用户 Inno Setup install/upgrade/uninstall；uninstall 保留 LocalAppData 数据目录。
-- [ ] 生成 helper 与 app 同 version、同架构发布包；更新 manifest 排除用户数据、卸载注册表敏感区及更新工作区；校验清单前后运行包文件哈希一致。
-- [ ] 执行 clean clone 模拟：仅 checkout tracked files + 安装公开 SDK/VS workload → restore → build → tests → package → installer verify；用 secret scanning（例如 `gitleaks detect --no-git` 的公开工具）扫描源文件和发行 staging，不安装或配置个人 token。
-- [ ] WPF 迁移隔离测试运行新安装版覆盖用户安装目录，并把旧 JSON、theme 与图片自动导入 SQLite，核验图片和用户数据；若 runner 或安装路径不能证明安全，则发布资产说明清楚写“首次升级必须退出旧应用并运行完整安装器，勿使用旧版本应用内增量更新”，release notes 也作相同说明。
-- [ ] 更新 README/USAGE：架构、数据位置、收藏语义、自动检查时机与不下载规则、安装器/便携更新、WPF 一次性迁移、未签名安全提示、hash 校验命令、仓库受控威胁边界。
+- [x] SDK/package scripts now use .NET 10 and publish only the new WinUI App plus the self-contained single-file UpdateWorker; generated update manifests use `packageKind=winui3`; existing-version outputs are refused.
+- [x] PowerShell package contract covers synthetic manifest/file inventory, gzip contents and hashes; an actual temporary WinUI x64 package was built, its ZIP sidecar matched SHA-256, and its ZIP/update manifest contained App and worker files.
+- [x] Windows App SDK self-contained publish and worker self-contained x64 publish were exercised as part of the actual package build; installer payload uses the same ZIP and preserves LocalAppData during its guarded CI-only verification flow.
+- [x] First-upgrade release metadata, usage instructions and release notes require the full installer; the installer removes known old WPF launch/helper files without deleting the data directory. The new App recognizes and preserves old WPF array-format journals.
+- [x] README/USAGE/DEVELOPMENT/SECURITY/RELEASE_NOTES explain architecture, data, favorites, update timing, signed/unsigned boundaries, hash verification, no personal tokens and the mandatory first full-installer path.
+- [ ] Clean-clone package/installer verification, secret scanning on GitHub Actions and Inno Setup build/install/uninstall were not run locally. Inno Setup is unavailable in this environment; the new workflow runs these checks on the hosted Windows runner.
+- [ ] End-to-end WPF installer-over-install migration using a disposable Windows account was not executed. Release materials explicitly state the full-installer requirement and do not claim that migration was proven.
 
-**验收：** 无秘密的 clean clone 完成两种打包；安装/卸载留存用户数据；WPF 转换路径明确且通过隔离验证或明确要求手动覆盖安装。
-
+**验收：** 新 WinUI App + worker 的便携 ZIP 已实际生成并验证；Inno Setup 与 WPF 首次迁移仍需由隔离 Windows runner 验证，未验证前只支持完整安装器首发覆盖。
 ## Task 17：CI 门禁、故障矩阵和发布切换
 
 **Files:**
-- Modify: `.github/workflows/release.yml`
-- Modify: `.github/workflows/installer.yml`
-- Create: `.github/workflows/ci.yml`
-- Create: `docs/RELEASE-CHECKLIST.md`
-- Create: `docs/SECURITY.md`
+- Create: `.github/workflows/ci.yml`、`docs/RELEASE-CHECKLIST.md`、`docs/SECURITY.md`
+- Modify: `.github/workflows/release.yml`、`.github/workflows/installer.yml`、`publish-release.ps1`
 
-- [ ] CI Pull Request job 在 Windows runner 安装固定 .NET 10 SDK 与公开 WinUI workload，执行 restore、Core/Storage/Windows/Update/App tests、Release build、package tests 和 source secret scan。
-- [ ] 发布 job 只在全部测试通过之后以 `contents: write` 获取仓库默认 `GITHUB_TOKEN`；其余 CI job 使用 `contents: read`；禁止外部凭证和私有 signing secrets；不允许覆盖已有 Release，除非现有手动批准开关明确启用。
-- [ ] 对隔离目录执行 updater failure matrix：无更新、禁自动检查、手动检查、取消下载、断网、限速、错误 repo/host、无效 manifest、丢失/超大/短附件、哈希不符、磁盘不足、只读目录、app 不退出、替换中断、health timeout、rollback 中断、成功后清理。
-- [ ] 每条失败路径保存自动断言：应用文件在验证前哈希不变；回滚后旧文件哈希一致；`clipboard.db`、`images`、settings 与 JSON 备份 hash/bytes 始终不变。
-- [ ] 对安装版与便携版验证 fresh launch、同版本拒绝、覆盖升级、新版健康启动、卸载保留数据；记录 runner/OS/SDK/版本/资产 SHA256。
-- [ ] `docs/SECURITY.md` 明示 HTTPS + 固定 GitHub 来源 + SHA256 能发现传输损坏/非对应附件，但仓库或 release 权限被攻破可同时替换清单和文件；未签名 Windows 会提示未知发布者；不承诺此方案防恶意仓库持有人。
-- [ ] 只有所有 gating checks green 后修改默认工作流正式从 WinUI 项目发布；保留旧工程用于历史追溯，不再将旧 WPF 包作为 release 输出。
+- [x] CI workflow defines Windows .NET 10 restore/tests/Release build/package-contract jobs and a source secret scan; workflow steps are separated from any write-capable release job.
+- [x] Release publishing is a separate job requiring successful verification and secret scan; validation uses `contents: read`, only the final publish job gets the repository `GITHUB_TOKEN` with `contents: write`; no personal PAT or signing secret is used.
+- [ ] Complete the full isolated updater failure matrix (network faults, disk/permission faults, hostile metadata, apply/rollback interruption and both package forms).
+- [x] Added `tests/packaging/Test-PortablePackage.ps1`, gated on `GITHUB_ACTIONS=true` and `RUNNER_ENVIRONMENT=github-hosted`, and wired into release/installer workflows. It verifies the ZIP, performs synthetic legacy JSON/PNG startup, applies a locally synthesized higher-version manifest through the packaged worker, checks health and program/data hashes, then removes only temporary app/data roots. Only syntax/static contracts were run locally.
+- [x] Security documentation describes fixed-source HTTPS/hash limits, unsigned publisher warnings, data separation, rollback and the full-installer-only first WPF migration policy.
+- [ ] Complete and execute the full failure matrix on disposable hosted Windows runners; run Inno Setup install/reinstall/uninstall and the actual WPF-to-WinUI installer migration. Hosted workflows have not run from this local task; release switching remains gated on their results.
 
-**验收：** CI 和本地发布步骤一致；发布不需要开发者私人凭证；故障矩阵通过、威胁边界在公开文档中明确。
-
+**验收：** 权限拆分、CI/发布配置和安全边界已写入仓库；Hosted Windows matrix、Inno Setup 和 legacy migration 尚待真实 CI 结果。
 ## Task 18：最终回归、性能测量和 legacy 工程停用
 
 **Files:**
@@ -463,12 +453,12 @@ public interface IDatabaseSchemaMigrator
 - Modify: `docs/RELEASE-CHECKLIST.md`
 - Keep legacy source: 根 WPF project 与旧 WPF 专属 `Views/`、`MainWindow.cs`、WPF overlay/control/service/viewmodel 文件继续保留在仓库原路径，作为历史基线和后续数据迁移参考；只将其从新 solution 默认构建与 Release 流水线隔离，不删除、不移动。
 
-- [ ] 用合成 5,000 条文本/图片数据库执行性能测量，记录机器、CPU、磁盘、SQLite build、首次/重复搜索耗时、滚动 frame hitch、thumbnail 并发和内存；若找不到验证标准，不编造阈值，先记录实际测量并以可重复 baseline 定义预算。
-- [ ] 按规格验收清单检查 720/900/1440 宽度、100/150/200% 缩放、浅/深/跟随系统、空/加载/错误、Tab 顺序、读屏名称、热键、托盘、暂停、文本/图片全文复制、收藏与容量、删/清空、重启迁移恢复。
-- [ ] 从 WPF 合成历史完整走一次安装器首发迁移，之后启动新版再次确认不读/双写 JSON；数据库备份和 JSON 回退备份仍在。
-- [ ] 运行全部 `dotnet test ClipboardManager.sln -c Release`、`dotnet build ClipboardManager.sln -c Release`、clean publish、package/installer verify、`git diff --check`、secret scan。
-- [ ] 验证 legacy WPF 项目仍可按 Task 1 的单独命令 build/test，但不参与新 solution 的默认 Release 打包；保留全部旧源文件、历史迁移 DTO 与 fixtures，README 将旧项目标为迁移参考。
-- [ ] 以 `git status --short` 核对没有临时数据、发布包、个人路径、token、签名素材或真实剪贴板样本进入提交范围。
+- [x] Added a repeatable synthetic 5,000-record SQLite benchmark; recorded machine model, OS, CPU, memory, disk type, SDK/runtime, SQLite versions, first/repeated/short/full-page search timings, DB size and managed/process memory deltas in `docs/performance/history-5000-baseline.json`; no threshold was invented.
+- [ ] Measure UI scroll/frame hitches and thumbnail decode concurrency; complete isolated visual/accessibility/manual acceptance at specified widths, scaling, themes and user flows. The App was not started locally to avoid touching actual clipboard/history.
+- [ ] Run the full synthetic WPF-history to full-installer to WinUI migration/idempotency protocol on a disposable Windows account; portable hosted coverage exercises first-start migration but does not substitute for installer-over-install verification.
+- [x] Re-ran the full modern solution Release tests/build, legacy WPF build and baseline tests, packaging policy/contracts, and built/verified a temporary real WinUI x64 ZIP. Gitleaks, Inno Setup and hosted package verification were not run locally.
+- [x] Verified the legacy WPF project builds/tests separately, an architecture test asserts it is excluded from the new solution, packaging uses only WinUI App/UpdateWorker, and legacy sources/fixtures remain documented as migration references.
+- [x] Reviewed `git status --short`; no generated release ZIP/installer, benchmark DB, temporary app-data fixture or real clipboard sample is in the worktree. Gitleaks was unavailable locally, so secret scanning remains a hosted CI gate.
 
 **验收：** 新 WinUI 方案满足完整手动与自动验收；旧 WPF 源码持续保留作迁移参考；新 Release 仅发布 WinUI 包，数据导入代码保留。
 

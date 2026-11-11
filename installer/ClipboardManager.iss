@@ -24,10 +24,10 @@ MinVersion=10.0.22000
 DisableProgramGroupPage=yes
 UsePreviousTasks=no
 AppMutex=Local\ClipboardManager.Desktop.v1
-CloseApplications=no
+CloseApplications=yes
 RestartApplications=no
 UninstallDisplayName=剪贴板
-UninstallDisplayIcon={app}\ClipboardManager.exe
+UninstallDisplayIcon={app}\ClipboardManager.App.exe
 SetupIconFile=..\Assets\Clipboard.ico
 OutputDir={#OutputDir}
 OutputBaseFilename=ClipboardManager-{#AppVersion}-win-x64-setup
@@ -43,15 +43,20 @@ Name: "chinesesimp"; MessagesFile: "Languages\ChineseSimplified.isl"
 [Tasks]
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "快捷方式："
 
+[InstallDelete]
+Type: files; Name: "{app}\ClipboardManager.exe"
+Type: files; Name: "{app}\ClipboardManager.Update.exe"
+Type: files; Name: "{app}\ClipboardManager.dll"
+Type: files; Name: "{app}\ClipboardManager.runtimeconfig.json"
+Type: files; Name: "{app}\ClipboardManager.deps.json"
+Type: filesandordirs; Name: "{app}\runtime"
+
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{autoprograms}\剪贴板\剪贴板"; Filename: "{app}\ClipboardManager.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\剪贴板"; Filename: "{app}\ClipboardManager.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autoprograms}\剪贴板\剪贴板"; Filename: "{app}\ClipboardManager.App.exe"; WorkingDir: "{app}"
+Name: "{autodesktop}\剪贴板"; Filename: "{app}\ClipboardManager.App.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\ClipboardManager.exe"; Description: "启动剪贴板"; Flags: nowait postinstall skipifsilent
-
-[UninstallRun]
-Filename: "{app}\ClipboardManager.Update.exe"; Parameters: "--uninstall-managed"; RunOnceId: "RemoveIncrementalFiles"; Flags: runhidden waituntilterminated skipifdoesntexist
+Filename: "{app}\ClipboardManager.App.exe"; Description: "启动剪贴板"; Flags: nowait postinstall skipifsilent

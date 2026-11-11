@@ -8,5 +8,6 @@
   <ItemGroup>
     <ProjectReference Include="..\ClipboardManager.Core\ClipboardManager.Core.csproj" />
     <PackageReference Include="Microsoft.WindowsAppSDK" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
   </ItemGroup>
 </Project>

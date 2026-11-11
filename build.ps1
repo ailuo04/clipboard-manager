@@ -1,15 +1,14 @@
+[CmdletBinding()]
 param(
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot 'bin\Release\net8.0-windows'),
-    [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.7'
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '0.0.0'
 )
 
 $ErrorActionPreference = 'Stop'
-$output = [IO.Path]::GetFullPath($OutputDirectory)
+if (-not $IsWindows) { throw 'The WinUI build requires Windows and PowerShell 7.' }
 $dotnet = (Get-Command dotnet.exe -ErrorAction Stop).Source
-$sdks = @(& $dotnet --list-sdks)
-if ($sdks.Count -eq 0) { throw 'The .NET 8 SDK is required to build ClipboardManager.' }
-
-& $dotnet build (Join-Path $PSScriptRoot 'ClipboardManager.csproj') --configuration Release --output $output "-p:Version=$Version" -p:UseAppHost=false
-if ($LASTEXITCODE -ne 0) { throw "dotnet build failed: $LASTEXITCODE" }
-& (Join-Path $PSScriptRoot 'build-update-tools.ps1') -OutputDirectory $output -Version $Version
+$sdk = (& $dotnet --version).Trim()
+if ($LASTEXITCODE -ne 0 -or $sdk -notmatch '^10\.0\.') { throw ".NET 10 SDK is required; resolved SDK was '$sdk'." }
+& $dotnet restore (Join-Path $PSScriptRoot 'ClipboardManager.sln') --nologo
+if ($LASTEXITCODE -ne 0) { throw "Solution restore failed: $LASTEXITCODE" }
+& $dotnet build (Join-Path $PSScriptRoot 'ClipboardManager.sln') --configuration Release --no-restore -p:Platform=x64 "-p:Version=$Version" --nologo
+if ($LASTEXITCODE -ne 0) { throw "Solution build failed: $LASTEXITCODE" }

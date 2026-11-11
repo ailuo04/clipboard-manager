@@ -4,21 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Existing release version, for example 0.0.1'
+        description: 'Existing release version, for example 1.0.0'
         required: true
-        default: '0.0.1'
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  installer:
+  build-installer:
     runs-on: windows-2025
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Download and verify existing release
@@ -32,24 +33,47 @@ jobs:
           $json = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag"
           if ($LASTEXITCODE -ne 0) { throw 'Cannot read the existing release.' }
           $release = $json | ConvertFrom-Json
-          if ($release.draft) { throw 'This workflow only adds installers to published releases.' }
+          if ($release.draft -or $release.prerelease) { throw 'This workflow only adds installers to a published stable release.' }
+          $name = "ClipboardManager-$env:VERSION-win-x64"
+          $required = @("$name.zip", "$name.sha256", "$name-update.json")
+          foreach ($asset in $required) { if ($asset -notin @($release.assets | ForEach-Object name)) { throw "The existing release is missing required asset $asset" } }
           $installerName = "ClipboardManager-$env:VERSION-win-x64-setup"
           if ($release.assets | Where-Object { $_.name -in @("$installerName.exe", "$installerName.sha256") }) { throw 'Installer assets already exist; refusing to overwrite them.' }
-          if ((Get-Content RELEASE_NOTES.md -First 1).Trim() -ne "# 剪贴板 $tag") { throw 'Release notes do not match the requested version.' }
-          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "ClipboardManager-$env:VERSION-win-x64.zip" --pattern "ClipboardManager-$env:VERSION-win-x64.sha256" --dir published
+          $notes = Get-Content RELEASE_NOTES.md -Raw
+          if ($notes -notmatch '首次从 WPF 版升级' -or $notes -notmatch '完整安装器覆盖安装' -or $notes -notmatch '不要使用旧 WPF 应用内增量更新器') { throw 'Release notes must preserve the WPF full-installer migration warning.' }
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern "$name.zip" --pattern "$name.sha256" --dir published
           if ($LASTEXITCODE -ne 0) { throw 'Release download failed.' }
+      - name: Verify portable launch, synthetic update, and data retention
+        shell: pwsh
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+          VERSION: ${{ inputs.version }}
+        run: pwsh -NoProfile -File tests/packaging/Test-PortablePackage.ps1 -Archive "published/ClipboardManager-$env:VERSION-win-x64.zip" -Version $env:VERSION
       - name: Build and verify Chinese per-user installer
         shell: pwsh
         env:
           VERSION: ${{ inputs.version }}
-        run: ./installer.ps1 -Archive "published/ClipboardManager-$env:VERSION-win-x64.zip" -Version $env:VERSION -VerifyInstall
-      - name: Keep installer artifacts
+        run: ./installer.ps1 -Archive "published/ClipboardManager-$env:VERSION-win-x64.zip" -Version $env:VERSION -OutputDirectory ./dist -VerifyInstall
+      - name: Upload installer artifact for publication
         uses: actions/upload-artifact@v4
         with:
-          name: ClipboardManager-${{ inputs.version }}-installer
+          name: clipboardmanager-installer-assets
           path: dist/*
           if-no-files-found: error
-      - name: Append installer to existing release
+          retention-days: 3
+
+  publish-installer:
+    needs: build-installer
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: clipboardmanager-installer-assets
+          path: dist
+      - name: Attach installer using the repository token
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -61,3 +85,4 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer upload failed.' }
           gh release edit "v$env:VERSION" --repo $env:GITHUB_REPOSITORY --notes-file RELEASE_NOTES.md
           if ($LASTEXITCODE -ne 0) { throw 'Release notes update failed.' }
+

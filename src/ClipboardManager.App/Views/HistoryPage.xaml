@@ -1,0 +1,129 @@
+<Page
+    x:Class="ClipboardManager.App.Views.HistoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:ClipboardManager.App.Controls"
+    xmlns:vm="using:ClipboardManager.App.ViewModels"
+    Background="{ThemeResource PageBackgroundBrush}"
+    KeyDown="OnPageKeyDown">
+    <Grid x:Name="PageGrid" Padding="28,24,28,28" ColumnSpacing="20" RowSpacing="18"
+          AutomationProperties.Name="剪贴板历史记录页面">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="DetailsColumn" Width="340" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="HeaderGrid" Grid.Column="0" ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Grid.Column="0" Spacing="6">
+                <TextBlock x:Name="PageTitle" Text="历史" Style="{StaticResource PageTitleTextStyle}" />
+                <TextBlock x:Name="PageDescription" Text="最近复制的文本和图片，清晰查看、快速搜索。"
+                           Style="{StaticResource SectionDescriptionTextStyle}" />
+            </StackPanel>
+            <TextBlock x:Name="RecordCountText" Grid.Column="1" HorizontalAlignment="Right"
+                       VerticalAlignment="Bottom" Margin="0,0,4,2" FontSize="13"
+                       Foreground="{ThemeResource SecondaryTextBrush}" />
+        </Grid>
+
+        <Grid Grid.Row="1" Grid.Column="0" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="150" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <AutoSuggestBox x:Name="SearchBox" PlaceholderText="搜索剪贴板内容…" QueryIcon="Find"
+                            TextChanged="OnSearchTextChanged" AutomationProperties.Name="搜索历史记录"
+                            AutomationProperties.HelpText="输入文字搜索；按向下键将焦点移到记录列表" />
+            <ComboBox x:Name="KindFilterBox" Grid.Column="1" SelectedIndex="0"
+                      SelectionChanged="OnKindFilterChanged" AutomationProperties.Name="内容类型筛选">
+                <ComboBoxItem Content="全部类型" Tag="All" />
+                <ComboBoxItem Content="文本" Tag="Text" />
+                <ComboBoxItem Content="图片" Tag="Image" />
+            </ComboBox>
+            <Button Grid.Column="2" Content="清空历史" Click="OnClearHistoryClicked"
+                    AutomationProperties.Name="清空剪贴板历史" />
+        </Grid>
+
+        <Grid x:Name="ResultsHost" Grid.Row="2" Grid.Column="0">
+            <ListView x:Name="RecordsList" ItemsSource="{x:Bind ViewModel.Items, Mode=OneWay}"
+                      SelectionMode="Single" IsItemClickEnabled="False" SelectionChanged="OnRecordSelectionChanged"
+                      SelectedItem="{x:Bind ViewModel.SelectedItem, Mode=TwoWay}"
+                      AutomationProperties.Name="剪贴板记录列表">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RecordItemViewModel">
+                        <Border Padding="12" Margin="0,0,0,8" CornerRadius="12"
+                                Background="{ThemeResource CardBackgroundBrush}"
+                                BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                            <Grid ColumnSpacing="12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="72" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <controls:AsyncThumbnail Grid.Column="0" Width="72" Height="64"
+                                    SourcePath="{x:Bind ImagePath, Mode=OneWay}"
+                                    Visibility="{x:Bind ThumbnailVisibility, Mode=OneWay}" />
+                                <Border Grid.Column="0" Width="72" Height="64" CornerRadius="8"
+                                        Background="{ThemeResource SurfaceBackgroundBrush}"
+                                        Visibility="{x:Bind TextIconVisibility, Mode=OneWay}">
+                                    <SymbolIcon Symbol="Copy" Foreground="{ThemeResource AccentBrush}" />
+                                </Border>
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="6">
+                                    <TextBlock Text="{x:Bind PreviewText, Mode=OneWay}" TextTrimming="CharacterEllipsis"
+                                               MaxLines="2" TextWrapping="Wrap" FontSize="14"
+                                               Foreground="{ThemeResource PrimaryTextBrush}"
+                                               AutomationProperties.Name="{x:Bind AccessibleName, Mode=OneWay}" />
+                                    <TextBlock Text="{x:Bind CopiedAtDisplay, Mode=OneWay}" FontSize="12"
+                                               Foreground="{ThemeResource SecondaryTextBrush}" />
+                                </StackPanel>
+                                <Button Grid.Column="2" Content="{x:Bind FavoriteGlyph, Mode=OneWay}"
+                                        Click="OnFavoriteClicked" Tag="{x:Bind}"
+                                        AutomationProperties.Name="切换收藏状态" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <ProgressRing x:Name="LoadingRing" IsActive="False" HorizontalAlignment="Center"
+                          VerticalAlignment="Center" Visibility="Collapsed" />
+            <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        MaxWidth="440" Spacing="12" Visibility="Collapsed"
+                        AutomationProperties.Name="历史记录为空状态">
+                <SymbolIcon Symbol="Copy" Width="36" Height="36" Foreground="{ThemeResource AccentBrush}"
+                            HorizontalAlignment="Center" />
+                <TextBlock x:Name="EmptyTitle" Text="复制内容后，历史会显示在这里" FontSize="20"
+                           FontWeight="SemiBold" TextAlignment="Center" Foreground="{ThemeResource PrimaryTextBrush}" />
+                <TextBlock x:Name="EmptyDescription" Text="复制文本或图片即可开始；你也可以将重要内容加入收藏。"
+                           Style="{StaticResource SectionDescriptionTextStyle}" TextAlignment="Center" />
+            </StackPanel>
+            <StackPanel x:Name="ErrorState" HorizontalAlignment="Center" VerticalAlignment="Center"
+                        MaxWidth="440" Spacing="12" Visibility="Collapsed"
+                        AutomationProperties.Name="历史记录错误状态">
+                <TextBlock Text="暂时无法读取历史" FontSize="20" FontWeight="SemiBold"
+                           TextAlignment="Center" Foreground="{ThemeResource PrimaryTextBrush}" />
+                <TextBlock x:Name="ErrorText" Style="{StaticResource SectionDescriptionTextStyle}" TextAlignment="Center" />
+                <Button Content="重试" Click="OnRetryClicked" HorizontalAlignment="Center" />
+            </StackPanel>
+        </Grid>
+
+        <Button x:Name="LoadMoreButton" Grid.Row="3" Grid.Column="0" Content="加载更多记录"
+                HorizontalAlignment="Center" Click="OnLoadMoreClicked" Visibility="Collapsed" />
+
+        <Border x:Name="DetailsSidebar" Grid.Column="1" Grid.RowSpan="4" Padding="18"
+                CornerRadius="14" Background="{ThemeResource SurfaceBackgroundBrush}"
+                BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1"
+                AutomationProperties.Name="记录详情侧栏">
+            <controls:RecordDetailsView x:Name="DetailsView" />
+        </Border>
+    </Grid>
+</Page>

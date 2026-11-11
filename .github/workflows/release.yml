@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version, for example 0.0.2'
+        description: 'Release version, for example 1.0.0'
         required: true
         type: string
       refresh_existing:
@@ -17,22 +17,40 @@ on:
         type: boolean
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.repository }}
   cancel-in-progress: false
 
 jobs:
-  release:
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan repository for secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: '8.30.0'
+          GITLEAKS_ENABLE_COMMENTS: 'false'
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: 'false'
+
+  verify-and-package:
     runs-on: windows-2025
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.403'
       - name: Validate version
         id: version
         shell: pwsh
@@ -47,26 +65,65 @@ jobs:
           $existing = git rev-parse --verify --quiet "refs/tags/$tag^{commit}"
           if ($LASTEXITCODE -eq 0 -and $existing -ne (git rev-parse HEAD) -and $env:REFRESH_EXISTING -ne 'true') { throw 'Release tag points to a different commit.' }
           $global:LASTEXITCODE = 0
-      - name: Run unit tests
+      - name: Restore and test WinUI solution
         shell: pwsh
-        run: dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj --configuration Release --nologo
-      - name: Package self-contained Windows application
+        run: |
+          dotnet restore ClipboardManager.sln --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Solution restore failed.' }
+          dotnet test ClipboardManager.sln -c Release --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'Solution tests failed.' }
+      - name: Build WinUI App
         shell: pwsh
-        run: ./package.ps1 -Version '${{ steps.version.outputs.value }}'
-      - name: Build and verify Chinese per-user installer
+        run: |
+          dotnet build src/ClipboardManager.App/ClipboardManager.App.csproj -c Release -p:Platform=x64 --no-restore --nologo
+          if ($LASTEXITCODE -ne 0) { throw 'WinUI x64 Release build failed.' }
+      - name: Check packaging contracts
         shell: pwsh
-        run: ./installer.ps1 -Archive 'dist/ClipboardManager-${{ steps.version.outputs.value }}-win-x64.zip' -Version '${{ steps.version.outputs.value }}' -VerifyInstall
-      - name: Keep build artifacts
+        run: |
+          pwsh -NoProfile -File tests/packaging/Test-Package.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Package contract failed.' }
+          pwsh -NoProfile -File tests/packaging/Test-LegacyUpgrade.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'First-upgrade policy contract failed.' }
+      - name: Build WinUI package and update manifest
+        shell: pwsh
+        run: ./package.ps1 -Version '${{ steps.version.outputs.value }}' -OutputDirectory ./dist
+      - name: Validate built package
+        shell: pwsh
+        run: pwsh -NoProfile -File tests/packaging/Test-Package.ps1 -PackageDirectory ./dist -PackageVersion '${{ steps.version.outputs.value }}'
+      - name: Verify portable launch, synthetic update, and data retention
+        shell: pwsh
+        env:
+          RUNNER_ENVIRONMENT: ${{ runner.environment }}
+        run: pwsh -NoProfile -File tests/packaging/Test-PortablePackage.ps1 -Archive 'dist/ClipboardManager-${{ steps.version.outputs.value }}-win-x64.zip' -Version '${{ steps.version.outputs.value }}'
+      - name: Build and verify per-user installer
+        shell: pwsh
+        run: ./installer.ps1 -Archive 'dist/ClipboardManager-${{ steps.version.outputs.value }}-win-x64.zip' -Version '${{ steps.version.outputs.value }}' -OutputDirectory ./dist -VerifyInstall
+      - name: Upload verified release assets
         uses: actions/upload-artifact@v4
         with:
-          name: ClipboardManager-${{ steps.version.outputs.value }}-win-x64
+          name: clipboardmanager-release-assets
           path: dist/*
           if-no-files-found: error
-      - name: Publish GitHub release
+          retention-days: 3
+
+  publish:
+    needs: [secret-scan, verify-and-package]
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: clipboardmanager-release-assets
+          path: dist
+      - name: Publish verified assets with the repository token
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.value }}
+          VERSION: ${{ needs.verify-and-package.outputs.version }}
           REFRESH_EXISTING: ${{ inputs.refresh_existing }}
-        run: |
-          ./publish-release.ps1 -Version $env:VERSION -RefreshExisting:($env:REFRESH_EXISTING -eq 'true')
+        run: ./publish-release.ps1 -Version $env:VERSION -Directory ./dist -RefreshExisting:($env:REFRESH_EXISTING -eq 'true')
+
