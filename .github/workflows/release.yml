@@ -119,9 +119,13 @@ jobs:
           $log = Join-Path $env:RUNNER_TEMP 'ClipboardManager.App-crash-analysis.txt'
           $start = [Diagnostics.ProcessStartInfo]::new($debugger.Source)
           $start.UseShellExecute = $false
-          foreach ($argument in @('-z', $dump, '-logo', $log, '-c', '.symfix; .reload; !analyze -v; .exr -1; .ecxr; kv; q')) { $start.ArgumentList.Add($argument) }
+          foreach ($argument in @('-z', $dump, '-logo', $log, '-c', '.symfix; !analyze -v; .exr -1; .ecxr; kv; q')) { $start.ArgumentList.Add($argument) }
           $process = [Diagnostics.Process]::Start($start)
-          if (-not $process.WaitForExit(180000)) { $process.Kill($true); throw 'WinDbg dump analysis timed out.' }
+          if (-not $process.WaitForExit(240000)) {
+            $process.Kill($true)
+            [void]$process.WaitForExit(15000)
+            Write-Host 'WinDbg analysis timed out; preserving the partial log.'
+          }
           if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Tail 250 }
       - name: Upload WinUI startup crash analysis
         if: always()
