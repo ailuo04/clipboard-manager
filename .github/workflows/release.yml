@@ -126,6 +126,18 @@ jobs:
             [void]$process.WaitForExit(15000)
             Write-Host 'WinDbg analysis timed out; preserving the partial log.'
           }
+          if (Test-Path -LiteralPath $log) {
+            $analysis = Get-Content -LiteralPath $log -Raw
+            if ($analysis -match '(?m)Managed object:\s+([0-9a-fA-F]+)') {
+              $exceptionLog = Join-Path $env:RUNNER_TEMP 'ClipboardManager.App-managed-exception.txt'
+              $exceptionStart = [Diagnostics.ProcessStartInfo]::new($debugger.Source)
+              $exceptionStart.UseShellExecute = $false
+              foreach ($argument in @('-z', $dump, '-logo', $exceptionLog, '-c', ".loadby sos coreclr; !pe 0x$($Matches[1]); qq")) { $exceptionStart.ArgumentList.Add($argument) }
+              $exceptionProcess = [Diagnostics.Process]::Start($exceptionStart)
+              if (-not $exceptionProcess.WaitForExit(60000)) { $exceptionProcess.Kill($true); [void]$exceptionProcess.WaitForExit(15000); Write-Host 'Managed exception inspection timed out.' }
+              if (Test-Path -LiteralPath $exceptionLog) { Get-Content -LiteralPath $exceptionLog -Tail 160 }
+            }
+          }
           if (Test-Path -LiteralPath $log) { Get-Content -LiteralPath $log -Tail 250 }
       - name: Upload WinUI startup crash analysis
         if: always()
@@ -134,6 +146,7 @@ jobs:
           name: winui-startup-crash-analysis
           path: |
             ${{ runner.temp }}/ClipboardManager.App-crash-analysis.txt
+            ${{ runner.temp }}/ClipboardManager.App-managed-exception.txt
             ${{ runner.temp }}/ClipboardManager.App-crash.dmp
           if-no-files-found: ignore
           retention-days: 3
