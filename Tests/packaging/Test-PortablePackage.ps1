@@ -29,9 +29,8 @@ if (Test-Path -LiteralPath $dataRoot) { throw 'Refusing to run portable verifica
 $temporary = Join-Path ([IO.Path]::GetTempPath()) ('cm-portable-verify-' + [guid]::NewGuid().ToString('N'))
 $portableRoot = Join-Path $temporary 'portable-app'
 $dumpRoot = Join-Path $temporary 'crash-dumps'
-$werKey = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\ClipboardManager.App.exe'
-$werKeyCreated = $false
 $appProcess = $null
+$monitorProcess = $null
 $dataRootCreated = $false
 $legacyHistoryHash = $null
 $legacyThemeHash = $null
@@ -49,12 +48,6 @@ function Get-TreeHash([string]$Root) {
 }
 
 try {
-    if (Test-Path -LiteralPath $werKey) { throw 'A pre-existing LocalDumps policy prevents isolated startup diagnostics.' }
-    New-Item -Path $werKey -Force | Out-Null
-    $werKeyCreated = $true
-    New-ItemProperty -LiteralPath $werKey -Name DumpFolder -PropertyType ExpandString -Value $dumpRoot -Force | Out-Null
-    New-ItemProperty -LiteralPath $werKey -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
-    New-ItemProperty -LiteralPath $werKey -Name DumpCount -PropertyType DWord -Value 1 -Force | Out-Null
     [IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $portableRoot)
     $release = Get-Content -LiteralPath (Join-Path $portableRoot 'release.json') -Raw | ConvertFrom-Json
     $manifest = Get-Content -LiteralPath (Join-Path $portableRoot 'update-manifest.json') -Raw | ConvertFrom-Json
@@ -91,16 +84,31 @@ try {
     $legacyImageHash = (Get-FileHash -LiteralPath (Join-Path $dataRoot 'images\00000000000000000000000000000012.png') -Algorithm SHA256).Hash
 
     $appPath = Join-Path $portableRoot 'ClipboardManager.App.exe'
-    $start = [Diagnostics.ProcessStartInfo]::new($appPath)
+    $procDumpPath = $env:PROCDUMP_PATH
+    if (-not (Test-Path -LiteralPath $procDumpPath -PathType Leaf)) { throw 'ProcDump is required for isolated WinUI startup diagnostics.' }
+    $start = [Diagnostics.ProcessStartInfo]::new($procDumpPath)
     $start.WorkingDirectory = $portableRoot
     $start.UseShellExecute = $false
     $start.CreateNoWindow = $true
+    $start.RedirectStandardOutput = $true
+    $start.RedirectStandardError = $true
+    foreach ($argument in @('-accepteula', '-ma', '-e', '-x', $dumpRoot, $appPath)) { $start.ArgumentList.Add($argument) }
+    $monitorProcess = [Diagnostics.Process]::Start($start)
+    $monitorOutput = $monitorProcess.StandardOutput.ReadToEndAsync()
+    $monitorError = $monitorProcess.StandardError.ReadToEndAsync()
     $appStartedAt = Get-Date
-    $appProcess = [Diagnostics.Process]::Start($start)
     $windowOpened = $false
     for ($attempt = 0; $attempt -lt 80; $attempt++) {
-        $appProcess.Refresh()
-        if ($appProcess.HasExited) {
+        if (-not $appProcess) {
+            $appProcess = Get-Process -Name 'ClipboardManager.App' -ErrorAction SilentlyContinue |
+                Where-Object { try { [IO.Path]::GetFullPath($_.Path) -eq $appPath } catch { $false } } | Select-Object -First 1
+        }
+        if ($appProcess) { $appProcess.Refresh() }
+        if ($appProcess -and $appProcess.HasExited) {
+            [void]$monitorProcess.WaitForExit(15000)
+            Write-Host "ProcDump exit code: $($monitorProcess.ExitCode)"
+            if ($monitorOutput.IsCompleted) { Write-Host $monitorOutput.Result }
+            if ($monitorError.IsCompleted) { Write-Host $monitorError.Result }
             $earlyDiagnostic = Join-Path $dataRoot 'startup-failure.log'
             if (Test-Path -LiteralPath $earlyDiagnostic) { Write-Host 'Early WinUI initialization failure:'; Get-Content -LiteralPath $earlyDiagnostic }
             $logPath = Join-Path $dataRoot 'app.log'
@@ -109,19 +117,6 @@ try {
                 Where-Object { $_.Message -match 'ClipboardManager\.App|0xc000027b|stowed exception' } |
                 Select-Object -First 10 TimeCreated, Id, ProviderName, Message)
             if ($events.Count -gt 0) { Write-Host 'Windows application failure events:'; $events | Format-List | Out-String | Write-Host }
-            foreach ($werRoot in @('%LOCALAPPDATA%\Microsoft\Windows\WER\ReportQueue', '%LOCALAPPDATA%\Microsoft\Windows\WER\ReportArchive')) {
-                $resolvedWerRoot = [Environment]::ExpandEnvironmentVariables($werRoot)
-                if (Test-Path -LiteralPath $resolvedWerRoot) {
-                    foreach ($report in Get-ChildItem -LiteralPath $resolvedWerRoot -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 8) {
-                        $reportFile = Join-Path $report.FullName 'Report.wer'
-                        if (Test-Path -LiteralPath $reportFile -PathType Leaf) {
-                            $reportText = Get-Content -LiteralPath $reportFile -Raw
-                            if ($reportText -match 'ClipboardManager\.App|0xc000027b') { Write-Host "Windows Error Reporting: $reportFile"; Write-Host $reportText }
-                        }
-                    }
-                }
-            }
-            Start-Sleep -Seconds 3
             $dump = Get-ChildItem -LiteralPath $dumpRoot -Filter '*.dmp' -File -ErrorAction SilentlyContinue |
                 Sort-Object LastWriteTime -Descending | Select-Object -First 1
             if ($dump) {
@@ -129,10 +124,23 @@ try {
                 Copy-Item -LiteralPath $dump.FullName -Destination $diagnosticDump -Force
                 Write-Host "Native crash dump captured: $diagnosticDump ($($dump.Length) bytes)."
             }
-            else { Write-Host 'WER did not produce a local dump for the WinUI startup failure.' }
+            else { Write-Host 'ProcDump did not produce a dump for the WinUI startup failure.' }
             throw "Portable WinUI app exited during synthetic-data startup: $($appProcess.ExitCode)."
         }
-        if ($appProcess.MainWindowHandle -ne [IntPtr]::Zero) { $windowOpened = $true; break }
+        if ($appProcess -and $appProcess.MainWindowHandle -ne [IntPtr]::Zero) { $windowOpened = $true; break }
+        if ($monitorProcess.HasExited -and -not $appProcess) {
+            Write-Host "ProcDump exited before the app process appeared: $($monitorProcess.ExitCode)"
+            if ($monitorOutput.IsCompleted) { Write-Host $monitorOutput.Result }
+            if ($monitorError.IsCompleted) { Write-Host $monitorError.Result }
+            $dump = Get-ChildItem -LiteralPath $dumpRoot -Filter '*.dmp' -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if ($dump) {
+                $diagnosticDump = Join-Path $env:RUNNER_TEMP 'ClipboardManager.App-crash.dmp'
+                Copy-Item -LiteralPath $dump.FullName -Destination $diagnosticDump -Force
+                Write-Host "Native crash dump captured: $diagnosticDump ($($dump.Length) bytes)."
+            }
+            throw 'ProcDump could not start the portable WinUI app.'
+        }
         Start-Sleep -Milliseconds 250
     }
     if (-not $windowOpened) { throw 'Portable WinUI app did not show its main window on the disposable runner.' }
@@ -144,6 +152,9 @@ try {
         throw 'Portable WinUI app did not close cleanly after the launch check.'
     }
     if ($appProcess.ExitCode -ne 0) { throw "Portable WinUI app exited with code $($appProcess.ExitCode)." }
+    if (-not $monitorProcess.WaitForExit(15000)) { throw 'ProcDump did not exit after the portable app closed.' }
+    $monitorProcess.Dispose()
+    $monitorProcess = $null
     $appProcess = $null
 
 
@@ -250,7 +261,6 @@ try {
     Write-Host "Portable verification passed: v$Version manifest/hash validation, isolated launch, synthetic legacy import and data retention after removing app files."
 }
 finally {
-    if ($werKeyCreated -and (Test-Path -LiteralPath $werKey)) { Remove-Item -LiteralPath $werKey -Recurse -Force }
     if ($workerProcess) {
         try {
             if (-not $workerProcess.HasExited) {
@@ -278,6 +288,10 @@ finally {
     if ($appProcess -and -not $appProcess.HasExited) {
         $appProcess.Kill($true)
         $appProcess.WaitForExit()
+    }
+    if ($monitorProcess -and -not $monitorProcess.HasExited) {
+        $monitorProcess.Kill($true)
+        $monitorProcess.WaitForExit()
     }
     if ($dataRootCreated -and (Test-Path -LiteralPath $dataRoot)) {
         if ([IO.Path]::GetFullPath($dataRoot) -ne [IO.Path]::GetFullPath((Join-Path $localAppData 'ClipboardManager'))) {

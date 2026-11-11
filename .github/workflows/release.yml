@@ -90,6 +90,17 @@ jobs:
       - name: Validate built package
         shell: pwsh
         run: pwsh -NoProfile -File tests/packaging/Test-Package.ps1 -PackageDirectory ./dist -PackageVersion '${{ steps.version.outputs.value }}'
+      - name: Download ProcDump for isolated startup diagnostics
+        shell: pwsh
+        run: |
+          $toolDirectory = Join-Path $env:RUNNER_TEMP 'procdump'
+          New-Item -ItemType Directory -Path $toolDirectory -Force | Out-Null
+          $archive = Join-Path $env:RUNNER_TEMP 'procdump.zip'
+          Invoke-WebRequest -Uri 'https://download.sysinternals.com/files/Procdump.zip' -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $toolDirectory -Force
+          $tool = Join-Path $toolDirectory 'procdump64.exe'
+          if (-not (Test-Path -LiteralPath $tool -PathType Leaf)) { throw 'ProcDump x64 executable is missing.' }
+          "PROCDUMP_PATH=$tool" >> $env:GITHUB_ENV
       - name: Verify portable launch, synthetic update, and data retention
         shell: pwsh
         env:
@@ -117,7 +128,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: winui-startup-crash-analysis
-          path: ${{ runner.temp }}/ClipboardManager.App-crash-analysis.txt
+          path: |
+            ${{ runner.temp }}/ClipboardManager.App-crash-analysis.txt
+            ${{ runner.temp }}/ClipboardManager.App-crash.dmp
           if-no-files-found: ignore
           retention-days: 3
       - name: Build and verify per-user installer
