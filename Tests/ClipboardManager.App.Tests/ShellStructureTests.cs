@@ -114,7 +114,8 @@ public sealed class ShellStructureTests
                 || element.Name.LocalName == "ResourceDictionary")
             .Select(element => (string?)element.Attribute("Source") ?? element.Name.LocalName).ToArray();
         Assert.True(Array.IndexOf(resources, "XamlControlsResources") >= 0);
-        Assert.True(Array.IndexOf(resources, "Resources/Styles.xaml") > Array.IndexOf(resources, "XamlControlsResources"));
+        int stylesIndex = Array.FindIndex(resources, resource => resource.EndsWith("/Resources/Styles.xaml", StringComparison.Ordinal));
+        Assert.True(stylesIndex > Array.IndexOf(resources, "XamlControlsResources"));
     }
 
     [Fact]
