@@ -89,7 +89,11 @@ try {
     $windowOpened = $false
     for ($attempt = 0; $attempt -lt 80; $attempt++) {
         $appProcess.Refresh()
-        if ($appProcess.HasExited) { throw "Portable WinUI app exited during synthetic-data startup: $($appProcess.ExitCode)." }
+        if ($appProcess.HasExited) {
+            $logPath = Join-Path $dataRoot 'app.log'
+            if (Test-Path -LiteralPath $logPath) { Write-Host 'Portable app startup log:'; Get-Content -LiteralPath $logPath }
+            throw "Portable WinUI app exited during synthetic-data startup: $($appProcess.ExitCode)."
+        }
         if ($appProcess.MainWindowHandle -ne [IntPtr]::Zero) { $windowOpened = $true; break }
         Start-Sleep -Milliseconds 250
     }
