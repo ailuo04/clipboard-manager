@@ -11,6 +11,7 @@
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <PublishTrimmed>false</PublishTrimmed>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <RootNamespace>ClipboardManager.App</RootNamespace>
     <AssemblyName>ClipboardManager.App</AssemblyName>
   </PropertyGroup>

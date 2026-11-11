@@ -21,14 +21,7 @@ public partial class App : Application
         try { InitializeComponent(); }
         catch (Exception exception)
         {
-            try
-            {
-                string diagnosticDirectory = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClipboardManager");
-                Directory.CreateDirectory(diagnosticDirectory);
-                File.WriteAllText(Path.Combine(diagnosticDirectory, "startup-failure.log"), exception.ToString());
-            }
-            catch { }
+            Program.WriteStartupFailure(exception);
             throw;
         }
         UnhandledException += OnUnhandledException;
