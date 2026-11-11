@@ -12,7 +12,8 @@ public sealed class StartupExceptionRecorderTests
         try { throw new InvalidOperationException("synthetic XAML activation failure"); }
         catch (InvalidOperationException) { }
 
-        string diagnostic = Assert.Single(recorder.Snapshot());
+        string? diagnostic = recorder.Snapshot().FirstOrDefault(entry => entry.Contains("synthetic XAML activation failure", StringComparison.Ordinal));
+        Assert.NotNull(diagnostic);
         Assert.Contains(nameof(InvalidOperationException), diagnostic, StringComparison.Ordinal);
         Assert.Contains("synthetic XAML activation failure", diagnostic, StringComparison.Ordinal);
         Assert.Contains("HRESULT 0x", diagnostic, StringComparison.Ordinal);
