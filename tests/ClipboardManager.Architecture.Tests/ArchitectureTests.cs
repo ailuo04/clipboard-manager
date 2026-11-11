@@ -51,6 +51,14 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
+    public void App_entrypoint_uses_the_generated_winui_startup_sequence()
+    {
+        var source = File.ReadAllText(Path.Combine(RepositoryRoot, "src/ClipboardManager.App/Program.cs"));
+
+        Assert.Contains("XamlGeneratedProgram.XamlGeneratedMain();", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("Application.Start(", source, StringComparison.Ordinal);
+    }
+    [Fact]
     public void Update_worker_is_a_self_contained_single_file_win_x64_process_without_ui_frameworks()
     {
         var project = LoadProject("src/ClipboardManager.UpdateWorker/ClipboardManager.UpdateWorker.csproj");

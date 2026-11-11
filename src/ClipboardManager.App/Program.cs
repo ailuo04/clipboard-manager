@@ -1,6 +1,3 @@
-using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml;
-
 namespace ClipboardManager.App;
 
 internal static class Program
@@ -8,25 +5,7 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
-        try
-        {
-            WinRT.ComWrappersSupport.InitializeComWrappers();
-            Application.Start(_ =>
-            {
-                try
-                {
-                    DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread()
-                        ?? throw new InvalidOperationException("The WinUI dispatcher is unavailable during application startup.");
-                    SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(dispatcher));
-                    new App();
-                }
-                catch (Exception exception)
-                {
-                    WriteStartupFailure(exception);
-                    throw;
-                }
-            });
-        }
+        try { XamlGeneratedProgram.XamlGeneratedMain(); }
         catch (Exception exception)
         {
             WriteStartupFailure(exception);
