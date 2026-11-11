@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory)]
     [string]$Archive,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.7',
+    [string]$Version = '0.0.8',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
     [string]$CompilerPath,
     [switch]$VerifyInstall
