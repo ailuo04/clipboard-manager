@@ -45,10 +45,12 @@ internal sealed class SettingsOverlay : OverlayView
         autoUpdates.IsChecked = Settings.AutoCheckUpdates;
         minimizeToTray.IsChecked = Settings.MinimizeToTray;
         hideAfterCopy.IsChecked = Settings.HideAfterCopy;
+        var hideCapsulePreview = view.HideCapsulePreviewCheckBox;
+        hideCapsulePreview.IsChecked = Settings.HideCapsulePreview;
         var updateButton = view.OpenUpdatesButton;
         updateButton.IsEnabled = showUpdates is not null;
         updateButton.Click += (_, _) => { if (showUpdates is not null) StartOperation(showUpdates); };
-        view.SettingsVersionText.Text = "当前版本 " + UpdateService.CurrentVersion;
+        view.SettingsVersionText.Text = "版本 " + UpdateService.CurrentVersion;
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
         alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
@@ -87,6 +89,7 @@ internal sealed class SettingsOverlay : OverlayView
             Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
             Settings.MinimizeToTray = minimizeToTray.IsChecked == true;
             Settings.HideAfterCopy = hideAfterCopy.IsChecked == true;
+            Settings.HideCapsulePreview = hideCapsulePreview.IsChecked == true;
             SelectedTheme = selectedTheme;
             Complete(true);
         };

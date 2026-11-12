@@ -18,6 +18,7 @@
     <SolidColorBrush x:Key="PinnedGlassBrush" Color="#DDE8F3EE" />
     <SolidColorBrush x:Key="PinnedBorderBrush" Color="#99167D6B" />
     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#F7FFFFFF" />
+    <SolidColorBrush x:Key="HoverPreviewBackgroundBrush" Color="#F2E9EDEF" />
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#661D2930" />
     <SolidColorBrush x:Key="ControlShadowBrush" Color="#1A213439" />
     <SolidColorBrush x:Key="ControlHoverBorderBrush" Color="#B8FFFFFF" />

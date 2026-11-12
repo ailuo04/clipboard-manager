@@ -22,8 +22,6 @@ internal sealed class GlobalHotKey : IDisposable
 
     public event EventHandler? Pressed;
 
-    public bool IsRegistered => _registered;
-
     public void Start()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

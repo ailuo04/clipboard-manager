@@ -11,18 +11,25 @@ internal enum OverlaySize
 {
     Settings,
     Update,
-    Details
+    Details,
+    ClearConfirmation
 }
-
 internal static class OverlaySizePolicy
 {
     internal static Size GetDesiredSize(OverlaySize size) => size switch
     {
-        OverlaySize.Settings => new Size(510, 660),
-        OverlaySize.Update => new Size(510, 510),
+        OverlaySize.Settings => new Size(284, 384),
+        OverlaySize.Update => new Size(264, 384),
         OverlaySize.Details => new Size(800, 760),
+        OverlaySize.ClearConfirmation => new Size(284, 280),
         _ => throw new ArgumentOutOfRangeException(nameof(size), size, "未知的覆盖层尺寸。")
     };
+
+    /// <summary>
+    /// Settings and updates open as a card inside the widget, at most the desired size and no taller than their content.
+    /// Details needs room for full text and images, so it enlarges the window instead.
+    /// </summary>
+    internal static bool StaysInWidget(OverlaySize size) => size is OverlaySize.Settings or OverlaySize.Update or OverlaySize.ClearConfirmation;
 }
 
 internal sealed class WindowOverlayHost : IDisposable
@@ -53,6 +60,10 @@ internal sealed class WindowOverlayHost : IDisposable
         if (root is Views.WindowFrame frame) frame.BackRequested += OnFrameBackRequested;
     }
 
+    /// <summary>Raised before the first page of a session is shown, while the owner window still has its own bounds.</summary>
+    internal event EventHandler? SessionStarting;
+    internal event EventHandler? SessionEnded;
+
     internal bool IsOpen => _sessionActive;
     internal int Count => (_current is null ? 0 : 1) + _parents.Count;
 
@@ -64,7 +75,10 @@ internal sealed class WindowOverlayHost : IDisposable
         if (_closingAll) throw new InvalidOperationException("覆盖层正在关闭。");
 
         bool hasParent = _sessionActive;
-        if (!hasParent) BeginSession();
+        if (!hasParent)
+        {
+            BeginSession();
+        }
         else
         {
             if (_current is null) throw new InvalidOperationException("覆盖层状态无效。");
@@ -184,6 +198,7 @@ internal sealed class WindowOverlayHost : IDisposable
         {
             _presenter.BeginSession(MainSurfaceBlurRadius);
             _overlayLayer.Visibility = Visibility.Visible;
+            SessionStarting?.Invoke(this, EventArgs.Empty);
         }
         catch
         {
@@ -215,7 +230,7 @@ internal sealed class WindowOverlayHost : IDisposable
     private void SetPageHeader(string? title)
     {
         if (_root is not Views.WindowFrame frame) return;
-        frame.SetPageHeader(title);
+        frame.SetPageHeader(title, canGoBack: _parents.Count > 0);
     }
 
     private void OnFrameBackRequested(object? sender, EventArgs e)
@@ -241,7 +256,8 @@ internal sealed class WindowOverlayHost : IDisposable
         _overlayContent.Content = null;
         _overlayLayer.Visibility = Visibility.Collapsed;
         SetPageHeader(null);
-        _presenter.RestoreMainWindow();
+        try { _presenter.RestoreMainWindow(); }
+        finally { SessionEnded?.Invoke(this, EventArgs.Empty); }
     }
 
     private void OnOverlayPreviewKeyDown(object sender, KeyEventArgs args)

@@ -38,7 +38,7 @@ public sealed class XamlPolishStructureTests
         Assert.Equal(pageName, (string?)root.Attribute("AutomationProperties.Name"));
         Assert.Equal(new[] { "Auto", "*", "Auto" }, rows.Select(row => (string?)row.Attribute("Height")));
         Assert.Equal(Presentation + bodyElementName, body.Name);
-        // The page header and its close affordance live in WindowFrame's title bar now.
+        // The page header and its close affordance live in WindowFrame's overlay card.
         Assert.DoesNotContain(root.Descendants(Presentation + "Button"),
             button => ((string?)button.Attribute(Xaml + "Name"))?.StartsWith("Close", StringComparison.Ordinal) == true);
         if (footerHasActions) Assert.NotEmpty(footer.Descendants(Presentation + "Button"));
@@ -52,10 +52,11 @@ public sealed class XamlPolishStructureTests
         XElement title = named.Single(element => (string?)element.Attribute(Xaml + "Name") == "PageTitle");
         XElement back = named.Single(element => (string?)element.Attribute(Xaml + "Name") == "BackButton");
 
-        Assert.Equal("本地历史", (string?)title.Attribute("Text"));
+        XElement panel = named.Single(element => (string?)element.Attribute(Xaml + "Name") == "OverlayPanel");
+        Assert.Contains(title, panel.Descendants());
+        Assert.Contains(back, panel.Descendants());
         Assert.Equal("Collapsed", (string?)back.Attribute("Visibility"));
         Assert.Equal("返回", (string?)back.Attribute("AutomationProperties.Name"));
-        Assert.Equal("True", (string?)back.Attribute(Shell + "WindowChrome.IsHitTestVisibleInChrome"));
     }
 
     [Fact]

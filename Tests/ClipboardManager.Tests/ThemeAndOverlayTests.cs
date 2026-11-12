@@ -255,13 +255,11 @@ public sealed class ThemeAndOverlayTests
         XElement root = XDocument.Load(path).Root!;
         XElement main = root.Elements(ns + "Grid").Single(element => (string?)element.Attribute(x + "Name") == "MainSurface");
         XElement overlay = root.Elements(ns + "Grid").Single(element => (string?)element.Attribute(x + "Name") == "OverlayLayer");
-        XElement titleBar = main.Elements(ns + "Grid").Single(element => (string?)element.Attribute(x + "Name") == "TitleBar");
         XElement content = main.Elements(ns + "Grid").Single(element => (string?)element.Attribute(x + "Name") == "WindowContent");
         XElement panel = overlay.Descendants(ns + "Border").Single(element => (string?)element.Attribute(x + "Name") == "OverlayPanel");
-        XElement overlayContent = panel.Elements().Single();
+        XElement overlayContent = panel.Descendants(ns + "ContentControl").Single();
 
-        Assert.Null(titleBar.Attribute("Grid.Row"));
-        Assert.Equal("1", (string?)content.Attribute("Grid.Row"));
+        Assert.Null(content.Attribute("Grid.Row"));
         Assert.Equal("Collapsed", (string?)overlay.Attribute("Visibility"));
         Assert.Equal("10", (string?)overlay.Attribute("Panel.ZIndex"));
         Assert.Equal("{DynamicResource OverlayScrimBrush}", (string?)overlay.Attribute("Background"));
@@ -494,8 +492,8 @@ public sealed class ThemeAndOverlayTests
     }
 
     [Theory]
-    [InlineData((int)OverlaySize.Settings, 510, 660)]
-    [InlineData((int)OverlaySize.Update, 510, 510)]
+    [InlineData((int)OverlaySize.Settings, 284, 384)]
+    [InlineData((int)OverlaySize.Update, 264, 384)]
     [InlineData((int)OverlaySize.Details, 800, 760)]
     public void OverlaySizePolicyUsesDesignedPageSizes(int size, double expectedWidth, double expectedHeight)
     {

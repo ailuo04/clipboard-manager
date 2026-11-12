@@ -80,7 +80,8 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         XElement footer = root.Elements(presentation + "Border")
             .Single(element => (string?)element.Attribute("Grid.Row") == "2");
 
-        Assert.Equal("430", (string?)root.Attribute("MinWidth"));
+        // The page has to fit the 300-wide widget, so it must not ask for a minimum width.
+        Assert.Null(root.Attribute("MinWidth"));
         Assert.Equal("1", (string?)scrollViewer.Attribute("Grid.Row"));
         Assert.Equal("2", (string?)footer.Attribute("Grid.Row"));
         Assert.Contains("SaveButton", root.Descendants().Attributes(x + "Name").Select(attribute => attribute.Value));

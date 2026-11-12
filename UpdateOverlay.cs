@@ -19,7 +19,6 @@ internal sealed class UpdateOverlay : OverlayView
     private readonly Button _check;
     private readonly Button _install;
     private readonly Button _cancelDownload;
-    private readonly TextBlock _latestVersion;
     private AvailableUpdate? _available;
     private CancellationTokenSource? _download;
     private Task _operation = Task.CompletedTask;
@@ -51,8 +50,7 @@ internal sealed class UpdateOverlay : OverlayView
         _check = view.CheckUpdateButton;
         _install = view.InstallUpdateButton;
         _cancelDownload = view.CancelDownloadButton;
-        _latestVersion = view.LatestVersionText;
-        view.CurrentVersionText.Text = "当前版本 " + UpdateService.CurrentVersion;
+        view.CurrentVersionText.Text = "版本 " + UpdateService.CurrentVersion;
         _check.Click += (_, _) => StartOperation(CheckAsync);
         _install.Click += (_, _) => StartOperation(InstallAsync);
         _cancelDownload.Click += (_, _) => { if (!_closed) _download?.Cancel(); };
@@ -105,31 +103,37 @@ internal sealed class UpdateOverlay : OverlayView
     private async Task CheckAsync()
     {
         if (_busy || _closed) return;
-        SetBusy(true);
         _available = null;
-        _status.Text = "正在检查更新";
-        _details.Text = "";
+        SetBusy(true);
+        _check.Content = "检查更新";
+        ShowStatus("正在检查更新…");
         _progress.Visibility = Visibility.Visible;
         _progress.IsIndeterminate = true;
         try
         {
             _available = await _checkAsync(_lifetime.Token);
             if (_closed) return;
-            if (_available is null)
-            {
-                _status.Text = "已是最新版本";
-                _latestVersion.Text = UpdateService.CurrentVersion;
-            }
-            else
-            {
-                _status.Text = "发现新版本 " + _available.Manifest.Version;
-                _latestVersion.Text = _available.Manifest.Version;
-                _details.Text = $"下载 {Formatters.FormatSize(_available.DownloadSize)} · 更新 {_available.Plan.Changes.Count} 个文件 · 删除 {_available.Plan.Deletes.Count} 个旧文件";
-            }
+            if (_available is null) ShowStatus("已是最新版本");
+            else ShowStatus("发现新版本 " + _available.Manifest.Version,
+                $"下载 {Formatters.FormatSize(_available.DownloadSize)}，更新后自动重启");
         }
         catch (OperationCanceledException) when (_closed) { }
-        catch (Exception exception) { if (!_closed) { _status.Text = "检查更新失败"; _details.Text = exception.Message; } }
+        catch (Exception exception)
+        {
+            if (!_closed)
+            {
+                ShowStatus("暂时无法检查更新", exception.Message);
+                _check.Content = "重试";
+            }
+        }
         finally { if (!_closed) { _progress.Visibility = Visibility.Collapsed; SetBusy(false); } }
+    }
+
+    private void ShowStatus(string status, string details = "")
+    {
+        _status.Text = status;
+        _details.Text = details;
+        _details.Visibility = details.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private async Task InstallAsync()
@@ -140,20 +144,19 @@ internal sealed class UpdateOverlay : OverlayView
         Window? owner = Window.GetWindow(this);
         if (!_confirmInstall(owner, title, message)) return;
 
-        SetBusy(true);
         using var download = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _download = download;
+        SetBusy(true);
+        ShowStatus("正在准备更新…");
         _progress.Visibility = Visibility.Visible;
         _progress.IsIndeterminate = false;
         _progress.Value = 0;
-        _cancelDownload.Visibility = Visibility.Visible;
         try
         {
             var progress = new Progress<UpdateProgress>(value =>
             {
                 if (_closed) return;
-                _status.Text = value.Status;
-                _details.Text = $"{Formatters.FormatSize(value.Downloaded)} / {Formatters.FormatSize(value.Total)}";
+                ShowStatus(value.Status, $"{Formatters.FormatSize(value.Downloaded)} / {Formatters.FormatSize(value.Total)}");
                 _progress.Value = value.Total == 0 ? 100 : Math.Clamp(100d * value.Downloaded / value.Total, 0, 100);
             });
             await _prepareAsync(_available, progress, download.Token);
@@ -164,16 +167,16 @@ internal sealed class UpdateOverlay : OverlayView
         catch (OperationCanceledException)
         {
             _cancelPrepared();
-            if (!_closed) { _status.Text = "更新已取消"; _details.Text = ""; }
+            if (!_closed) ShowStatus("更新已取消");
         }
         catch (Exception exception)
         {
-            if (!_closed) { _status.Text = "更新未完成"; _details.Text = exception.Message; }
+            if (!_closed) ShowStatus("更新未完成", exception.Message);
         }
         finally
         {
             _download = null;
-            if (!_closed) { _progress.Visibility = Visibility.Collapsed; _cancelDownload.Visibility = Visibility.Collapsed; SetBusy(false); }
+            if (!_closed) { _progress.Visibility = Visibility.Collapsed; SetBusy(false); }
         }
     }
 
@@ -200,7 +203,13 @@ internal sealed class UpdateOverlay : OverlayView
     {
         if (_closed) return;
         _busy = value;
+        // One action at a time: cancel while downloading, install when there is an update, otherwise check.
+        bool downloading = _download is not null;
+        bool canInstall = _available is not null;
+        _cancelDownload.Visibility = downloading ? Visibility.Visible : Visibility.Collapsed;
+        _install.Visibility = !downloading && canInstall ? Visibility.Visible : Visibility.Collapsed;
+        _check.Visibility = !downloading && !canInstall ? Visibility.Visible : Visibility.Collapsed;
         _check.IsEnabled = !value;
-        _install.IsEnabled = !value && _available is not null;
+        _install.IsEnabled = !value && canInstall;
     }
 }

@@ -29,6 +29,7 @@ public sealed class MainViewModel : ObservableObject
     private bool _isPaused;
     private bool _isClosing;
     private bool _isCompact = true;
+    private bool _isWidgetCollapsed = true;
     private RecordViewModel? _selectedRecord;
     private int _filterIndex;
     private string _searchTerm = string.Empty;
@@ -75,10 +76,32 @@ public sealed class MainViewModel : ObservableObject
     public ICommand ClearSearchCommand { get; }
     public bool CanAct => IsReady && !IsBusy && !IsClosing;
     public bool IsCompact => _isCompact;
-    public bool IsAlwaysOnTop => _owner.Topmost;
+    /// <summary>The widget is always topmost; this setting keeps the expanded panel open when it loses focus.</summary>
+    public bool IsAlwaysOnTop => _history.Settings.AlwaysOnTop;
     public bool HideAfterCopy => _history.Settings.HideAfterCopy;
-    public string AlwaysOnTopToolTip => IsAlwaysOnTop ? "取消窗口置顶" : "窗口置顶";
-    public string AlwaysOnTopLabel => IsAlwaysOnTop ? "已置顶" : "置顶";
+    public string AlwaysOnTopToolTip => IsAlwaysOnTop ? "取消保持展开" : "保持展开（失去焦点时不收起）";
+    public string AlwaysOnTopLabel => IsAlwaysOnTop ? "已保持展开" : "保持展开";
+    public bool IsWidgetCollapsed
+    {
+        get => _isWidgetCollapsed;
+        set { if (Set(ref _isWidgetCollapsed, value)) Raise(nameof(WidgetToggleLabel)); }
+    }
+    public string WidgetToggleLabel => IsWidgetCollapsed ? "展开" : "收起";
+    public int RecordCount => _allRecords.Count;
+    public IReadOnlyList<RecordViewModel> HistoryRecords => _allRecords;
+    public RecordViewModel? LatestRecord => _allRecords.FirstOrDefault();
+    public bool HasRecords => _allRecords.Count > 0;
+    public string CapsuleText => !IsReady ? Status
+        : _history.Settings.HideCapsulePreview || _allRecords.Count == 0 ? "剪贴板"
+        : _allRecords[0].SingleLine;
+    public Point? WidgetPosition
+    {
+        get
+        {
+            var settings = _history.Settings;
+            return settings.WidgetLeft is double left && settings.WidgetTop is double top ? new Point(left, top) : null;
+        }
+    }
     public double ThumbnailHeight => IsCompact ? 104 : 196;
     public RecordViewModel? SelectedRecord { get => _selectedRecord; set => Set(ref _selectedRecord, value); }
 
@@ -88,7 +111,7 @@ public sealed class MainViewModel : ObservableObject
         if (Set(ref _isCompact, compact, nameof(IsCompact))) Raise(nameof(ThumbnailHeight));
     }
     public bool IsLoading { get => _isLoading; private set { if (Set(ref _isLoading, value)) RaiseState(); } }
-    public bool IsReady { get => _isReady; private set { if (Set(ref _isReady, value)) RaiseState(); } }
+    public bool IsReady { get => _isReady; private set { if (Set(ref _isReady, value)) { RaiseState(); Raise(nameof(CapsuleText)); } } }
     public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) RaiseState(); } }
     public bool IsClosing { get => _isClosing; private set { if (Set(ref _isClosing, value)) RaiseState(); } }
     public bool IsPaused
@@ -100,7 +123,7 @@ public sealed class MainViewModel : ObservableObject
     public string MonitorStatus => IsClosing ? "正在关闭" : !IsReady ? "监听未启动" : IsPaused ? "监听已暂停" : "正在监听";
     public string Notice { get => _notice; private set { if (Set(ref _notice, value)) Raise(nameof(HasNotice)); } }
     public bool HasNotice => !string.IsNullOrEmpty(Notice);
-    public string Status { get => _status; private set => Set(ref _status, value); }
+    public string Status { get => _status; private set { if (Set(ref _status, value)) Raise(nameof(CapsuleText)); } }
     public string SearchTerm
     {
         get => _searchTerm;
@@ -166,6 +189,19 @@ public sealed class MainViewModel : ObservableObject
 
     public event EventHandler? SettingsApplied;
 
+    public Task SaveWidgetPositionAsync(double left, double top)
+    {
+        if (!IsReady || IsClosing) return Task.CompletedTask;
+        return RunOperationAsync(async () =>
+        {
+            var settings = _history.Settings;
+            if (settings.WidgetLeft == left && settings.WidgetTop == top) return;
+            settings.WidgetLeft = left;
+            settings.WidgetTop = top;
+            await _history.UpdateSettingsAsync(settings, _lifetime.Token);
+        }, "保存小组件位置失败");
+    }
+
     public Task DeleteAsync(RecordViewModel item) => RunOperationAsync(async () =>
     {
         var warning = await _history.DeleteAsync(item.Record.Id, _lifetime.Token);
@@ -214,20 +250,18 @@ public sealed class MainViewModel : ObservableObject
         _lifetime.Dispose();
     }
 
-    private async Task ClearAsync()
+    private Task ClearAsync() => RunOperationAsync(async () =>
     {
+        if (_overlays is null || IsClosing) return;
         int pinned = _allRecords.Count(item => item.IsPinned);
-        if (MessageBox.Show(_owner, $"确定清空全部 {_allRecords.Count} 条记录吗？\n包括 {pinned} 条固定记录，保存的图片也会删除。此操作无法撤销。",
-            "清空历史记录", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-        await RunOperationAsync(async () =>
-        {
-            var warning = await _history.ClearAsync(_lifetime.Token);
-            RefreshRecords();
-            Status = "历史记录已清空";
-            if (warning is not null) Notice = warning;
-        }, "清空历史记录失败");
-    }
+        var confirmation = new ClearConfirmationOverlay(_allRecords.Count, pinned);
+        if (await _overlays.ShowAsync(confirmation, OverlaySize.ClearConfirmation) != true) return;
 
+        var warning = await _history.ClearAsync(_lifetime.Token);
+        RefreshRecords();
+        Status = "历史记录已清空";
+        if (warning is not null) Notice = warning;
+    }, "清空历史记录失败");
     private async Task ShowSettingsAsync()
     {
         try
@@ -261,17 +295,17 @@ public sealed class MainViewModel : ObservableObject
             settings.AlwaysOnTop = !settings.AlwaysOnTop;
             string? warning = await _history.UpdateSettingsAsync(settings, _lifetime.Token);
             ApplyWindowSettings();
-            Status = IsAlwaysOnTop ? "窗口已置顶" : "已取消窗口置顶";
+            Status = IsAlwaysOnTop ? "已保持展开" : "失去焦点时自动收起";
             if (warning is not null) Notice = warning;
-        }, "切换窗口置顶失败");
+        }, "切换保持展开失败");
         // Reset the toggle to the committed value even when persistence fails.
         Raise(nameof(IsAlwaysOnTop));
     }
 
     private void ApplyWindowSettings()
     {
-        _owner.Topmost = _history.Settings.AlwaysOnTop;
         Raise(nameof(IsAlwaysOnTop));
+        Raise(nameof(CapsuleText));
         Raise(nameof(AlwaysOnTopToolTip));
         Raise(nameof(AlwaysOnTopLabel));
     }
@@ -310,6 +344,7 @@ public sealed class MainViewModel : ObservableObject
     {
         _allRecords = _history.Records.OrderByDescending(record => record.CopiedAtUtc).Select(record => new RecordViewModel(record, this)).ToList();
         Raise(nameof(AllLabel)); Raise(nameof(TextLabel)); Raise(nameof(ImageLabel));
+        Raise(nameof(RecordCount)); Raise(nameof(HistoryRecords)); Raise(nameof(LatestRecord)); Raise(nameof(HasRecords)); Raise(nameof(CapsuleText));
         ApplyFilter();
         RaiseState();
     }
@@ -349,7 +384,7 @@ public sealed class MainViewModel : ObservableObject
     public void ReportHotKeyFailure(Exception exception)
     {
         string previousNotice = Notice;
-        Report("全局快捷键 Ctrl+Shift+Space 注册失败，可能已被其他程序占用；仍可从任务栏打开窗口", exception);
+        Report("全局快捷键 Ctrl+Shift+Space 注册失败，可能已被其他程序占用；仍可点击胶囊展开", exception);
         if (!string.IsNullOrEmpty(previousNotice)) Notice = previousNotice + " " + Notice;
     }
 

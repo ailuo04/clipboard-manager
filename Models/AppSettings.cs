@@ -14,6 +14,12 @@ public sealed class AppSettings
 
     public bool HideAfterCopy { get; set; } = true;
 
+    public bool HideCapsulePreview { get; set; } = false;
+
+    public double? WidgetLeft { get; set; }
+
+    public double? WidgetTop { get; set; }
+
     public AppSettings Clone()
     {
         return new AppSettings
@@ -23,7 +29,10 @@ public sealed class AppSettings
             AlwaysOnTop = AlwaysOnTop,
             AutoCheckUpdates = AutoCheckUpdates,
             MinimizeToTray = MinimizeToTray,
-            HideAfterCopy = HideAfterCopy
+            HideAfterCopy = HideAfterCopy,
+            HideCapsulePreview = HideCapsulePreview,
+            WidgetLeft = WidgetLeft,
+            WidgetTop = WidgetTop
         };
     }
 

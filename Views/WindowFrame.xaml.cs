@@ -12,12 +12,14 @@ public partial class WindowFrame : Grid
 
     public WindowFrame() => InitializeComponent();
 
+    /// <summary>Raised by the page header's back and close buttons; both leave the current page.</summary>
     public event EventHandler? BackRequested;
 
-    public void SetPageHeader(string? title)
+    /// <summary>Titles the open page. The back arrow appears only when the page was opened from another page.</summary>
+    public void SetPageHeader(string? title, bool canGoBack = false)
     {
-        PageTitle.Text = title ?? "本地历史";
-        BackButton.Visibility = title is null ? Visibility.Collapsed : Visibility.Visible;
+        PageTitle.Text = title ?? "";
+        BackButton.Visibility = canGoBack ? Visibility.Visible : Visibility.Collapsed;
     }
 
     public void PlayOverlayEnter()

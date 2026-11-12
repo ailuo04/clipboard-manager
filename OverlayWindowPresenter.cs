@@ -43,6 +43,7 @@ internal sealed record WindowPresentationState(WindowState WindowState, double L
 internal sealed class OverlayWindowPresenter
 {
     private const double WorkAreaMargin = 18;
+    private const double WidgetMargin = 8;
 
     private readonly Window _owner;
     private readonly Grid _mainSurface;
@@ -88,6 +89,18 @@ internal sealed class OverlayWindowPresenter
     internal void ApplyPageSize(OverlaySize size)
     {
         Size desired = OverlaySizePolicy.GetDesiredSize(size);
+        if (OverlaySizePolicy.StaysInWidget(size))
+        {
+            // The window keeps its bounds; the card takes what fits inside and is only as tall as its content.
+            double roomWidth = FiniteOr(_owner.Width, _owner.ActualWidth) - WidgetMargin * 2;
+            double roomHeight = FiniteOr(_owner.Height, _owner.ActualHeight) - WidgetMargin * 2;
+            _overlayPanel.Width = roomWidth > 0 ? Math.Min(desired.Width, roomWidth) : desired.Width;
+            _overlayPanel.Height = double.NaN;
+            _overlayPanel.MaxHeight = roomHeight > 0 ? Math.Min(desired.Height, roomHeight) : desired.Height;
+            return;
+        }
+
+        _overlayPanel.MaxHeight = double.PositiveInfinity;
         Rect workArea = GetOwnerWorkArea();
         Rect fitted = OverlayWindowGeometry.Fit(workArea, desired, WorkAreaMargin);
         double outerWidth = Math.Min(workArea.Width, fitted.Width + WorkAreaMargin * 2);
@@ -109,6 +122,9 @@ internal sealed class OverlayWindowPresenter
         _overlayPanel.Width = Math.Min(fitted.Width, Math.Max(0, ownerWidth - WorkAreaMargin * 2));
         _overlayPanel.Height = Math.Min(fitted.Height, Math.Max(0, ownerHeight - WorkAreaMargin * 2));
     }
+
+    private static double FiniteOr(double value, double fallback) =>
+        double.IsNaN(value) || double.IsInfinity(value) ? fallback : value;
 
     internal void RestoreWindowState(WindowPresentationState state)
     {
@@ -145,16 +161,19 @@ internal sealed class OverlayWindowPresenter
         }
     }
 
-    private Rect GetOwnerWorkArea()
+    private Rect GetOwnerWorkArea() => GetWorkArea(_owner);
+
+    /// <summary>Work area, in device-independent units, of the monitor the window is on.</summary>
+    internal static Rect GetWorkArea(Window owner)
     {
-        IntPtr handle = new WindowInteropHelper(_owner).Handle;
+        IntPtr handle = new WindowInteropHelper(owner).Handle;
         if (handle != IntPtr.Zero)
         {
             IntPtr monitor = NativeMethods.MonitorFromWindow(handle, NativeMethods.MonitorDefaultToNearest);
             var info = new NativeMethods.MonitorInfo { Size = Marshal.SizeOf<NativeMethods.MonitorInfo>() };
             if (monitor != IntPtr.Zero && NativeMethods.GetMonitorInfo(monitor, ref info))
             {
-                var transform = PresentationSource.FromVisual(_owner)?.CompositionTarget?.TransformFromDevice;
+                var transform = PresentationSource.FromVisual(owner)?.CompositionTarget?.TransformFromDevice;
                 if (transform is not null)
                 {
                     Point topLeft = transform.Value.Transform(new Point(info.Work.Left, info.Work.Top));

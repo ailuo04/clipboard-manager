@@ -5,64 +5,44 @@
       Background="{DynamicResource WindowBackgroundBrush}">
 
     <Grid x:Name="MainSurface">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="40" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-        <Grid x:Name="TitleBar" Background="{DynamicResource CaptionBarBrush}">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-            <Border Grid.ColumnSpan="2" Background="{DynamicResource GlassSheenBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="0,0,0,1"
-                    IsHitTestVisible="False" />
-            <StackPanel Orientation="Horizontal" Margin="14,0,8,0" VerticalAlignment="Center">
-                <Image Source="{Binding Icon, RelativeSource={RelativeSource AncestorType=Window}}" Width="18" Height="18"
-                       Margin="0,0,8,0" IsHitTestVisible="False" RenderOptions.BitmapScalingMode="HighQuality" />
-                <Button x:Name="BackButton" Style="{StaticResource CaptionButton}" Width="24" Height="24" MinHeight="24"
-                        Margin="0,0,6,0" Visibility="Collapsed" Click="OnBackClick"
-                        shell:WindowChrome.IsHitTestVisibleInChrome="True"
-                        ToolTip="返回" AutomationProperties.Name="返回">
-                    <TextBlock Style="{StaticResource Icon}" Text="&#xE72B;" FontSize="11" />
-                </Button>
-                <TextBlock Text="剪贴板" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" IsHitTestVisible="False" />
-                <Border Width="1" Height="12" Background="{DynamicResource CaptionDividerBrush}" Margin="9,0,9,0" VerticalAlignment="Center" IsHitTestVisible="False" />
-                <TextBlock x:Name="PageTitle" Text="本地历史" FontSize="10.5" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" IsHitTestVisible="False" />
-            </StackPanel>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,7,0">
-                <ToggleButton x:Name="AlwaysOnTopButton" Style="{StaticResource PinCaptionButton}" Margin="0,0,3,0"
-                              shell:WindowChrome.IsHitTestVisibleInChrome="True" IsThreeState="False"
-                              IsChecked="{Binding IsAlwaysOnTop, Mode=OneWay}" Command="{Binding ToggleAlwaysOnTopCommand}"
-                              ToolTip="{Binding AlwaysOnTopToolTip}" AutomationProperties.Name="{Binding AlwaysOnTopToolTip}">
-                    <TextBlock Style="{StaticResource Icon}" Text="&#xE718;" FontSize="12" />
-                </ToggleButton>
-                <Border Width="1" Height="15" Background="{DynamicResource CaptionSeparatorBrush}" Margin="3,0,6,0" />
-                <Button x:Name="MinimizeButton" Style="{StaticResource CaptionButton}"
-                        shell:WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="最小化" AutomationProperties.Name="最小化">
-                    <TextBlock Style="{StaticResource Icon}" Text="&#xE921;" FontSize="10" />
-                </Button>
-                <Button x:Name="MaximizeButton" Style="{StaticResource CaptionButton}"
-                        shell:WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="最大化" AutomationProperties.Name="最大化">
-                    <TextBlock x:Name="MaximizeGlyph" Style="{StaticResource Icon}" Text="&#xE922;" FontSize="10" />
-                </Button>
-                <Button x:Name="CloseButton" Style="{StaticResource CloseCaptionButton}"
-                        shell:WindowChrome.IsHitTestVisibleInChrome="True" ToolTip="关闭" AutomationProperties.Name="关闭">
-                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8BB;" FontSize="10" />
-                </Button>
-            </StackPanel>
-        </Grid>
-        <Grid x:Name="WindowContent" Grid.Row="1" Background="Transparent" />
-
+        <Grid x:Name="WindowContent" Background="Transparent" />
     </Grid>
     <Grid x:Name="OverlayLayer" Visibility="Collapsed" Panel.ZIndex="10" shell:WindowChrome.IsHitTestVisibleInChrome="True"
           Background="{DynamicResource OverlayScrimBrush}"
           KeyboardNavigation.TabNavigation="Cycle" FocusManager.IsFocusScope="True">
         <Border x:Name="OverlayPanel" HorizontalAlignment="Center" VerticalAlignment="Center"
-                MaxWidth="800" MaxHeight="760" Margin="18" Padding="0"
+                Margin="8" Padding="0"
                 Background="{DynamicResource OverlayGlassBrush}"
                 BorderBrush="{DynamicResource OverlayEdgeBrush}" BorderThickness="1"
-                CornerRadius="24" Effect="{DynamicResource OverlayShadowEffect}">
-            <ContentControl x:Name="OverlayContent" KeyboardNavigation.TabNavigation="Cycle" />
+                CornerRadius="14" Effect="{DynamicResource OverlayShadowEffect}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <!-- Every page gets its title and its way out here, inside the card. -->
+                <Grid x:Name="PageHeader" Height="36">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="BackButton" Style="{StaticResource CaptionButton}" Width="26" Height="26" MinHeight="26"
+                            Margin="6,0,-6,0" Visibility="Collapsed" Click="OnBackClick"
+                            ToolTip="返回" AutomationProperties.Name="返回">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE72B;" FontSize="11" />
+                    </Button>
+                    <TextBlock x:Name="PageTitle" Grid.Column="1" Margin="12,0,0,0" FontSize="13" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                    <Button x:Name="ClosePageButton" Grid.Column="2" Style="{StaticResource CaptionButton}" Width="26" Height="26" MinHeight="26"
+                            Margin="0,0,6,0" Click="OnBackClick"
+                            ToolTip="关闭" AutomationProperties.Name="关闭">
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE8BB;" FontSize="10" />
+                    </Button>
+                </Grid>
+                <ContentControl x:Name="OverlayContent" Grid.Row="1" KeyboardNavigation.TabNavigation="Cycle" />
+            </Grid>
         </Border>
     </Grid>
 </Grid>

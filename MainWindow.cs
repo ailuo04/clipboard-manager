@@ -14,59 +14,83 @@ namespace ClipboardManager;
 
 public sealed class MainWindow : Window
 {
+    private const double CapsuleWidth = 240;
+    private const double CapsuleHeight = 40;
+    private const double PanelWidth = 300;
+    private const double PanelHeight = 400;
+    private const double EdgeMargin = 24;
+    private const double DragThreshold = 3;
+    private const int WmMouseActivate = 0x0021;
+
     private readonly MainViewModel _viewModel;
     private readonly ListBox _historyList;
     private readonly TextBox _searchBox;
     private readonly GlobalHotKey _hotKey;
     private readonly Views.WindowFrame _windowFrame;
+    private readonly Views.MainView _view;
     private readonly WindowOverlayHost _overlayHost;
-    private readonly Grid _titleBar;
-    private readonly TextBlock _maximizeGlyph;
     private readonly SystemTrayIcon _trayIcon;
     private bool _allowClose;
     private bool _exitRequested;
     private bool _closeToTray;
     private bool _hideAfterCopy = true;
+    private bool _restoreHistoryPopupAfterOverlay;
+    private bool _deactivationDeferredForRecordDrag;
     private IntPtr _foregroundBeforeShow;
     private bool _backdropAttempted;
+    // Where the capsule sits. The expanded panel opens from here, shifted only as far as the work area requires.
+    private Point _anchor;
 
     public MainWindow(HistoryService? history = null)
     {
         SetResourceReference(StyleProperty, typeof(Window));
         Title = "剪贴板";
-        Width = 420;
-        Height = 620;
-        MinWidth = 380;
-        MinHeight = 520;
-        WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        Width = CapsuleWidth;
+        Height = CapsuleHeight;
+        ResizeMode = ResizeMode.NoResize;
+        Topmost = true;
+        // The capsule appears at startup without taking the focus from whatever the user is doing.
+        ShowActivated = false;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Rect workArea = SystemParameters.WorkArea;
+        _anchor = new Point(workArea.Right - CapsuleWidth - EdgeMargin, workArea.Bottom - CapsuleHeight - EdgeMargin);
+        Left = _anchor.X;
+        Top = _anchor.Y;
         Background = Brushes.Transparent;
         SetResourceReference(ForegroundProperty, "TextPrimaryBrush");
         WindowStyle = WindowStyle.None;
         WindowChrome.SetWindowChrome(this, new WindowChrome
         {
             UseAeroCaptionButtons = false,
-            CaptionHeight = 40,
-            ResizeBorderThickness = new Thickness(6),
+            CaptionHeight = 0,
+            ResizeBorderThickness = new Thickness(0),
             GlassFrameThickness = new Thickness(-1),
             CornerRadius = new CornerRadius(16)
         });
         _windowFrame = new Views.WindowFrame();
-        _titleBar = _windowFrame.TitleBar;
-        _maximizeGlyph = _windowFrame.MaximizeGlyph;
-        _windowFrame.MinimizeButton.Click += (_, _) => WindowState = WindowState.Minimized;
-        _windowFrame.MaximizeButton.Click += (_, _) =>
-            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-        _windowFrame.CloseButton.Click += (_, _) => Close();
-        var view = new Views.MainView();
-        _windowFrame.WindowContent.Children.Add(view);
+        _view = new Views.MainView();
+        _view.CapsuleDragHandle.MouseLeftButtonDown += OnCapsuleDragHandleMouseDown;
+        _view.HistoryToggleRequested += OnHistoryToggleRequested;
+        _view.RecordDragCompleted += OnRecordDragCompleted;
+        _view.DragHandle.MouseLeftButtonDown += OnDragHandleMouseDown;
+        _view.ToggleRequested += (_, _) =>
+        {
+            _view.CloseHistoryPopup();
+            if (_viewModel!.IsWidgetCollapsed) ExpandAndFocus();
+            else SetCollapsed(true);
+        };
+        _view.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
+        _windowFrame.WindowContent.Children.Add(_view);
         Content = _windowFrame;
         _overlayHost = new WindowOverlayHost(this, _windowFrame);
-        _historyList = view.HistoryList;
-        _searchBox = view.SearchBox;
+        _overlayHost.SessionStarting += OnOverlaySessionStarting;
+        _overlayHost.SessionEnded += OnOverlaySessionEnded;
+        _historyList = _view.HistoryList;
+        _searchBox = _view.SearchBox;
         _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()),
             UpdateTrayMode, _overlayHost);
         _trayIcon = new SystemTrayIcon(this);
-        _trayIcon.OpenRequested += (_, _) => OnHotKeyPressed(this, EventArgs.Empty);
+        _trayIcon.OpenRequested += (_, _) => ExpandAndFocus();
         _trayIcon.PauseRequested += (_, _) => _viewModel.PauseCommand.Execute(null);
         _trayIcon.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -91,11 +115,17 @@ public sealed class MainWindow : Window
             }
         };
         PreviewKeyDown += OnWindowPreviewKeyDown;
+        PreviewMouseDown += OnWindowPreviewMouseDown;
+        Deactivated += OnDeactivated;
         SizeChanged += (_, _) => { _viewModel.UpdateWindowSize(); UpdateWindowFrame(); };
         StateChanged += (_, _) => UpdateWindowFrame();
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(UpdateWindowFrame));
         ContentRendered += (_, _) => UpdateWindowFrame();
-        SourceInitialized += (_, _) => ApplyWindowBackdrop();
+        SourceInitialized += (_, _) =>
+        {
+            ApplyWindowBackdrop();
+            HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
+        };
         ThemeManager.RegisterWindow(this);
         Loaded += OnLoaded;
         Closing += OnClosing;
@@ -116,9 +146,9 @@ public sealed class MainWindow : Window
         await _viewModel.InitializeAsync();
         if (_viewModel.IsClosing) return;
         ApplyWindowSettings();
+        RestoreWidgetPosition();
         try { _hotKey.Start(); }
         catch (Exception exception) { _viewModel.ReportHotKeyFailure(exception); }
-        _searchBox.Focus();
     }
 
     private void UpdateWindowFrame()
@@ -126,12 +156,10 @@ public sealed class MainWindow : Window
         if (WindowState == WindowState.Minimized) return;
         Thickness resizeBorder = SystemParameters.WindowResizeBorderThickness;
         _windowFrame.Margin = WindowState == WindowState.Maximized ? resizeBorder : new Thickness();
-        const double captionHeight = 40;
-        _titleBar.Height = captionHeight;
         var chrome = WindowChrome.GetWindowChrome(this);
-        chrome.CaptionHeight = captionHeight;
+        // There is no title bar: the widget is moved by its own capsule and drag handle.
+        chrome.CaptionHeight = 0;
         chrome.GlassFrameThickness = new Thickness(-1);
-        _maximizeGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
     }
 
     private void ApplyWindowBackdrop()
@@ -151,6 +179,194 @@ public sealed class MainWindow : Window
             System.Runtime.InteropServices.Marshal.SizeOf<int>());
     }
 
+    private IntPtr WndProc(IntPtr hwnd, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        // A click is about to activate the widget: remember who had the focus so a copy can hand it back.
+        if (message == WmMouseActivate) RememberForeground();
+        return IntPtr.Zero;
+    }
+
+    private void RememberForeground()
+    {
+        IntPtr foreground = NativeMethods.GetForegroundWindow();
+        if (foreground != IntPtr.Zero && foreground != new WindowInteropHelper(this).Handle) _foregroundBeforeShow = foreground;
+    }
+
+    private void RestoreWidgetPosition()
+    {
+        if (_viewModel.WidgetPosition is not Point saved || _overlayHost.IsOpen) return;
+        // Move first so the work area is that of the monitor the widget was left on.
+        Left = saved.X;
+        Top = saved.Y;
+        _anchor = ClampToWorkArea(saved, CapsuleWidth, CapsuleHeight);
+        PlaceWidget();
+    }
+
+    private Point ClampToWorkArea(Point position, double width, double height)
+    {
+        Rect area = OverlayWindowPresenter.GetWorkArea(this);
+        return new Point(Math.Clamp(position.X, area.Left, Math.Max(area.Left, area.Right - width)),
+            Math.Clamp(position.Y, area.Top, Math.Max(area.Top, area.Bottom - height)));
+    }
+
+    private void PlaceWidget()
+    {
+        bool collapsed = _viewModel.IsWidgetCollapsed;
+        double width = collapsed ? CapsuleWidth : PanelWidth;
+        double height = collapsed ? CapsuleHeight : PanelHeight;
+        Point position = ClampToWorkArea(_anchor, width, height);
+        Left = position.X;
+        Top = position.Y;
+        Width = width;
+        Height = height;
+    }
+
+    private void SetCollapsed(bool collapsed)
+    {
+        // An open overlay page owns the window bounds until it closes.
+        if (_overlayHost.IsOpen || WindowState != WindowState.Normal || _viewModel.IsWidgetCollapsed == collapsed) return;
+        _viewModel.IsWidgetCollapsed = collapsed;
+        PlaceWidget();
+    }
+
+    private void OnHistoryToggleRequested(object? sender, EventArgs args)
+    {
+        if (_view.IsHistoryPopupOpen)
+        {
+            _view.CloseHistoryPopup();
+            return;
+        }
+
+        OpenHistoryPopup();
+    }
+
+    private void OpenHistoryPopup()
+    {
+        Rect workArea = OverlayWindowPresenter.GetWorkArea(this);
+        Point capsuleOrigin = _view.Capsule.TranslatePoint(new Point(), this);
+        var target = new Rect(Left + capsuleOrigin.X, Top + capsuleOrigin.Y,
+            _view.Capsule.ActualWidth, _view.Capsule.ActualHeight);
+        Size desired = _view.MeasureHistoryPopup(Math.Min(PanelWidth, workArea.Width));
+        CapsulePopupLayout layout = CapsulePopupPositioning.Calculate(workArea, target, desired);
+        _view.ShowHistoryPopup(layout);
+    }
+
+    private void OnOverlaySessionStarting(object? sender, EventArgs args)
+    {
+        _restoreHistoryPopupAfterOverlay = _view.IsHistoryPopupOpen;
+        _view.CloseHistoryPopup();
+        if (!IsVisible) Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        if (_viewModel.IsWidgetCollapsed) PlaceOverlayBounds();
+        Activate();
+    }
+
+    private void OnOverlaySessionEnded(object? sender, EventArgs args)
+    {
+        bool restoreHistoryPopup = _restoreHistoryPopupAfterOverlay;
+        _restoreHistoryPopupAfterOverlay = false;
+        if (!restoreHistoryPopup || _viewModel.IsClosing || _exitRequested) return;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+        {
+            if (!_overlayHost.IsOpen && !_viewModel.IsClosing && !_exitRequested && _viewModel.IsWidgetCollapsed)
+                OpenHistoryPopup();
+        }));
+    }
+
+    private void PlaceOverlayBounds()
+    {
+        Point position = ClampToWorkArea(_anchor, PanelWidth, PanelHeight);
+        Left = position.X;
+        Top = position.Y;
+        Width = PanelWidth;
+        Height = PanelHeight;
+    }
+    private void CollapseAndReturnFocus()
+    {
+        SetCollapsed(true);
+        if (_viewModel.IsWidgetCollapsed) RestoreForeground(_foregroundBeforeShow);
+    }
+
+    private void OnCapsuleDragHandleMouseDown(object sender, MouseButtonEventArgs args)
+    {
+        if (_overlayHost.IsOpen) return;
+        _view.CloseHistoryPopup();
+        args.Handled = true;
+        var start = new Point(Left, Top);
+        if (!TryDragMove()) return;
+        if (Math.Abs(Left - start.X) >= DragThreshold || Math.Abs(Top - start.Y) >= DragThreshold)
+            CommitWidgetPosition();
+    }
+
+    private void OnDragHandleMouseDown(object sender, MouseButtonEventArgs args)
+    {
+        if (_overlayHost.IsOpen) return;
+        args.Handled = true;
+        if (TryDragMove()) CommitWidgetPosition();
+    }
+
+    private bool TryDragMove()
+    {
+        try { DragMove(); return true; }
+        // The button was already released by the time the handler ran.
+        catch (InvalidOperationException) { return false; }
+    }
+
+    private void CommitWidgetPosition()
+    {
+        _anchor = ClampToWorkArea(new Point(Left, Top), CapsuleWidth, CapsuleHeight);
+        PlaceWidget();
+        _ = _viewModel.SaveWidgetPositionAsync(_anchor.X, _anchor.Y);
+    }
+
+    private static bool ShouldCloseHistoryPopupOnDeactivation(bool isPopupOpen, bool isContextMenuOpen,
+        bool isPointerOverPopup) =>
+        isPopupOpen && !isContextMenuOpen && !isPointerOverPopup;
+
+    private static bool ShouldDeferDeactivationForRecordDrag(bool isRecordDragInProgress) => isRecordDragInProgress;
+
+    private static bool ShouldReplayDeactivationAfterRecordDrag(bool wasDeferred, bool isActive) => wasDeferred && !isActive;
+
+    private void OnRecordDragCompleted(object? sender, EventArgs args)
+    {
+        if (!_deactivationDeferredForRecordDrag) return;
+        _deactivationDeferredForRecordDrag = false;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (ShouldReplayDeactivationAfterRecordDrag(true, IsActive)) return;
+            OnDeactivated(this, EventArgs.Empty);
+        }));
+    }
+
+    private void OnDeactivated(object? sender, EventArgs args)
+    {
+        if (ShouldDeferDeactivationForRecordDrag(_view.IsRecordDragInProgress))
+        {
+            _deactivationDeferredForRecordDrag = true;
+            return;
+        }
+        if (_viewModel.IsWidgetCollapsed)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                if (ShouldDeferDeactivationForRecordDrag(_view.IsRecordDragInProgress))
+                {
+                    _deactivationDeferredForRecordDrag = true;
+                    return;
+                }
+                if (ShouldCloseHistoryPopupOnDeactivation(_view.IsHistoryPopupOpen, _view.IsContextMenuOpen,
+                        _view.IsHistoryPopupPointerOver))
+                    _view.CloseHistoryPopup();
+            }));
+            return;
+        }
+        if (_viewModel.IsAlwaysOnTop || _overlayHost.IsOpen || _view.IsMenuOpen || _viewModel.IsClosing) return;
+        // A confirmation dialog owned by the widget disables it and takes the focus; that is not the user leaving.
+        IntPtr handle = new WindowInteropHelper(this).Handle;
+        if (handle != IntPtr.Zero && !NativeMethods.IsWindowEnabled(handle)) return;
+        SetCollapsed(true);
+    }
     private void OnHistoryMouseDown(object sender, MouseButtonEventArgs args)
     {
         if (args.ChangedButton == MouseButton.Left && args.OriginalSource is DependencyObject source
@@ -235,14 +451,15 @@ public sealed class MainWindow : Window
 
     private void OnCopyCompleted(object? sender, EventArgs args)
     {
-        if (!_hideAfterCopy || !IsVisible || _overlayHost.IsOpen) return;
-        IntPtr previous = _foregroundBeforeShow;
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        _view.CloseHistoryPopup();
+        if (_viewModel.IsWidgetCollapsed)
         {
-            if (!IsVisible) return;
-            HideToBackground();
-            RestoreForeground(previous);
-        }));
+            IntPtr previous = _foregroundBeforeShow;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => RestoreForeground(previous)));
+            return;
+        }
+        if (!_hideAfterCopy || _overlayHost.IsOpen) return;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(CollapseAndReturnFocus));
     }
 
     private void RestoreForeground(IntPtr window)
@@ -252,40 +469,65 @@ public sealed class MainWindow : Window
         catch (Exception exception) { AppLogger.LogException("恢复复制前的前台窗口失败", exception); }
     }
 
+    private static bool ShouldCloseHistoryPopupOnMouseDown(bool isPopupOpen, bool isPointerOverPopup, bool isPointerOverToggle) =>
+        isPopupOpen && !isPointerOverPopup && !isPointerOverToggle;
+
+    private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs args)
+    {
+        if (ShouldCloseHistoryPopupOnMouseDown(_view.IsHistoryPopupOpen,
+                _view.IsHistoryPopupPointerOver, _view.IsHistoryTogglePointerOver))
+            _view.CloseHistoryPopup();
+    }
+
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs args)
     {
-        if (args.Key != Key.Escape || _overlayHost.IsOpen || _viewModel.IsClosing) return;
+        if (_overlayHost.IsOpen || _viewModel.IsClosing) return;
+        if (_viewModel.IsWidgetCollapsed && _view.IsHistoryPopupOpen && args.Key == Key.Escape)
+        {
+            args.Handled = true;
+            _view.CloseHistoryPopup();
+            return;
+        }
+        if (_viewModel.IsWidgetCollapsed)
+        {
+            if (Keyboard.FocusedElement is Button || Keyboard.Modifiers != ModifierKeys.None || args.Key is not (Key.Enter or Key.Space or Key.Down)) return;
+            args.Handled = true;
+            ExpandAndFocus();
+            return;
+        }
+        if (args.Key != Key.Escape) return;
         args.Handled = true;
         if (Keyboard.FocusedElement is TextBox { Text.Length: > 0 } search && ReferenceEquals(search, _searchBox))
         {
             _viewModel.ClearSearchCommand.Execute(null);
             return;
         }
-        HideToBackground();
+        CollapseAndReturnFocus();
     }
 
-    private void HideToBackground()
-    {
-        // A hidden window has no taskbar button; without the tray icon or the hotkey, minimize so it stays reachable.
-        if (_closeToTray || _hotKey.IsRegistered) Hide();
-        else WindowState = WindowState.Minimized;
-    }
-
-    /// <summary>Brings the window back when a second launch finds this instance already running.</summary>
-    public void ShowFromExternalRequest() => OnHotKeyPressed(this, EventArgs.Empty);
+    /// <summary>Expands the widget when a second launch finds this instance already running.</summary>
+    public void ShowFromExternalRequest() => ExpandAndFocus();
 
     private void OnHotKeyPressed(object? sender, EventArgs args)
     {
+        bool expandedInFront = !_viewModel.IsWidgetCollapsed && IsVisible && IsActive && WindowState == WindowState.Normal;
+        if (expandedInFront && !_overlayHost.IsOpen && !_viewModel.IsClosing) CollapseAndReturnFocus();
+        else ExpandAndFocus();
+    }
+
+    private void ExpandAndFocus()
+    {
         if (_viewModel.IsClosing) return;
-        if (!IsVisible || WindowState == WindowState.Minimized)
-            _foregroundBeforeShow = NativeMethods.GetForegroundWindow();
+        _view.CloseHistoryPopup();
+        RememberForeground();
         if (!IsVisible) Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        SetCollapsed(false);
         Activate();
         if (_overlayHost.IsOpen) return;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
         {
-            if (_viewModel.IsClosing || !IsEnabled) return;
+            if (_viewModel.IsClosing || !IsEnabled || _viewModel.IsWidgetCollapsed || _overlayHost.IsOpen) return;
             if (_historyList.Items.Count == 0) _searchBox.Focus();
             else
             {
