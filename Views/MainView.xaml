@@ -247,28 +247,6 @@
                                 MinHeight="28" Padding="9,3" AutomationProperties.Name="更多操作" />
                     </Grid>
                 </Border>
-                <Border x:Name="MoreMenu" Grid.RowSpan="3" Panel.ZIndex="2" Width="196" Padding="5"
-                        HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,8,42"
-                        Visibility="Collapsed" Background="{DynamicResource ToolTipBackgroundBrush}"
-                        BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="1" CornerRadius="10"
-                        Effect="{DynamicResource OverlayShadowEffect}" Focusable="True" AutomationProperties.Name="更多菜单">
-                    <StackPanel>
-                        <Button x:Name="MoreToggleButton" Content="{Binding WidgetToggleLabel}" HorizontalContentAlignment="Left"
-                                Padding="9,6" MinHeight="30" AutomationProperties.Name="展开或收起小窗" />
-                        <Button x:Name="MorePauseButton" Content="{Binding PauseToolTip}" Command="{Binding PauseCommand}"
-                                HorizontalContentAlignment="Left" Padding="9,6" MinHeight="30" AutomationProperties.Name="暂停或恢复监听" />
-                        <Border Height="1" Margin="6,4" Background="{DynamicResource CaptionDividerBrush}" />
-                        <Button x:Name="MoreSettingsButton" Content="设置" Command="{Binding SettingsCommand}"
-                                HorizontalContentAlignment="Left" Padding="9,6" MinHeight="30" AutomationProperties.Name="打开设置" />
-                        <Button x:Name="MoreUpdateButton" Content="检查更新" Command="{Binding UpdateCommand}"
-                                HorizontalContentAlignment="Left" Padding="9,6" MinHeight="30" AutomationProperties.Name="检查更新" />
-                        <Button x:Name="MoreClearButton" Content="清空全部历史记录…" Command="{Binding ClearCommand}"
-                                HorizontalContentAlignment="Left" Padding="9,6" MinHeight="30" AutomationProperties.Name="清空全部历史记录" />
-                        <Border Height="1" Margin="6,4" Background="{DynamicResource CaptionDividerBrush}" />
-                        <Button x:Name="MoreExitButton" Content="退出" HorizontalContentAlignment="Left"
-                                Padding="9,6" MinHeight="30" AutomationProperties.Name="退出应用" />
-                    </StackPanel>
-                </Border>
             </Grid>
         </Border>
     </Popup>

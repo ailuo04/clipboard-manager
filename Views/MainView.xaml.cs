@@ -38,14 +38,6 @@ public partial class MainView : Grid
         MenuButton.Click += (_, _) => OpenMenu(MenuButton, PlacementMode.Bottom);
         HistoryToggleButton.Click += (_, _) => HistoryToggleRequested?.Invoke(this, EventArgs.Empty);
         MoreButton.Click += (_, _) => ToggleMoreMenu();
-        MoreToggleButton.Click += (_, _) => { CloseMoreMenu(); ToggleRequested?.Invoke(this, EventArgs.Empty); };
-        MorePauseButton.Click += (_, _) => CloseMoreMenu();
-        MoreSettingsButton.Click += (_, _) => CloseMoreMenu();
-        MoreUpdateButton.Click += (_, _) => CloseMoreMenu();
-        MoreClearButton.Click += (_, _) => CloseMoreMenu();
-        MoreExitButton.Click += (_, _) => { CloseMoreMenu(); ExitRequested?.Invoke(this, EventArgs.Empty); };
-        MoreMenu.PreviewKeyDown += OnMoreMenuPreviewKeyDown;
-        HistoryPopupBorder.PreviewMouseDown += OnHistoryPopupPreviewMouseDown;
         _menu.Closed += (_, _) => _menuOpening = false;
         HistoryRecords.PreviewKeyDown += OnHistoryRecordsPreviewKeyDown;
         HistoryPopup.Closed += (_, _) => { CloseMoreMenu(); HistoryToggleButton.IsChecked = false; };
@@ -70,7 +62,7 @@ public partial class MainView : Grid
     public bool IsMenuOpen => IsContextMenuOpen || IsMoreMenuOpen;
     public bool IsContextMenuOpen => _menu.IsOpen || _menuOpening;
 
-    public bool IsMoreMenuOpen => MoreMenu.Visibility == Visibility.Visible;
+    public bool IsMoreMenuOpen => _menu.IsOpen && ReferenceEquals(_menu.PlacementTarget, MoreButton);
 
     public bool IsHistoryPopupOpen => HistoryPopup.IsOpen;
 
@@ -79,32 +71,17 @@ public partial class MainView : Grid
 
     public bool IsHistoryTogglePointerOver => HistoryToggleButton.IsMouseOver;
 
-    public void CloseMoreMenu() => MoreMenu.Visibility = Visibility.Collapsed;
+    public void CloseMoreMenu()
+    {
+        if (!IsMoreMenuOpen) return;
+        _menu.IsOpen = false;
+        _menuOpening = false;
+    }
 
     private void ToggleMoreMenu()
     {
-        MoreMenu.Visibility = IsMoreMenuOpen ? Visibility.Collapsed : Visibility.Visible;
-        if (IsMoreMenuOpen) MoreToggleButton.Focus();
-    }
-
-    private void OnMoreMenuPreviewKeyDown(object sender, KeyEventArgs args)
-    {
-        if (!ShouldCloseMoreMenuOnEscape(IsMoreMenuOpen, args.Key)) return;
-        CloseMoreMenu();
-        args.Handled = true;
-    }
-
-    private static bool ShouldCloseMoreMenuOnEscape(bool isMoreMenuOpen, Key key) =>
-        isMoreMenuOpen && key == Key.Escape;
-    private static bool ShouldCloseMoreMenuOnMouseDown(bool isMoreMenuOpen, bool isClickInsideMoreMenu, bool isClickingToggle) =>
-        isMoreMenuOpen && !isClickInsideMoreMenu && !isClickingToggle;
-
-    private void OnHistoryPopupPreviewMouseDown(object sender, MouseButtonEventArgs args)
-    {
-        if (args.OriginalSource is not DependencyObject source) return;
-        if (ShouldCloseMoreMenuOnMouseDown(IsMoreMenuOpen,
-                MoreMenu.IsAncestorOf(source), MoreButton.IsAncestorOf(source)))
-            CloseMoreMenu();
+        if (IsMoreMenuOpen) CloseMoreMenu();
+        else OpenMenu(MoreButton, PlacementMode.Top);
     }
 
     public void CloseHistoryPopup()
@@ -117,10 +94,15 @@ public partial class MainView : Grid
     internal Size MeasureHistoryPopup(double width)
     {
         HistoryPopup.DataContext = DataContext;
+        // A closed popup can retain deferred bindings from the previous clipboard snapshot.
+        // Measure the current records before using DesiredSize as the popup's height limit.
+        HistoryPopupBorder.DataContext = DataContext;
+        HistoryRecords.GetBindingExpression(ItemsControl.ItemsSourceProperty)?.UpdateTarget();
         HistoryPopupBorder.Width = width;
         HistoryPopupBorder.MaxHeight = 360;
         HistoryRecords.MaxHeight = 280;
         HistoryPopupBorder.Measure(new Size(width, 360));
+        HistoryPopupBorder.UpdateLayout();
         return HistoryPopupBorder.DesiredSize;
     }
 

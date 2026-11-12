@@ -68,14 +68,6 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
         Assert.Equal("{Binding SettingsCommand}", (string?)Named(root, "SettingsButton").Attribute("Command"));
         XElement moreButton = Named(root, "MoreButton");
         Assert.NotNull(moreButton);
-        XElement moreMenu = Named(root, "MoreMenu");
-        Assert.Equal("Collapsed", (string?)moreMenu.Attribute("Visibility"));
-        Assert.Equal("{Binding WidgetToggleLabel}", (string?)Named(root, "MoreToggleButton").Attribute("Content"));
-        Assert.Equal("{Binding PauseCommand}", (string?)Named(root, "MorePauseButton").Attribute("Command"));
-        Assert.Equal("{Binding SettingsCommand}", (string?)Named(root, "MoreSettingsButton").Attribute("Command"));
-        Assert.Equal("{Binding UpdateCommand}", (string?)Named(root, "MoreUpdateButton").Attribute("Command"));
-        Assert.Equal("{Binding ClearCommand}", (string?)Named(root, "MoreClearButton").Attribute("Command"));
-        Assert.NotNull(Named(root, "MoreExitButton"));
     }
 
 
@@ -94,17 +86,6 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
     }
 
     [Fact]
-    public void EscapeClosesMoreMenuBeforeHistoryPopup()
-    {
-        var policy = typeof(ClipboardManager.Views.MainView).GetMethod("ShouldCloseMoreMenuOnEscape",
-            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-        Assert.NotNull(policy);
-
-        Assert.True((bool)policy!.Invoke(null, [true, Key.Escape])!);
-        Assert.False((bool)policy.Invoke(null, [false, Key.Escape])!);
-        Assert.False((bool)policy.Invoke(null, [true, Key.Enter])!);
-    }
-    [Fact]
     public void DetachedContextMenuPreventsHistoryPopupDismissalOnDeactivation()
     {
         var policy = typeof(MainWindow).GetMethod("ShouldCloseHistoryPopupOnDeactivation",
@@ -120,7 +101,7 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
 
 
     [Fact]
-    public void MoreButtonTogglesInlineMenuWithoutClosingHistoryPopup()
+    public void MoreButtonTogglesIndependentMenuWithoutClosingHistoryPopup()
     {
         wpf.Run(() =>
         {
@@ -137,19 +118,19 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
                 var historyPopup = (Popup)typeof(ClipboardManager.Views.MainView)
                     .GetField("HistoryPopup", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
                     .GetValue(view)!;
-                var moreMenu = (Border)typeof(ClipboardManager.Views.MainView)
-                    .GetField("MoreMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                var moreMenu = (ContextMenu)typeof(ClipboardManager.Views.MainView)
+                    .GetField("_menu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
                     .GetValue(view)!;
 
                 historyPopup.IsOpen = true;
                 moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, moreButton));
-                Assert.Equal(Visibility.Visible, moreMenu.Visibility);
+                Assert.True(moreMenu.IsOpen);
                 Assert.True(view.IsMenuOpen);
-                Assert.False(view.IsContextMenuOpen);
+                Assert.True(view.IsContextMenuOpen);
                 Assert.True(historyPopup.IsOpen);
 
                 moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, moreButton));
-                Assert.Equal(Visibility.Collapsed, moreMenu.Visibility);
+                Assert.False(moreMenu.IsOpen);
                 Assert.False(view.IsMenuOpen);
                 Assert.True(historyPopup.IsOpen);
                 historyPopup.IsOpen = false;
@@ -159,19 +140,6 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
                 owner.Close();
             }
         });
-    }
-
-    [Fact]
-    public void InlineMoreMenuClosesOnlyForClicksOutsideMenuAndToggle()
-    {
-        var policy = typeof(ClipboardManager.Views.MainView).GetMethod("ShouldCloseMoreMenuOnMouseDown",
-            System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic);
-        Assert.NotNull(policy);
-
-        Assert.True((bool)policy!.Invoke(null, [true, false, false])!);
-        Assert.False((bool)policy.Invoke(null, [true, true, false])!);
-        Assert.False((bool)policy.Invoke(null, [true, false, true])!);
-        Assert.False((bool)policy.Invoke(null, [false, false, false])!);
     }
 
     [Fact]
