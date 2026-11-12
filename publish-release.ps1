@@ -79,10 +79,14 @@ $name = "ClipboardManager-$Version-win-x64"
 $downloadNames = @("$name.zip", "$name.sha256", "$name-setup.exe", "$name-setup.sha256")
 $downloads = @($downloadNames | ForEach-Object { Get-Item -LiteralPath (Join-Path $directoryPath $_) -ErrorAction Stop })
 $manifestFile = Get-Item -LiteralPath (Join-Path $directoryPath "$name-update.json")
+$latestManifestFile = Get-Item -LiteralPath (Join-Path $directoryPath 'latest-win-x64.json')
+if ((Get-FileHash -LiteralPath $latestManifestFile.FullName).Hash -ne (Get-FileHash -LiteralPath $manifestFile.FullName).Hash) {
+    throw 'Fixed update manifest does not match the versioned manifest.'
+}
 $manifest = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json
 if ($manifest.schema -ne 1 -or $manifest.version -ne $Version -or $manifest.platform -ne 'win-x64') { throw 'Invalid publication manifest.' }
 $blobNames = @($manifest.files.sha256 | Sort-Object -Unique | ForEach-Object { "update-$_.gz" })
-$updateFiles = @($manifestFile) + @($blobNames | ForEach-Object { Get-Item -LiteralPath (Join-Path $directoryPath $_) -ErrorAction Stop })
+$updateFiles = @($manifestFile, $latestManifestFile) + @($blobNames | ForEach-Object { Get-Item -LiteralPath (Join-Path $directoryPath $_) -ErrorAction Stop })
 if (@(Get-ChildItem -LiteralPath $directoryPath -File).Count -ne $downloads.Count + $updateFiles.Count) { throw 'Unexpected publication files.' }
 foreach ($file in $manifest.files) {
     if ((Get-Item -LiteralPath (Join-Path $directoryPath "update-$($file.sha256).gz")).Length -ne $file.compressedSize) { throw "Wrong compressed file size: $($file.path)" }
@@ -103,7 +107,7 @@ if (-not $main) {
     Invoke-GitHub -Arguments @('release','create',$tag,'--repo',$Repository,'--target',$commit,'--title',"剪贴板 $tag",'--notes-file',(Join-Path $PSScriptRoot 'RELEASE_NOTES.md'),'--draft')
 }
 else {
-    $unknown = @($main.assets | Where-Object { $_.name -notin $downloadNames -and $_.name -ne "$name-update.json" -and $_.name -notmatch '^update-[0-9a-f]{64}\.gz$' })
+    $unknown = @($main.assets | Where-Object { $_.name -notin $downloadNames -and $_.name -ne "$name-update.json" -and $_.name -ne 'latest-win-x64.json' -and $_.name -notmatch '^update-[0-9a-f]{64}\.gz$' })
     if ($unknown.Count) { throw 'Refusing to delete unknown application release assets.' }
     Invoke-GitHub -Arguments @('release','edit',$tag,'--repo',$Repository,'--draft=true')
 }
@@ -112,7 +116,7 @@ else {
 Upload-Assets $tag $releaseFiles ([bool]$main)
 $main = Get-Release $tag
 $obsoleteAssets = @($main.assets | Where-Object name -NotIn $releaseNames)
-if (@($obsoleteAssets | Where-Object { $_.name -notin $downloadNames -and $_.name -ne "$name-update.json" -and $_.name -notmatch '^update-[0-9a-f]{64}\.gz$' }).Count) { throw 'Refusing to delete an unrecognized release asset.' }
+if (@($obsoleteAssets | Where-Object { $_.name -notin $downloadNames -and $_.name -ne "$name-update.json" -and $_.name -ne 'latest-win-x64.json' -and $_.name -notmatch '^update-[0-9a-f]{64}\.gz$' }).Count) { throw 'Refusing to delete an unrecognized release asset.' }
 Remove-Assets $obsoleteAssets
 Assert-Assets (Get-Release $tag) $releaseFiles
 

@@ -8,12 +8,12 @@ using ClipboardManager.Updates;
 
 namespace ClipboardManager.Services;
 
-/// <summary>Owns the HttpClient and all raw GitHub traffic: release metadata, ETag caching, and verified file downloads.</summary>
+/// <summary>Owns the HttpClient and static release manifest requests, ETag caching, and verified file downloads.</summary>
 internal sealed class GitHubReleaseClient : IDisposable
 {
     private readonly HttpClient _client;
-    private string? _latestReleaseETag;
-    private byte[]? _latestReleaseMetadata;
+    private string? _latestManifestETag;
+    private byte[]? _latestManifestBytes;
     private bool _disposed;
 
     public GitHubReleaseClient(HttpMessageHandler? handler = null)
@@ -21,36 +21,25 @@ internal sealed class GitHubReleaseClient : IDisposable
         _client = handler is null ? new HttpClient() : new HttpClient(handler);
         _client.Timeout = TimeSpan.FromSeconds(30);
         _client.DefaultRequestHeaders.UserAgent.ParseAdd("ClipboardManager/" + UpdateService.CurrentVersion);
-        _client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
     }
 
-    public async Task<byte[]> GetLatestReleaseAsync(CancellationToken token)
+    public async Task<byte[]> GetLatestManifestAsync(CancellationToken token)
     {
         ThrowIfDisposed();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(30));
         token = timeout.Token;
-        using var request = CreateRequest($"https://api.github.com/repos/{UpdateService.Repository}/releases/latest", asset: false);
-        if (_latestReleaseETag is not null) request.Headers.IfNoneMatch.ParseAdd(_latestReleaseETag);
+        using var request = CreateRequest($"https://github.com/{UpdateService.Repository}/releases/latest/download/latest-win-x64.json");
+        if (_latestManifestETag is not null) request.Headers.IfNoneMatch.ParseAdd(_latestManifestETag);
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         if (response.StatusCode == HttpStatusCode.NotModified)
-            return _latestReleaseMetadata ?? throw new InvalidDataException("GitHub 返回了未修改状态，但本地没有缓存的发行版信息。");
+            return _latestManifestBytes ?? throw new InvalidDataException("GitHub 返回了未修改状态，但本地没有缓存的更新清单。");
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            throw new HttpRequestException("最新正式版尚未提供固定更新清单（latest-win-x64.json）。请在发布包含该清单的版本后重试。", null, response.StatusCode);
         GitHubHttp.EnsureSuccess(response);
-        _latestReleaseMetadata = await ReadContentAsync(response.Content, token);
-        _latestReleaseETag = response.Headers.ETag?.ToString();
-        return _latestReleaseMetadata;
-    }
-
-    public async Task<byte[]> GetBytesAsync(string url, bool asset, CancellationToken token)
-    {
-        ThrowIfDisposed();
-        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
-        timeout.CancelAfter(TimeSpan.FromSeconds(30));
-        token = timeout.Token;
-        using var request = CreateRequest(url, asset);
-        using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
-        GitHubHttp.EnsureSuccess(response);
-        return await ReadContentAsync(response.Content, token);
+        _latestManifestBytes = await ReadContentAsync(response.Content, token);
+        _latestManifestETag = response.Headers.ETag?.ToString();
+        return _latestManifestBytes;
     }
 
     public async Task DownloadToAsync(UpdateAsset asset, UpdateFile file, string path, long completed, long total,
@@ -60,7 +49,7 @@ internal sealed class GitHubReleaseClient : IDisposable
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
         token = timeout.Token;
-        using var request = CreateRequest(asset.DownloadUrl, asset: true);
+        using var request = CreateRequest(asset.DownloadUrl);
         using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
         GitHubHttp.EnsureSuccess(response);
         if (response.Content.Headers.ContentLength is long length && length != file.CompressedSize) throw new InvalidDataException("下载长度不符：" + file.Path);
@@ -93,10 +82,10 @@ internal sealed class GitHubReleaseClient : IDisposable
         progress?.Report(new UpdateProgress("已校验 " + file.Path, completed + file.CompressedSize, total));
     }
 
-    private HttpRequestMessage CreateRequest(string url, bool asset)
+    private HttpRequestMessage CreateRequest(string url)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue(asset ? "application/octet-stream" : "application/vnd.github+json"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
         return request;
     }
 

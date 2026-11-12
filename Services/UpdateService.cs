@@ -8,7 +8,7 @@ using ClipboardManager.Utilities;
 namespace ClipboardManager.Services;
 
 public sealed record UpdateProgress(string Status, long Downloaded, long Total);
-public sealed record UpdateAsset(long Id, long Size, string DownloadUrl);
+public sealed record UpdateAsset(long Size, string DownloadUrl);
 public sealed record AvailableUpdate(UpdateManifest Manifest, byte[] ManifestBytes, UpdatePlan Plan, IReadOnlyDictionary<string, UpdateAsset> Assets)
 {
     public long DownloadSize => Plan.Changes.Sum(file => file.CompressedSize);
@@ -41,55 +41,23 @@ public sealed class UpdateService : IDisposable
         try
         {
             var current = LoadCurrentManifest();
-            byte[] metadata = await _http.GetLatestReleaseAsync(token);
-            using var release = JsonDocument.Parse(metadata);
-            var data = release.RootElement;
-            if (data.GetProperty("draft").GetBoolean() || data.GetProperty("prerelease").GetBoolean()) return null;
-            string tag = data.GetProperty("tag_name").GetString() ?? "";
-            if (!tag.StartsWith('v') || !Version.TryParse(tag[1..], out var nextVersion)) throw new InvalidDataException("发布版本号不正确。");
-            if (nextVersion <= Version.Parse(current.Version)) return null;
-            string manifestName = $"ClipboardManager-{tag[1..]}-win-x64-update.json";
-            var assets = ReadAssets(data);
-            if (!assets.ContainsKey(manifestName))
-            {
-                string updateTag = "updates-" + tag;
-                byte[] updateMetadata = await _http.GetBytesAsync($"https://api.github.com/repos/{Repository}/releases/tags/{updateTag}", asset: false, token);
-                using var updateRelease = JsonDocument.Parse(updateMetadata);
-                var updateData = updateRelease.RootElement;
-                if (updateData.GetProperty("tag_name").GetString() != updateTag || updateData.GetProperty("draft").GetBoolean()
-                    || !updateData.GetProperty("prerelease").GetBoolean())
-                    throw new InvalidDataException("独立更新数据区的版本或发布状态不正确。");
-                assets = ReadAssets(updateData);
-            }
-            if (!assets.TryGetValue(manifestName, out var manifestAsset)) throw new InvalidDataException("此发行版没有增量更新清单，不会下载完整安装包。");
-            if (manifestAsset.Size > 4 * 1024 * 1024) throw new InvalidDataException("更新清单过大。");
-            byte[] manifestBytes = await _http.GetBytesAsync(manifestAsset.DownloadUrl, asset: true, token);
-            if (manifestBytes.LongLength != manifestAsset.Size) throw new InvalidDataException("更新清单长度不符。");
+            byte[] manifestBytes = await _http.GetLatestManifestAsync(token);
             var manifest = JsonSerializer.Deserialize<UpdateManifest>(manifestBytes, JsonOptions) ?? throw new InvalidDataException("更新清单为空。");
             UpdateFiles.ValidateManifest(manifest);
-            if (manifest.Version != tag[1..]) throw new InvalidDataException("发行版与更新清单版本不一致。");
+            if (Version.Parse(manifest.Version) <= Version.Parse(current.Version)) return null;
+            // Pin every blob to the manifest's version, even if Latest changes during download.
+            var assets = new Dictionary<string, UpdateAsset>(StringComparer.Ordinal);
             foreach (var file in manifest.Files)
-                if (!assets.TryGetValue(file.AssetName, out var asset) || asset.Size != file.CompressedSize)
-                    throw new InvalidDataException("增量更新文件缺失或大小不符：" + file.Path);
+            {
+                string url = $"https://github.com/{Repository}/releases/download/v{manifest.Version}/{file.AssetName}";
+                if (!assets.TryAdd(file.AssetName, new UpdateAsset(file.CompressedSize, url))
+                    && assets[file.AssetName].Size != file.CompressedSize)
+                    throw new InvalidDataException("相同增量文件的压缩大小不一致：" + file.Path);
+            }
             var plan = await Task.Run(() => UpdateFiles.Plan(_root, current, manifest, token), token);
             return new AvailableUpdate(manifest, manifestBytes, plan, assets);
         }
         finally { _gate.Release(); }
-    }
-
-    private static Dictionary<string, UpdateAsset> ReadAssets(JsonElement release)
-    {
-        var assets = new Dictionary<string, UpdateAsset>(StringComparer.Ordinal);
-        foreach (var asset in release.GetProperty("assets").EnumerateArray())
-        {
-            string name = asset.GetProperty("name").GetString() ?? "";
-            long id = asset.GetProperty("id").GetInt64();
-            long size = asset.GetProperty("size").GetInt64();
-            string downloadUrl = asset.GetProperty("browser_download_url").GetString() ?? "";
-            if (id <= 0 || size < 0 || !GitHubHttp.IsReleaseDownloadUrl(Repository, downloadUrl) || !assets.TryAdd(name, new UpdateAsset(id, size, downloadUrl)))
-                throw new InvalidDataException("发行附件信息不正确。");
-        }
-        return assets;
     }
 
     private UpdateManifest LoadCurrentManifest()

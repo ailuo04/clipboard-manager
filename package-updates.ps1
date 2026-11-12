@@ -42,4 +42,5 @@ $json = $manifest | ConvertTo-Json -Depth 8
 $manifestName = "ClipboardManager-$Version-win-x64-update.json"
 [IO.File]::WriteAllText((Join-Path $source 'update-manifest.json'), $json, [Text.UTF8Encoding]::new($false))
 [IO.File]::WriteAllText((Join-Path $output $manifestName), $json, [Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText((Join-Path $output 'latest-win-x64.json'), $json, [Text.UTF8Encoding]::new($false))
 Write-Host "Incremental update: $($files.Count) files, $(@(Get-ChildItem -LiteralPath $output -Filter '*.gz').Count) unique blobs."

@@ -5,14 +5,6 @@ namespace ClipboardManager.Services;
 
 internal static class GitHubHttp
 {
-    internal static bool IsReleaseDownloadUrl(string repository, string value)
-    {
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps
-            || !uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase))
-            return false;
-        return uri.AbsolutePath.StartsWith($"/{repository}/releases/download/", StringComparison.OrdinalIgnoreCase);
-    }
-
     internal static void EnsureSuccess(HttpResponseMessage response)
     {
         if (response.StatusCode == HttpStatusCode.NotFound)
@@ -24,7 +16,7 @@ internal static class GitHubHttp
             bool rateLimited = (int)response.StatusCode == 429 || response.Headers.RetryAfter is not null
                 || (response.Headers.TryGetValues("X-RateLimit-Remaining", out var remaining) && remaining.Any(value => value == "0"));
             if (rateLimited)
-                throw new HttpRequestException($"GitHub API 请求频率已达上限（HTTP {(int)response.StatusCode}）。{GetRateLimitRetryHint(response)}", null, response.StatusCode);
+                throw new HttpRequestException($"GitHub 下载请求频率已达上限（HTTP {(int)response.StatusCode}）。{GetRateLimitRetryHint(response)}", null, response.StatusCode);
             if (response.StatusCode == HttpStatusCode.Forbidden)
                 throw new HttpRequestException("GitHub 拒绝了公开更新请求（HTTP 403）。请确认仓库可公开访问；若仓库已公开，可能是 GitHub 临时限制或网络代理拦截，请稍后重试。", null, response.StatusCode);
         }

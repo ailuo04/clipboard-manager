@@ -6,18 +6,18 @@ Windows 11 中文桌面剪贴板管理器。自动保存文本、截图和图片
 
 在仓库的 [最新正式版](../../releases/latest) 页面选择 Windows 11 x64 版本：
 
-- 安装版：下载 `ClipboardManager-0.0.10-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
-- 便携版：下载 `ClipboardManager-0.0.10-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
+- 安装版：下载 `ClipboardManager-0.0.11-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
+- 便携版：下载 `ClipboardManager-0.0.11-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
 
 两种版本均自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。安装版与便携版共用历史数据，不能同时运行；安装、升级和卸载均不删除历史。仓库现已公开，任何人都可以下载正式发行版。
 
 首次运行可能出现 Windows 未知发布者提示，应用尚未代码签名。请确认来源并核对同版本 `.sha256` 文件，不要关闭系统安全防护。在 PowerShell 中校验：
 
 ```powershell
-Get-FileHash .\ClipboardManager-0.0.10-win-x64.zip -Algorithm SHA256
-Get-Content .\ClipboardManager-0.0.10-win-x64.sha256
-Get-FileHash .\ClipboardManager-0.0.10-win-x64-setup.exe -Algorithm SHA256
-Get-Content .\ClipboardManager-0.0.10-win-x64-setup.sha256
+Get-FileHash .\ClipboardManager-0.0.11-win-x64.zip -Algorithm SHA256
+Get-Content .\ClipboardManager-0.0.11-win-x64.sha256
+Get-FileHash .\ClipboardManager-0.0.11-win-x64-setup.exe -Algorithm SHA256
+Get-Content .\ClipboardManager-0.0.11-win-x64-setup.sha256
 ```
 
 完整操作、升级和卸载说明见 [使用说明](docs/USAGE.md)，当前版本介绍见 [发行说明](RELEASE_NOTES.md)。
@@ -78,23 +78,23 @@ dotnet run --project .\ClipboardManager.csproj
 
 v0.0.2 是首个包含应用内增量更新器的版本；v0.0.3 可直接从 v0.0.2 应用内升级，v0.0.1 不包含此功能，需要先手动升级一次。
 
-更新器直接读取 GitHub 的最新正式版 Release。版本更新清单和逐文件压缩附件与安装包一起发布在该正式版中；旧版本曾将它们放在同一公开仓库的 `updates-v版本号` 预发布 Release（不是另一个私有仓库），更新器仍兼容读取旧布局。
+更新器通过固定地址 `https://github.com/ailuo04/clipboard-manager/releases/latest/download/latest-win-x64.json` 读取最新正式版的更新清单。固定名称清单、带版本号的清单和逐文件压缩附件与安装包一起发布在同一正式版中。下载增量文件时锁定清单中的 `v版本号`，不再查询 Release API 或旧的 `updates-v版本号` 数据区；带版本号的清单继续保留，供旧版客户端读取。
 
 v0.0.2 曾按确认完成同版本重建，旧批次用户需重新安装一次以切换更新数据源；该问题不影响 v0.0.3 及后续版本的应用内增量更新。
 
-主界面新增“应用更新”图标，设置页也可打开。默认在启动约 5 秒后及运行期间每 6 小时检查一次正式发行版，可在设置中关闭。检查仅请求 GitHub 版本信息和文件清单；发现新版后显示下载量，用户确认后才下载，校验完成后保存当前操作、退出并更新，再自动启动。
+主界面新增“应用更新”图标，设置页也可打开。默认在启动约 5 秒后及运行期间每 6 小时检查一次正式发行版，可在设置中关闭。检查仅下载固定地址的更新清单；发现新版后显示下载量，用户确认后才下载，校验完成后保存当前操作、退出并更新，再自动启动。
 
 更新是**文件级增量**，不是完整 ZIP 或安装包替换：逐个比较本地文件的 SHA256，只获取新增或改变文件对应的 GZip 附件，删除新版不再包含且未被手动修改的旧发行文件。未变化的 .NET 运行环境不下载、不复制、不改写。若某个 DLL 改动，会下载该 DLL 的完整压缩内容，不是二进制字节差分；运行环境真正升级时，其变化文件也需要下载。
 
 压缩数据直接解压写入程序目录内的临时工作区，不额外保存压缩包。只暂存本次变动，原文件在同盘移动备份；新版成功打开后删除备份和临时文件，不保留整份旧版本。断网、取消或校验失败不修改原程序；应用替换中断时，独立启动器根据事务记录恢复。仅管理发行清单中的程序文件，不更新历史数据、图片、设置、卸载器或用户自行添加的文件。安装版的卸载入口版本会同步更新，卸载时也会清理增量新增的发行文件。
 
-更新源固定为公开仓库 `ailuo04/clipboard-manager` 的 GitHub Releases，不使用个人访问令牌。检查时通过最新正式版接口读取版本和附件清单，并使用 ETag 减少重复 API 请求；附件通过 Release 下载地址获取，避免为每个文件调用 GitHub API。所有下载均经 HTTPS 和逐文件 SHA256 校验。
+更新源固定为公开仓库 `ailuo04/clipboard-manager` 的 GitHub Releases，不使用个人访问令牌。客户端检查和下载都直接访问 Release 附件，不调用 GitHub REST API，因此不消耗匿名 API 请求额度。固定清单使用 ETag 缓存；网络服务仍可能限制下载请求，不承诺无限频率访问。保留清单大小限制、路径检查、下载长度检查和逐文件 SHA256 校验。首次启用需要发布包含 `latest-win-x64.json` 的正式版；附件缺失时明确报错，不回退到 API。已安装的旧版客户端仍沿用其原有更新逻辑。
 
 旧发行版不含更新器，必须先手动升级一次到含本功能的发行版。此后新发行版必须由新版发布流程生成更新清单和文件附件，且打包方式保持一致；缺少附件、无权限或打包方式改变时明确报错，**绝不退回全量更新**。自动更新需要程序目录可写，不申请管理员权限。
 
 ```powershell
-.\package.ps1 -Version 0.0.10
-.\installer.ps1 -Archive .\dist\ClipboardManager-0.0.10-win-x64.zip -Version 0.0.10
+.\package.ps1 -Version 0.0.11
+.\installer.ps1 -Archive .\dist\ClipboardManager-0.0.11-win-x64.zip -Version 0.0.11
 ```
 
 在 `dist` 生成 Windows x64 便携 ZIP、SHA256、增量更新清单及逐文件压缩附件。打包使用标准 `dotnet publish --self-contained true`，需要安装 .NET 8 SDK；先前的无 SDK 离线打包路径已移除，因为视图改为编译式 XAML 后必须经过 WPF XAML 编译器。包内 `release.json` 记录应用版本、运行环境版本和构建方式。
@@ -103,7 +103,7 @@ v0.0.2 曾按确认完成同版本重建，旧批次用户需重新安装一次�
 
 `installer.ps1` 校验输入 ZIP 和版本后，使用已有 Inno Setup 编译器构建中文安装版，同时生成独立 SHA256 文件；不会下载或安装构建工具。当前本机没有 Inno Setup，可使用预装该工具的 GitHub Windows 构建环境。安装包使用固定应用标识，支持原目录覆盖升级；程序正在运行时要求先退出。卸载只移除安装文件、快捷方式和卸载注册信息，不删除用户历史。
 
-GitHub Actions 工作流 `.github/workflows/release.yml` 支持版本标签和手动填写版本号。在 Windows 上构建自包含程序与中文安装包，验证安装、重装、启动、卸载及数据保留后，`publish-release.ps1` 将安装包、完整更新清单及逐文件压缩附件上传到同一正式 Release，校验所有附件后才发布并标记 Latest。附件中包含每个发行文件的压缩内容，但客户端按本机 SHA256 对比后，只下载新增或发生变化的文件；未变化文件不传输、不重写。默认拒绝覆盖既有版本；只有明确批准后才允许同版本刷新。
+GitHub Actions 工作流 `.github/workflows/release.yml` 支持版本标签和手动填写版本号。在 Windows 上构建自包含程序与中文安装包，验证安装、重装、启动、卸载及数据保留后，`publish-release.ps1` 先校验固定名称清单与带版本号清单完全一致，再将安装包、两份更新清单及逐文件压缩附件上传到同一正式 Release，校验所有附件后才发布并标记 Latest。附件中包含每个发行文件的压缩内容，但客户端按本机 SHA256 对比后，只下载新增或发生变化的文件；未变化文件不传输、不重写。默认拒绝覆盖既有版本；只有明确批准后才允许同版本刷新。
 
 ## 功能与规则
 

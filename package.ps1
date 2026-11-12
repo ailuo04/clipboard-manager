@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.10',
+    [string]$Version = '0.0.11',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist')
 )
 
@@ -12,7 +12,7 @@ $name = "ClipboardManager-$Version-win-x64"
 $archive = Join-Path $output "$name.zip"
 $checksum = Join-Path $output "$name.sha256"
 $updateManifest = Join-Path $output "$name-update.json"
-foreach ($path in @($archive, $checksum, $updateManifest)) {
+foreach ($path in @($archive, $checksum, $updateManifest, (Join-Path $output 'latest-win-x64.json'))) {
     if (Test-Path -LiteralPath $path) { throw "Release file already exists; choose a new version or output directory: $path" }
 }
 $bin = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'bin'))

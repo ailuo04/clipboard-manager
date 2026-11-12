@@ -50,6 +50,9 @@ jobs:
       - name: Run unit tests
         shell: pwsh
         run: dotnet test Tests/ClipboardManager.Tests/ClipboardManager.Tests.csproj --configuration Release --nologo
+      - name: Verify static update publication
+        shell: pwsh
+        run: ./Tests/Verify-UpdatePublication.ps1
       - name: Package self-contained Windows application
         shell: pwsh
         run: ./package.ps1 -Version '${{ steps.version.outputs.value }}'
