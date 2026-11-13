@@ -14,6 +14,98 @@ namespace ClipboardManager.Tests;
 [Collection(SettingsOverlayWpfCollection.Name)]
 public sealed class HistoryPopupLayoutTests(SettingsOverlayWpfFixture wpf)
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(2)]
+    [InlineData(20)]
+    public void FirstOpenReservesVisibleRowsBeforePopupTemplatesHaveLoaded(int count)
+    {
+        wpf.Run(() => WithView(view =>
+        {
+            view.DataContext = CreateContext(count);
+            Size desired = view.MeasureHistoryPopup(300);
+            view.ShowHistoryPopup(CapsulePopupPositioning.Calculate(
+                SystemParameters.WorkArea, new Rect(100, 100, 240, 40), desired));
+            PumpLayout(view);
+            var list = (ListBox)view.FindName("HistoryRecords");
+            Assert.Equal(count, list.Items.Count);
+            Assert.True(list.ActualHeight >= (count == 0 ? 36 : count == 2 ? 74 : 200),
+                $"First open: {count} records, measured {desired}, list height {list.ActualHeight}.");
+            if (count > 0)
+            {
+                var row = Assert.IsType<ListBoxItem>(list.ItemContainerGenerator.ContainerFromIndex(0));
+                Rect bounds = row.TransformToAncestor(list).TransformBounds(new Rect(row.RenderSize));
+                Assert.True(bounds.Bottom <= list.ActualHeight, $"First row clipped: {bounds} in {list.ActualHeight}.");
+                list.ScrollIntoView(list.Items[count - 1]);
+                PumpLayout(view);
+                var last = Assert.IsType<ListBoxItem>(list.ItemContainerGenerator.ContainerFromIndex(count - 1));
+                Rect lastBounds = last.TransformToAncestor(list).TransformBounds(new Rect(last.RenderSize));
+                Assert.True(lastBounds.Top >= 0 && lastBounds.Bottom <= list.ActualHeight,
+                    $"Last row cannot be reached: {lastBounds} in {list.ActualHeight}.");
+            }
+        }));
+    }
+
+    [Fact]
+    public void ReopeningAfterEmptyPopupGrowsToFitNewRecords()
+    {
+        wpf.Run(() => WithView(view =>
+        {
+            view.DataContext = CreateContext(0);
+            var area = SystemParameters.WorkArea;
+            var target = new Rect(area.Left, area.Bottom - 88, 240, 40);
+            view.ShowHistoryPopup(CapsulePopupPositioning.Calculate(area, target, view.MeasureHistoryPopup(300)));
+            PumpLayout(view);
+            view.CloseHistoryPopup();
+            PumpLayout(view);
+            view.DataContext = CreateContext(3);
+            PumpLayout(view);
+            Size desired = view.MeasureHistoryPopup(300);
+            view.ShowHistoryPopup(CapsulePopupPositioning.Calculate(area, target, desired));
+            PumpLayout(view);
+            var list = (ListBox)view.FindName("HistoryRecords");
+            Assert.Equal(3, list.Items.Count);
+            Assert.True(list.ActualHeight >= 110, $"Reopened: measured {desired}, list height {list.ActualHeight}.");
+        }, nearScreenEdge: true));
+    }
+
+    [Theory]
+    [InlineData(40, PlacementMode.Bottom, 236)]
+    [InlineData(240, PlacementMode.Top, 236)]
+    public void SmallWorkAreaUsesTheSideWithMoreRoom(double top, PlacementMode expected, double height)
+    {
+        var layout = CapsulePopupPositioning.Calculate(new Rect(0, 0, 500, 320),
+            new Rect(20, top, 240, 40), new Size(300, 360));
+        Assert.Equal(expected, layout.Placement);
+        Assert.Equal(height, layout.MaxHeight);
+    }
+
+    [Fact]
+    public void IconContainsEnoughPixelsForUpdatePageAtHighDpi()
+    {
+        wpf.Run(() =>
+        {
+            var icon = ViewLoader.LoadIcon();
+            Assert.True(icon.PixelWidth >= 132 && icon.PixelHeight >= 132,
+                $"44 DIP update icon at 300% needs 132 pixels; loaded {icon.PixelWidth}x{icon.PixelHeight}.");
+        });
+    }
+
+    private static object CreateContext(int count) => new
+    {
+        IsWidgetCollapsed = true,
+        HasRecords = count > 0,
+        RecordCount = count,
+        WidgetToggleLabel = "展开",
+        PauseToolTip = "暂停监听",
+        HistoryRecords = Enumerable.Range(1, count).Select(index => new
+        {
+            SingleLine = $"历史记录 {index} · 清晰度与布局验证",
+            PositionLabel = index.ToString(),
+            ShortTimeLabel = "12:00"
+        }).ToArray()
+    };
+
     [Fact]
     public void HistoryPopupRemeasuresRecordsAfterClosedPopupBindingsChange()
     {

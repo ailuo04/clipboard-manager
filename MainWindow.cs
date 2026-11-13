@@ -560,6 +560,11 @@ public sealed class MainWindow : Window
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName == nameof(MainViewModel.IsPaused)) _trayIcon.UpdatePausedState(_viewModel.IsPaused);
+        if (args.PropertyName == nameof(MainViewModel.HistoryRecords) && _view.IsHistoryPopupOpen)
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            {
+                if (_view.IsHistoryPopupOpen) OpenHistoryPopup();
+            }));
     }
 
     private void OnSessionEnding(object? sender, SessionEndingCancelEventArgs args) => _exitRequested = true;

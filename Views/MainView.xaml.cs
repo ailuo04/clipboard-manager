@@ -94,16 +94,23 @@ public partial class MainView : Grid
     internal Size MeasureHistoryPopup(double width)
     {
         HistoryPopup.DataContext = DataContext;
-        // A closed popup can retain deferred bindings from the previous clipboard snapshot.
-        // Measure the current records before using DesiredSize as the popup's height limit.
         HistoryPopupBorder.DataContext = DataContext;
         HistoryRecords.GetBindingExpression(ItemsControl.ItemsSourceProperty)?.UpdateTarget();
         HistoryPopupBorder.Width = width;
         HistoryPopupBorder.MaxHeight = 360;
-        HistoryRecords.MaxHeight = 280;
-        HistoryPopupBorder.Measure(new Size(width, 360));
-        HistoryPopupBorder.UpdateLayout();
-        return HistoryPopupBorder.DesiredSize;
+
+        // Closed virtualized popups may report only their chrome before rows are realized.
+        // Size the viewport from the fixed row extent, independently of that stale DesiredSize.
+        double innerWidth = Math.Max(0, width - HistoryPopupBorder.BorderThickness.Left - HistoryPopupBorder.BorderThickness.Right);
+        HistoryHeader.Measure(new Size(innerWidth, double.PositiveInfinity));
+        HistoryFooter.Measure(new Size(innerWidth, double.PositiveInfinity));
+        double rowExtent = (double)FindResource("HistoryRowHeight") + 1; // Item's bottom margin.
+        double viewport = Math.Min(280, Math.Max(44,
+            HistoryRecords.Items.Count * rowExtent + HistoryRecords.Padding.Top + HistoryRecords.Padding.Bottom));
+        double height = viewport + HistoryHeader.DesiredSize.Height + HistoryFooter.DesiredSize.Height
+            + HistoryPopupBorder.BorderThickness.Top + HistoryPopupBorder.BorderThickness.Bottom;
+        HistoryPopupBorder.Height = Math.Min(360, Math.Ceiling(height));
+        return new Size(width, HistoryPopupBorder.Height);
     }
 
     internal void ShowHistoryPopup(CapsulePopupLayout layout)
@@ -113,8 +120,8 @@ public partial class MainView : Grid
         HistoryPopup.HorizontalOffset = layout.HorizontalOffset;
         HistoryPopup.VerticalOffset = layout.Placement == PlacementMode.Bottom ? 4 : -4;
         HistoryPopupBorder.Width = layout.Width;
+        HistoryPopupBorder.Height = layout.MaxHeight;
         HistoryPopupBorder.MaxHeight = layout.MaxHeight;
-        HistoryRecords.MaxHeight = Math.Min(280, Math.Max(0, layout.MaxHeight - 82));
         HistoryToggleButton.IsChecked = true;
         HistoryPopup.IsOpen = true;
     }

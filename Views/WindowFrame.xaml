@@ -10,11 +10,14 @@
     <Grid x:Name="OverlayLayer" Visibility="Collapsed" Panel.ZIndex="10" shell:WindowChrome.IsHitTestVisibleInChrome="True"
           Background="{DynamicResource OverlayScrimBrush}"
           KeyboardNavigation.TabNavigation="Cycle" FocusManager.IsFocusScope="True">
+        <Border Width="{Binding ActualWidth, ElementName=OverlayPanel}" Height="{Binding ActualHeight, ElementName=OverlayPanel}"
+                HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8" CornerRadius="14"
+                Background="{DynamicResource OverlayGlassBrush}" Effect="{DynamicResource OverlayShadowEffect}" IsHitTestVisible="False" />
         <Border x:Name="OverlayPanel" HorizontalAlignment="Center" VerticalAlignment="Center"
                 Margin="8" Padding="0"
                 Background="{DynamicResource OverlayGlassBrush}"
                 BorderBrush="{DynamicResource OverlayEdgeBrush}" BorderThickness="1"
-                CornerRadius="14" Effect="{DynamicResource OverlayShadowEffect}">
+                CornerRadius="14">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

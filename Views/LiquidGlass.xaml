@@ -17,6 +17,7 @@
     <SolidColorBrush x:Key="PressedSurfaceBrush" Color="#916A778A" />
     <SolidColorBrush x:Key="PinnedGlassBrush" Color="#45618CB5" />
     <SolidColorBrush x:Key="PinnedBorderBrush" Color="#A7D4C6" />
+    <SolidColorBrush x:Key="PopupBackgroundBrush" Color="#FF252930" />
     <SolidColorBrush x:Key="ToolTipBackgroundBrush" Color="#F21B1C21" />
     <SolidColorBrush x:Key="HoverPreviewBackgroundBrush" Color="#F2292D35" />
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#65FFFFFF" />
@@ -64,16 +65,16 @@
     <SolidColorBrush x:Key="DangerTextBrush" Color="#EAA6AA" />
     <SolidColorBrush x:Key="OverlayScrimBrush" Color="#990B1018" />
     <LinearGradientBrush x:Key="OverlayGlassBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#E62B3039" Offset="0" />
-        <GradientStop Color="#D91F252E" Offset="0.5" />
-        <GradientStop Color="#CC151B24" Offset="1" />
+        <GradientStop Color="#FF2B3039" Offset="0" />
+        <GradientStop Color="#FF1F252E" Offset="0.5" />
+        <GradientStop Color="#FF151B24" Offset="1" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="OverlayEdgeBrush" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#B8D8F1FF" Offset="0" />
         <GradientStop Color="#6E9AC6F4" Offset="0.55" />
         <GradientStop Color="#507AB7D5" Offset="1" />
     </LinearGradientBrush>
-    <DropShadowEffect x:Key="OverlayShadowEffect" Color="#000000" BlurRadius="34" ShadowDepth="9" Direction="270" Opacity="0.5" />
+    <DropShadowEffect x:Key="OverlayShadowEffect" RenderingBias="Quality" Color="#000000" BlurRadius="34" ShadowDepth="9" Direction="270" Opacity="0.5" />
 
     <LinearGradientBrush x:Key="WindowBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
         <GradientStop Color="#D51B1B1F" Offset="0" />

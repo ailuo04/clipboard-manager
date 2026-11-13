@@ -16,11 +16,11 @@ internal static class CapsulePopupPositioning
     internal static CapsulePopupLayout Calculate(Rect workArea, Rect target, Size preferredSize)
     {
         double width = Math.Min(preferredSize.Width, workArea.Width);
-        bool fitsBelow = workArea.Bottom - target.Bottom >= preferredSize.Height + PopupGap;
-        PlacementMode placement = fitsBelow ? PlacementMode.Bottom : PlacementMode.Top;
-        double availableHeight = placement == PlacementMode.Bottom
-            ? workArea.Bottom - target.Bottom - PopupGap
-            : target.Top - workArea.Top - PopupGap;
+        double below = Math.Max(0, workArea.Bottom - target.Bottom - PopupGap);
+        double above = Math.Max(0, target.Top - workArea.Top - PopupGap);
+        bool useBelow = below >= preferredSize.Height || (above < preferredSize.Height && below >= above);
+        PlacementMode placement = useBelow ? PlacementMode.Bottom : PlacementMode.Top;
+        double availableHeight = useBelow ? below : above;
         double left = Math.Clamp(target.Left, workArea.Left, workArea.Right - width);
 
         return new CapsulePopupLayout(placement, width, Math.Clamp(availableHeight, 0, preferredSize.Height), left - target.Left);

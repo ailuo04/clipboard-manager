@@ -9,7 +9,8 @@ public static class ViewLoader
     {
         using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream("ClipboardManager.Assets.Clipboard.ico")
             ?? throw new InvalidOperationException("找不到应用图标资源。");
-        var icon = BitmapFrame.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+        var icon = decoder.Frames.OrderByDescending(frame => (long)frame.PixelWidth * frame.PixelHeight).First();
         icon.Freeze();
         return icon;
     }

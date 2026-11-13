@@ -3,7 +3,8 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:controls="clr-namespace:ClipboardManager.Controls"
       xmlns:local="clr-namespace:ClipboardManager.Views"
-      Background="Transparent">
+      Background="Transparent" UseLayoutRounding="True" SnapsToDevicePixels="True"
+      TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Grid.Resources>
         <Style x:Key="StatusDot" TargetType="Ellipse">
             <Setter Property="Width" Value="8" />
@@ -78,6 +79,7 @@
 
 
 
+        <sys:Double x:Key="HistoryRowHeight" xmlns:sys="clr-namespace:System;assembly=mscorlib">38</sys:Double>
         <DropShadowEffect x:Key="HoverPreviewShadow" Color="#42505A" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.30" />
         <Style x:Key="HoverPreviewToolTip" TargetType="ToolTip" BasedOn="{StaticResource {x:Type ToolTip}}">
             <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
@@ -161,11 +163,11 @@
     <Popup x:Name="HistoryPopup" PlacementTarget="{Binding ElementName=Capsule}" Placement="Bottom"
            AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade" Focusable="False">
         <Border x:Name="HistoryPopupBorder" Width="300" MaxHeight="360" Padding="0"
-                Background="{DynamicResource WindowBackgroundBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
-                BorderThickness="1" CornerRadius="12" Effect="{DynamicResource OverlayShadowEffect}">
+                Background="{DynamicResource PopupBackgroundBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
+                BorderThickness="1" CornerRadius="12" RenderOptions.ClearTypeHint="Enabled">
             <Grid>
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <Border Padding="12,9" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="0,0,0,1">
+                <Border x:Name="HistoryHeader" Padding="12,9" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="0,0,0,1">
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <TextBlock Text="历史记录" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
@@ -180,9 +182,11 @@
                          MaxHeight="280" Background="Transparent" BorderThickness="0" Padding="5,4"
                          ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True"
                          AutomationProperties.Name="剪贴板历史记录下拉列表">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
+                            <Setter Property="Height" Value="{StaticResource HistoryRowHeight}" />
                             <Setter Property="Padding" Value="0" />
                             <Setter Property="Margin" Value="0,0,0,1" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -238,7 +242,7 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <Border Grid.Row="2" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="0,1,0,0" Padding="8,5">
+                <Border x:Name="HistoryFooter" Grid.Row="2" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="0,1,0,0" Padding="8,5">
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                         <Button x:Name="SettingsButton" Command="{Binding SettingsCommand}" Content="设置" HorizontalAlignment="Left"
