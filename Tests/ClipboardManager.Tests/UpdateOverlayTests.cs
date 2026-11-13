@@ -18,6 +18,99 @@ namespace ClipboardManager.Tests;
 public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
 {
     [Fact]
+    public void InstallConfirmationStaysInUpdateCardAndCancelDoesNotDownload()
+    {
+        wpf.Run(() =>
+        {
+            int prepares = 0;
+            int commits = 0;
+            var update = CreateAvailableUpdate();
+            var overlay = new UpdateOverlay(_ => Task.FromResult<AvailableUpdate?>(update),
+                (_, _, _) => { prepares++; return Task.CompletedTask; }, () => commits++, () => { });
+            var view = (ClipboardManager.Views.UpdateView)overlay.Content!;
+            var cancel = Assert.IsType<Button>(view.FindName("CancelConfirmationButton"));
+            var confirm = Assert.IsType<Button>(view.FindName("ConfirmUpdateButton"));
+            overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+
+            Click(view.InstallUpdateButton);
+
+            Assert.Contains("9.9.9", view.UpdateStatusText.Text);
+            Assert.Contains("305.4 KB", view.UpdateDetailsText.Text);
+            Assert.Contains("历史", view.UpdateDetailsText.Text);
+            Assert.Contains("重启", view.UpdateDetailsText.Text);
+            Assert.Equal(Visibility.Visible, ((FrameworkElement)confirm.Parent).Visibility);
+            Assert.Equal(Visibility.Collapsed, view.InstallUpdateButton.Visibility);
+            Assert.True(cancel.IsDefault);
+            Assert.Equal(0, prepares);
+
+            Click(cancel);
+
+            Assert.Equal(Visibility.Collapsed, ((FrameworkElement)confirm.Parent).Visibility);
+            Assert.Equal(Visibility.Visible, view.InstallUpdateButton.Visibility);
+            Assert.True(view.InstallUpdateButton.IsEnabled);
+            Assert.Equal(0, prepares);
+            Assert.Equal(0, commits);
+        });
+    }
+
+    [Fact]
+    public async Task ExplicitCardConfirmationStartsOneDownloadAndCommitsOnce()
+    {
+        var prepared = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        UpdateOverlay? overlay = null;
+        int prepares = 0;
+        int commits = 0;
+        bool? completed = null;
+        wpf.Run(() =>
+        {
+            overlay = new UpdateOverlay(_ => Task.FromResult<AvailableUpdate?>(CreateAvailableUpdate()),
+                (_, _, _) => { prepares++; return prepared.Task; }, () => commits++, () => { });
+            var view = (ClipboardManager.Views.UpdateView)overlay.Content!;
+            var confirm = Assert.IsType<Button>(view.FindName("ConfirmUpdateButton"));
+            overlay.CloseRequest = result => { completed = result; overlay.OnDismissed(result); };
+            overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Click(view.InstallUpdateButton);
+            Assert.Equal(0, prepares);
+            Click(confirm);
+            Click(confirm);
+            Assert.Equal(1, prepares);
+            Assert.Equal(0, commits);
+            Assert.Equal(Visibility.Visible, view.CancelDownloadButton.Visibility);
+        });
+        Task operation = overlay!.WhenIdle;
+        prepared.SetResult();
+        await operation.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, commits);
+        Assert.True(completed);
+    }
+
+    [Fact]
+    public void DismissedCardConfirmationCannotStartDownload()
+    {
+        wpf.Run(() =>
+        {
+            int prepares = 0;
+            var overlay = new UpdateOverlay(_ => Task.FromResult<AvailableUpdate?>(CreateAvailableUpdate()),
+                (_, _, _) => { prepares++; return Task.CompletedTask; }, () => { }, () => { });
+            var view = (ClipboardManager.Views.UpdateView)overlay.Content!;
+            var confirm = Assert.IsType<Button>(view.FindName("ConfirmUpdateButton"));
+            overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
+            Click(view.InstallUpdateButton);
+            overlay.OnDismissed(null);
+            Click(confirm);
+            Assert.Equal(0, prepares);
+        });
+    }
+
+    private static AvailableUpdate CreateAvailableUpdate()
+    {
+        var plan = new UpdatePlan();
+        plan.Changes.Add(new UpdateFile { CompressedSize = 312730 });
+        return new AvailableUpdate(new UpdateManifest { Version = "9.9.9" }, Array.Empty<byte>(), plan,
+            new Dictionary<string, UpdateAsset>());
+    }
+
+    [Fact]
     public void UpdateViewKeepsItsOwnScrollableBodyAndAccessibleControls()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "Xaml", "Views", "UpdateView.xaml");
@@ -190,8 +283,7 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
                     return prepareCompleted.Task;
                 },
                 () => commitCount++,
-                () => cancelCount++,
-                (_, _, _) => true);
+                () => cancelCount++);
             overlay.CloseRequest = result =>
             {
                 closeResult = result;
@@ -200,6 +292,7 @@ public sealed class UpdateOverlayTests(SettingsOverlayWpfFixture wpf)
             overlay.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
             var installView = (ClipboardManager.Views.UpdateView)overlay.Content!;
             Click(installView.InstallUpdateButton);
+            Click(installView.ConfirmUpdateButton);
 
             Assert.False(overlay.WhenIdle.IsCompleted);
             prepareCompleted.SetResult();

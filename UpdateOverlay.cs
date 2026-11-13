@@ -11,7 +11,8 @@ internal sealed class UpdateOverlay : OverlayView
     private readonly Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> _prepareAsync;
     private readonly Action _commitPrepared;
     private readonly Action _cancelPrepared;
-    private readonly Func<Window?, string, string, bool> _confirmInstall;
+    private readonly Grid _confirmationActions;
+    private readonly Button _cancelConfirmation;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly TextBlock _status;
     private readonly TextBlock _details;
@@ -25,6 +26,7 @@ internal sealed class UpdateOverlay : OverlayView
     private bool _busy;
     private bool _closed;
     private bool _autoCheckStarted;
+    private bool _confirmingInstall;
 
     internal UpdateOverlay(UpdateService updates)
         : this(updates.CheckAsync, updates.PrepareAsync, updates.LaunchPrepared, updates.CancelPrepared) { }
@@ -33,14 +35,12 @@ internal sealed class UpdateOverlay : OverlayView
         Func<CancellationToken, Task<AvailableUpdate?>> checkAsync,
         Func<AvailableUpdate, IProgress<UpdateProgress>?, CancellationToken, Task> prepareAsync,
         Action commitPrepared,
-        Action cancelPrepared,
-        Func<Window?, string, string, bool>? confirmInstall = null)
+        Action cancelPrepared)
     {
         _checkAsync = checkAsync ?? throw new ArgumentNullException(nameof(checkAsync));
         _prepareAsync = prepareAsync ?? throw new ArgumentNullException(nameof(prepareAsync));
         _commitPrepared = commitPrepared ?? throw new ArgumentNullException(nameof(commitPrepared));
         _cancelPrepared = cancelPrepared ?? throw new ArgumentNullException(nameof(cancelPrepared));
-        _confirmInstall = confirmInstall ?? ShowInstallConfirmation;
 
         var view = new Views.UpdateView();
         Content = view;
@@ -50,9 +50,13 @@ internal sealed class UpdateOverlay : OverlayView
         _check = view.CheckUpdateButton;
         _install = view.InstallUpdateButton;
         _cancelDownload = view.CancelDownloadButton;
+        _confirmationActions = view.ConfirmationActions;
+        _cancelConfirmation = view.CancelConfirmationButton;
         view.CurrentVersionText.Text = "版本 " + UpdateService.CurrentVersion;
         _check.Click += (_, _) => StartOperation(CheckAsync);
-        _install.Click += (_, _) => StartOperation(InstallAsync);
+        _install.Click += (_, _) => ShowInstallConfirmation();
+        view.ConfirmUpdateButton.Click += (_, _) => StartOperation(InstallAsync);
+        _cancelConfirmation.Click += (_, _) => CancelInstallConfirmation();
         _cancelDownload.Click += (_, _) => { if (!_closed) _download?.Cancel(); };
         Loaded += OnLoaded;
     }
@@ -65,6 +69,7 @@ internal sealed class UpdateOverlay : OverlayView
     {
         if (_closed) return;
         _closed = true;
+        _confirmingInstall = false;
         Loaded -= OnLoaded;
         _lifetime.Cancel();
     }
@@ -78,7 +83,7 @@ internal sealed class UpdateOverlay : OverlayView
 
     private void StartOperation(Func<Task> operation)
     {
-        if (_closed) return;
+        if (_closed || _busy) return;
         Task task;
         try { task = operation(); }
         catch (Exception exception)
@@ -138,11 +143,8 @@ internal sealed class UpdateOverlay : OverlayView
 
     private async Task InstallAsync()
     {
-        if (_busy || _available is null || _closed) return;
-        const string title = "增量更新";
-        string message = $"下载 {Formatters.FormatSize(_available.DownloadSize)} 并更新到 {_available.Manifest.Version}？\n程序将保存当前操作后重启，剪贴板历史和设置保持不变。";
-        Window? owner = Window.GetWindow(this);
-        if (!_confirmInstall(owner, title, message)) return;
+        if (_busy || _available is null || _closed || !_confirmingInstall) return;
+        _confirmingInstall = false;
 
         using var download = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _download = download;
@@ -180,12 +182,24 @@ internal sealed class UpdateOverlay : OverlayView
         }
     }
 
-    private static bool ShowInstallConfirmation(Window? owner, string title, string message)
+    private void ShowInstallConfirmation()
     {
-        MessageBoxResult result = owner is null
-            ? MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No)
-            : MessageBox.Show(owner, message, title, MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No);
-        return result == MessageBoxResult.Yes;
+        if (_busy || _available is null || _closed || _confirmingInstall) return;
+        _confirmingInstall = true;
+        ShowStatus($"更新到 {_available.Manifest.Version}？",
+            $"下载 {Formatters.FormatSize(_available.DownloadSize)}\n更新完成后自动重启，剪贴板历史、图片和设置将保留。");
+        SetBusy(false);
+        _cancelConfirmation.Focus();
+    }
+
+    private void CancelInstallConfirmation()
+    {
+        if (_busy || _closed || !_confirmingInstall || _available is null) return;
+        _confirmingInstall = false;
+        ShowStatus("发现新版本 " + _available.Manifest.Version,
+            $"下载 {Formatters.FormatSize(_available.DownloadSize)}，更新后自动重启");
+        SetBusy(false);
+        _install.Focus();
     }
 
     internal void CommitPreparedUpdate()
@@ -207,7 +221,9 @@ internal sealed class UpdateOverlay : OverlayView
         bool downloading = _download is not null;
         bool canInstall = _available is not null;
         _cancelDownload.Visibility = downloading ? Visibility.Visible : Visibility.Collapsed;
-        _install.Visibility = !downloading && canInstall ? Visibility.Visible : Visibility.Collapsed;
+        _install.Visibility = !downloading && canInstall && !_confirmingInstall ? Visibility.Visible : Visibility.Collapsed;
+        _confirmationActions.Visibility = _confirmingInstall ? Visibility.Visible : Visibility.Collapsed;
+        _confirmationActions.IsEnabled = !value;
         _check.Visibility = !downloading && !canInstall ? Visibility.Visible : Visibility.Collapsed;
         _check.IsEnabled = !value;
         _install.IsEnabled = !value && canInstall;
