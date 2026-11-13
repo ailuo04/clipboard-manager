@@ -11,7 +11,6 @@ internal enum OverlaySize
 {
     Settings,
     Update,
-    Details,
     ClearConfirmation
 }
 internal static class OverlaySizePolicy
@@ -20,16 +19,9 @@ internal static class OverlaySizePolicy
     {
         OverlaySize.Settings => new Size(284, 384),
         OverlaySize.Update => new Size(264, 384),
-        OverlaySize.Details => new Size(800, 760),
         OverlaySize.ClearConfirmation => new Size(284, 280),
         _ => throw new ArgumentOutOfRangeException(nameof(size), size, "未知的覆盖层尺寸。")
     };
-
-    /// <summary>
-    /// Settings and updates open as a card inside the widget, at most the desired size and no taller than their content.
-    /// Details needs room for full text and images, so it enlarges the window instead.
-    /// </summary>
-    internal static bool StaysInWidget(OverlaySize size) => size is OverlaySize.Settings or OverlaySize.Update or OverlaySize.ClearConfirmation;
 }
 
 internal sealed class WindowOverlayHost : IDisposable

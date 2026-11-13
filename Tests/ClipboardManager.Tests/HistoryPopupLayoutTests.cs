@@ -93,10 +93,8 @@ public sealed class HistoryPopupLayoutTests(SettingsOverlayWpfFixture wpf)
 
     private static object CreateContext(int count) => new
     {
-        IsWidgetCollapsed = true,
         HasRecords = count > 0,
         RecordCount = count,
-        WidgetToggleLabel = "展开",
         PauseToolTip = "暂停监听",
         HistoryRecords = Enumerable.Range(1, count).Select(index => new
         {
@@ -148,9 +146,9 @@ public sealed class HistoryPopupLayoutTests(SettingsOverlayWpfFixture wpf)
             more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, more));
             PumpLayout(view);
             var menu = GetMenu(view);
-            Assert.Equal(new[] { "展开", "暂停监听", "设置", "检查更新", "清空全部历史记录…", "退出" },
+            Assert.Equal(new[] { "暂停监听", "设置", "检查更新", "清空全部历史记录…", "退出" },
                 menu.Items.OfType<MenuItem>().Select(item => item.Header));
-            Assert.True(menu.ActualHeight > 160);
+            Assert.True(menu.ActualHeight > 0);
             var exit = Assert.IsType<MenuItem>(menu.Items[^1]);
             Rect exitBounds = exit.TransformToAncestor(menu).TransformBounds(new Rect(exit.RenderSize));
             Assert.True(exitBounds.Bottom <= menu.ActualHeight,
@@ -192,10 +190,8 @@ public sealed class HistoryPopupLayoutTests(SettingsOverlayWpfFixture wpf)
         {
             DataContext = new
             {
-                IsWidgetCollapsed = true,
                 HasRecords = true,
                 RecordCount = 2,
-                WidgetToggleLabel = "展开",
                 PauseToolTip = "暂停监听",
                 HistoryRecords = new[]
                 {

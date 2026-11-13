@@ -6,13 +6,9 @@ public sealed class AppSettings
 
     public int MaxStorageMb { get; set; } = 512;
 
-    public bool AlwaysOnTop { get; set; } = false;
-
     public bool AutoCheckUpdates { get; set; } = true;
 
     public bool MinimizeToTray { get; set; } = false;
-
-    public bool HideAfterCopy { get; set; } = true;
 
     public bool HideCapsulePreview { get; set; } = false;
 
@@ -26,10 +22,8 @@ public sealed class AppSettings
         {
             MaxRecords = MaxRecords,
             MaxStorageMb = MaxStorageMb,
-            AlwaysOnTop = AlwaysOnTop,
             AutoCheckUpdates = AutoCheckUpdates,
             MinimizeToTray = MinimizeToTray,
-            HideAfterCopy = HideAfterCopy,
             HideCapsulePreview = HideCapsulePreview,
             WidgetLeft = WidgetLeft,
             WidgetTop = WidgetTop

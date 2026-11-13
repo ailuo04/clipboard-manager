@@ -207,7 +207,6 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
             var view = (ClipboardManager.Views.SettingsView)overlay.Content!;
             view.MaxRecordsBox.Text = "600";
             view.MaxStorageBox.Text = "768";
-            view.AlwaysOnTopCheckBox.IsChecked = true;
             view.AutoCheckUpdatesCheckBox.IsChecked = false;
             view.MinimizeToTrayCheckBox.IsChecked = true;
             view.ThemeDarkRadio.IsChecked = true;
@@ -219,7 +218,6 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
             Assert.Equal(500, original.MaxRecords);
             Assert.Equal(600, ReadSettings(overlay).MaxRecords);
             Assert.Equal(768, ReadSettings(overlay).MaxStorageMb);
-            Assert.True(ReadSettings(overlay).AlwaysOnTop);
             Assert.False(ReadSettings(overlay).AutoCheckUpdates);
             Assert.True(ReadSettings(overlay).MinimizeToTray);
             Assert.Equal(AppTheme.Dark, ReadSelectedTheme(overlay));

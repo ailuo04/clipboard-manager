@@ -38,13 +38,10 @@ internal sealed class SettingsOverlay : OverlayView
         themeLight.Checked += PreviewTheme;
         themeSystem.Checked += PreviewTheme;
 
-        var alwaysOnTop = view.AlwaysOnTopCheckBox;
         var autoUpdates = view.AutoCheckUpdatesCheckBox;
         var minimizeToTray = view.MinimizeToTrayCheckBox;
-        var hideAfterCopy = view.HideAfterCopyCheckBox;
         autoUpdates.IsChecked = Settings.AutoCheckUpdates;
         minimizeToTray.IsChecked = Settings.MinimizeToTray;
-        hideAfterCopy.IsChecked = Settings.HideAfterCopy;
         var hideCapsulePreview = view.HideCapsulePreviewCheckBox;
         hideCapsulePreview.IsChecked = Settings.HideCapsulePreview;
         var updateButton = view.OpenUpdatesButton;
@@ -53,7 +50,6 @@ internal sealed class SettingsOverlay : OverlayView
         view.SettingsVersionText.Text = "版本 " + UpdateService.CurrentVersion;
         records.Text = Settings.MaxRecords.ToString();
         storage.Text = Settings.MaxStorageMb.ToString();
-        alwaysOnTop.IsChecked = Settings.AlwaysOnTop;
         view.DirectoryBox.Text = dataDirectory;
         view.CancelButton.Click += (_, _) => Complete(false);
         view.SaveButton.Click += (_, _) =>
@@ -85,10 +81,8 @@ internal sealed class SettingsOverlay : OverlayView
             Settings = Settings.Clone();
             Settings.MaxRecords = count;
             Settings.MaxStorageMb = megabytes;
-            Settings.AlwaysOnTop = alwaysOnTop.IsChecked == true;
             Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
             Settings.MinimizeToTray = minimizeToTray.IsChecked == true;
-            Settings.HideAfterCopy = hideAfterCopy.IsChecked == true;
             Settings.HideCapsulePreview = hideCapsulePreview.IsChecked == true;
             SelectedTheme = selectedTheme;
             Complete(true);

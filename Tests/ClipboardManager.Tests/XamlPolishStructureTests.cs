@@ -24,7 +24,6 @@ public sealed class XamlPolishStructureTests
     [Theory]
     [InlineData("SettingsView.xaml", "设置", "ScrollViewer", true)]
     [InlineData("UpdateView.xaml", "应用更新", "ScrollViewer", true)]
-    [InlineData("DetailsView.xaml", "详情", "Grid", false)]
     public void OverlayPagesKeepAccessibleNameBodyAndFooter(
         string fileName, string pageName, string bodyElementName, bool footerHasActions)
     {
@@ -71,7 +70,7 @@ public sealed class XamlPolishStructureTests
     [Theory]
     [InlineData("LightGlass.xaml", "#FFFFFFFF")]
     [InlineData("LiquidGlass.xaml", "#FF101014")]
-    public void SelectedFilterAndErrorTextKeepReadableContrast(string fileName, string canvasHex)
+    public void SelectedAccentAndErrorTextKeepReadableContrast(string fileName, string canvasHex)
     {
         XElement root = LoadView(fileName);
         Color canvas = ParseColor(canvasHex);

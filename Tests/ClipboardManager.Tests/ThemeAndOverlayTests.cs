@@ -38,46 +38,6 @@ public sealed class ThemeAndOverlayTests
         Assert.False(dismissedResult);
     }
 
-    [Fact]
-    public void OverlayWindowGeometryCentersAnOrdinaryDesiredSize()
-    {
-        var workArea = new Rect(100, 50, 800, 600);
-        var result = OverlayWindowGeometry.Fit(workArea, new Size(400, 300), 24);
-
-        Assert.Equal(new Rect(300, 200, 400, 300), result);
-        AssertGeometryIsInsideAndCentered(workArea, result, new Size(400, 300));
-    }
-
-    [Fact]
-    public void OverlayWindowGeometryClampsOversizedWidthAndHeightToAvailableArea()
-    {
-        var workArea = new Rect(10, 20, 300, 200);
-        var result = OverlayWindowGeometry.Fit(workArea, new Size(500, 400), 20);
-
-        Assert.Equal(new Rect(30, 40, 260, 160), result);
-        AssertGeometryIsInsideAndCentered(workArea, result, new Size(260, 160));
-    }
-
-    [Fact]
-    public void OverlayWindowGeometryNeverReturnsNegativeSizeWhenMarginConsumesWorkArea()
-    {
-        var workArea = new Rect(10, 15, 100, 60);
-        var result = OverlayWindowGeometry.Fit(workArea, new Size(40, 20), 40);
-
-        Assert.Equal(new Rect(50, 45, 20, 0), result);
-        AssertGeometryIsInsideAndCentered(workArea, result, new Size(20, 0));
-    }
-
-    [Fact]
-    public void OverlayWindowGeometryTreatsNegativeMarginAsZero()
-    {
-        var workArea = new Rect(10, 15, 100, 60);
-        var result = OverlayWindowGeometry.Fit(workArea, new Size(40, 20), -5);
-
-        Assert.Equal(new Rect(40, 35, 40, 20), result);
-        AssertGeometryIsInsideAndCentered(workArea, result, new Size(40, 20));
-    }
-
     private static string[] FindMissingDynamicResourceKeys(
         IEnumerable<string> referencedKeys,
         IEnumerable<string> locallyDefinedKeys,
@@ -454,7 +414,7 @@ public sealed class ThemeAndOverlayTests
             Assert.True(mainSurface.IsHitTestVisible);
             Assert.Same(originalEffect, mainSurface.Effect);
             Assert.Equal(Visibility.Collapsed, ((Grid)root.FindName("OverlayLayer")!).Visibility);
-            Action showAfterDispose = () => { _ = host.ShowAsync(new TestOverlayView(), OverlaySize.Details); };
+            Action showAfterDispose = () => { _ = host.ShowAsync(new TestOverlayView(), OverlaySize.ClearConfirmation); };
             Assert.Throws<ObjectDisposedException>(showAfterDispose);
             owner.Content = null;
         });
@@ -476,7 +436,7 @@ public sealed class ThemeAndOverlayTests
             Action<bool?>? lateChildCallback = child.CloseRequest;
 
             host.CloseAll(null);
-            Task<bool?> nextTask = host.ShowAsync(new TestOverlayView(), OverlaySize.Details);
+            Task<bool?> nextTask = host.ShowAsync(new TestOverlayView(), OverlaySize.ClearConfirmation);
             lateChildCallback?.Invoke(true);
 
             Assert.True(parentTask.IsCompleted);
@@ -497,7 +457,7 @@ public sealed class ThemeAndOverlayTests
     [Theory]
     [InlineData((int)OverlaySize.Settings, 284, 384)]
     [InlineData((int)OverlaySize.Update, 264, 384)]
-    [InlineData((int)OverlaySize.Details, 800, 760)]
+    [InlineData((int)OverlaySize.ClearConfirmation, 284, 280)]
     public void OverlaySizePolicyUsesDesignedPageSizes(int size, double expectedWidth, double expectedHeight)
     {
         Assert.Equal(new Size(expectedWidth, expectedHeight), OverlaySizePolicy.GetDesiredSize((OverlaySize)size));

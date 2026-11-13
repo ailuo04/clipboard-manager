@@ -26,7 +26,6 @@
     <SolidColorBrush x:Key="InputShadowBrush" Color="#1C04232A" />
     <SolidColorBrush x:Key="InputFocusBackgroundBrush" Color="#E62A2B31" />
     <SolidColorBrush x:Key="InputFocusBorderBrush" Color="#A0BAD6F5" />
-    <SolidColorBrush x:Key="TextSelectionBrush" Color="#587EABD8" />
     <SolidColorBrush x:Key="PrimaryBorderBrush" Color="#7FFFFFFF" />
     <SolidColorBrush x:Key="PrimaryForegroundBrush" Color="#FFFFFF" />
     <SolidColorBrush x:Key="CaptionBarBrush" Color="#10343440" />
@@ -40,15 +39,12 @@
     <SolidColorBrush x:Key="FilterPanelBrush" Color="#24444750" />
     <SolidColorBrush x:Key="FilterPanelBorderBrush" Color="#24FFFFFF" />
     <SolidColorBrush x:Key="FilterHoverBrush" Color="#5CFFFFFF" />
-    <SolidColorBrush x:Key="FilterSelectedBorderBrush" Color="#A8FFFFFF" />
     <SolidColorBrush x:Key="FilterSelectedForegroundBrush" Color="#F2F5FF" />
     <SolidColorBrush x:Key="NoticeBackgroundBrush" Color="#FFF2D9" />
     <SolidColorBrush x:Key="NoticeBorderBrush" Color="#F0D69E" />
-    <SolidColorBrush x:Key="NoticeTextBrush" Color="#704E13" />
     <SolidColorBrush x:Key="RecordShadowBrush" Color="#1D213D43" />
     <SolidColorBrush x:Key="RecordHoverBrush" Color="#6B7C7A85" />
     <SolidColorBrush x:Key="RecordHoverBorderBrush" Color="#BAFFFFFF" />
-    <SolidColorBrush x:Key="RecordSelectedBorderBrush" Color="#809CC6F4" />
     <SolidColorBrush x:Key="TagBackgroundBrush" Color="#305A6578" />
     <SolidColorBrush x:Key="TagBorderBrush" Color="#7CFFFFFF" />
     <SolidColorBrush x:Key="TagImageBackgroundBrush" Color="#405D5060" />
@@ -57,7 +53,6 @@
     <SolidColorBrush x:Key="PinActiveBackgroundBrush" Color="#405A7BA0" />
     <SolidColorBrush x:Key="EmptyIconBackgroundBrush" Color="#303C4B60" />
     <SolidColorBrush x:Key="EmptyIconBorderBrush" Color="#BAFFFFFF" />
-    <SolidColorBrush x:Key="StatusBarBrush" Color="#2B464550" />
     <SolidColorBrush x:Key="ImageWellBackgroundBrush" Color="#20212229" />
     <SolidColorBrush x:Key="ImageWellBorderBrush" Color="#7CFFFFFF" />
     <SolidColorBrush x:Key="ReadOnlyBackgroundBrush" Color="#2A2B31" />

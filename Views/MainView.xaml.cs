@@ -35,7 +35,6 @@ public partial class MainView : Grid
         RecordHoverSelector.TextTemplate = (DataTemplate)FindResource("HoverPreviewText");
         RecordHoverSelector.ImageTemplate = (DataTemplate)FindResource("HoverPreviewImage");
         BuildMenu();
-        MenuButton.Click += (_, _) => OpenMenu(MenuButton, PlacementMode.Bottom);
         HistoryToggleButton.Click += (_, _) => HistoryToggleRequested?.Invoke(this, EventArgs.Empty);
         MoreButton.Click += (_, _) => ToggleMoreMenu();
         _menu.Closed += (_, _) => _menuOpening = false;
@@ -48,9 +47,6 @@ public partial class MainView : Grid
         };
     }
 
-    /// <summary>Raised when the menu asks to expand or collapse the widget.</summary>
-    public event EventHandler? ToggleRequested;
-
     public event EventHandler? ExitRequested;
 
     public event EventHandler? HistoryToggleRequested;
@@ -59,7 +55,6 @@ public partial class MainView : Grid
 
     public bool IsRecordDragInProgress => _recordDragInProgress;
 
-    public bool IsMenuOpen => IsContextMenuOpen || IsMoreMenuOpen;
     public bool IsContextMenuOpen => _menu.IsOpen || _menuOpening;
 
     public bool IsMoreMenuOpen => _menu.IsOpen && ReferenceEquals(_menu.PlacementTarget, MoreButton);
@@ -124,6 +119,18 @@ public partial class MainView : Grid
         HistoryPopupBorder.MaxHeight = layout.MaxHeight;
         HistoryToggleButton.IsChecked = true;
         HistoryPopup.IsOpen = true;
+    }
+
+    internal void FocusHistoryRecords()
+    {
+        if (!HistoryPopup.IsOpen) return;
+        if (HistoryRecords.Items.Count == 0) { HistoryRecords.Focus(); return; }
+        if (HistoryRecords.SelectedIndex < 0) HistoryRecords.SelectedIndex = 0;
+        HistoryRecords.ScrollIntoView(HistoryRecords.SelectedItem);
+        HistoryRecords.UpdateLayout();
+        if (HistoryRecords.ItemContainerGenerator.ContainerFromItem(HistoryRecords.SelectedItem) is ListBoxItem item)
+            item.Focus();
+        else HistoryRecords.Focus();
     }
 
     private void OnHistoryRecordsPreviewKeyDown(object sender, KeyEventArgs args)
@@ -266,13 +273,9 @@ public partial class MainView : Grid
     }
     private void BuildMenu()
     {
-        var toggle = new MenuItem();
-        toggle.SetBinding(HeaderedItemsControl.HeaderProperty, new Binding(nameof(MainViewModel.WidgetToggleLabel)));
-        toggle.Click += (_, _) => ToggleRequested?.Invoke(this, EventArgs.Empty);
         var exit = new MenuItem { Header = "退出" };
         exit.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
-        _menu.Items.Add(toggle);
         _menu.Items.Add(CommandItem(nameof(MainViewModel.PauseCommand), headerPath: nameof(MainViewModel.PauseToolTip)));
         _menu.Items.Add(new Separator());
         _menu.Items.Add(CommandItem(nameof(MainViewModel.SettingsCommand), "设置"));

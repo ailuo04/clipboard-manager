@@ -49,7 +49,6 @@ public sealed class ClearConfirmationOverlayTests(SettingsOverlayWpfFixture wpf)
             await initialized;
 
             Assert.Equal(new Size(284, 280), OverlaySizePolicy.GetDesiredSize(OverlaySize.ClearConfirmation));
-            Assert.True(OverlaySizePolicy.StaysInWidget(OverlaySize.ClearConfirmation));
             wpf.Run(() =>
             {
                 command = Assert.IsType<AsyncRelayCommand>(viewModel!.ClearCommand);

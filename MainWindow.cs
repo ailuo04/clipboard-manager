@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -16,16 +15,15 @@ public sealed class MainWindow : Window
 {
     private const double CapsuleWidth = 240;
     private const double CapsuleHeight = 40;
-    private const double PanelWidth = 300;
-    private const double PanelHeight = 400;
+    private const double HistoryPopupWidth = 300;
+    private const double OverlayWidth = 300;
+    private const double OverlayHeight = 400;
     private const double EdgeMargin = 24;
     private const double DragThreshold = 3;
     private const int WmMouseActivate = 0x0021;
     private const int WmActivateApp = 0x001C;
 
     private readonly MainViewModel _viewModel;
-    private readonly ListBox _historyList;
-    private readonly TextBox _searchBox;
     private readonly GlobalHotKey _hotKey;
     private readonly Views.WindowFrame _windowFrame;
     private readonly Views.MainView _view;
@@ -34,13 +32,12 @@ public sealed class MainWindow : Window
     private bool _allowClose;
     private bool _exitRequested;
     private bool _closeToTray;
-    private bool _hideAfterCopy = true;
     private bool _restoreHistoryPopupAfterOverlay;
     private bool _deactivationDeferredForRecordDrag;
     private bool _applicationDeactivated;
     private IntPtr _foregroundBeforeShow;
     private bool _backdropAttempted;
-    // Where the capsule sits. The expanded panel opens from here, shifted only as far as the work area requires.
+    // Persist the capsule anchor independently of temporary settings/update card bounds.
     private Point _anchor;
 
     public MainWindow(HistoryService? history = null)
@@ -74,52 +71,27 @@ public sealed class MainWindow : Window
         _view.CapsuleDragHandle.MouseLeftButtonDown += OnCapsuleDragHandleMouseDown;
         _view.HistoryToggleRequested += OnHistoryToggleRequested;
         _view.RecordDragCompleted += OnRecordDragCompleted;
-        _view.DragHandle.MouseLeftButtonDown += OnDragHandleMouseDown;
-        _view.ToggleRequested += (_, _) =>
-        {
-            _view.CloseHistoryPopup();
-            if (_viewModel!.IsWidgetCollapsed) ExpandAndFocus();
-            else SetCollapsed(true);
-        };
         _view.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
         _windowFrame.WindowContent.Children.Add(_view);
         Content = _windowFrame;
         _overlayHost = new WindowOverlayHost(this, _windowFrame);
         _overlayHost.SessionStarting += OnOverlaySessionStarting;
         _overlayHost.SessionEnded += OnOverlaySessionEnded;
-        _historyList = _view.HistoryList;
-        _searchBox = _view.SearchBox;
         _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()),
             UpdateTrayMode, _overlayHost);
         _trayIcon = new SystemTrayIcon(this);
-        _trayIcon.OpenRequested += (_, _) => ExpandAndFocus();
+        _trayIcon.OpenRequested += (_, _) => ShowHistoryAndFocus();
         _trayIcon.PauseRequested += (_, _) => _viewModel.PauseCommand.Execute(null);
         _trayIcon.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.CopyCompleted += OnCopyCompleted;
-        _viewModel.SettingsApplied += OnSettingsApplied;
         DataContext = _viewModel;
         _hotKey = new GlobalHotKey(this);
         _hotKey.Pressed += OnHotKeyPressed;
-        _historyList.PreviewKeyDown += OnHistoryKeyDown;
-        _historyList.PreviewMouseDown += OnHistoryMouseDown;
-        _historyList.SelectionChanged += (_, _) =>
-        {
-            if (_historyList.SelectedItem is not null) _historyList.ScrollIntoView(_historyList.SelectedItem);
-        };
-        _searchBox.PreviewKeyDown += (_, args) =>
-        {
-            if (Keyboard.Modifiers == ModifierKeys.None && (args.Key is Key.Down or Key.Up) && _historyList.Items.Count > 0)
-            {
-                args.Handled = true;
-                if (_historyList.SelectedIndex < 0) _historyList.SelectedIndex = args.Key == Key.Up ? _historyList.Items.Count - 1 : 0;
-                FocusSelectedRecord();
-            }
-        };
         PreviewKeyDown += OnWindowPreviewKeyDown;
         PreviewMouseDown += OnWindowPreviewMouseDown;
         Deactivated += OnDeactivated;
-        SizeChanged += (_, _) => { _viewModel.UpdateWindowSize(); UpdateWindowFrame(); };
+        SizeChanged += (_, _) => UpdateWindowFrame();
         StateChanged += (_, _) => UpdateWindowFrame();
         DpiChanged += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(UpdateWindowFrame));
         ContentRendered += (_, _) => UpdateWindowFrame();
@@ -147,7 +119,6 @@ public sealed class MainWindow : Window
         UpdateWindowFrame();
         await _viewModel.InitializeAsync();
         if (_viewModel.IsClosing) return;
-        ApplyWindowSettings();
         RestoreWidgetPosition();
         try { _hotKey.Start(); }
         catch (Exception exception) { _viewModel.ReportHotKeyFailure(exception); }
@@ -190,7 +161,7 @@ public sealed class MainWindow : Window
             // A popup/menu can already have deactivated the owner. Leaving the app
             // must still dismiss history even if no second Window.Deactivated fires.
             _applicationDeactivated = wParam == IntPtr.Zero;
-            if (_applicationDeactivated && _viewModel.IsWidgetCollapsed)
+            if (_applicationDeactivated)
                 OnDeactivated(this, EventArgs.Empty);
         }
         return IntPtr.Zero;
@@ -221,33 +192,23 @@ public sealed class MainWindow : Window
 
     private void PlaceWidget()
     {
-        bool collapsed = _viewModel.IsWidgetCollapsed;
-        double width = collapsed ? CapsuleWidth : PanelWidth;
-        double height = collapsed ? CapsuleHeight : PanelHeight;
-        Point position = ClampToWorkArea(_anchor, width, height);
+        Point position = ClampToWorkArea(_anchor, CapsuleWidth, CapsuleHeight);
         Left = position.X;
         Top = position.Y;
-        Width = width;
-        Height = height;
-    }
-
-    private void SetCollapsed(bool collapsed)
-    {
-        // An open overlay page owns the window bounds until it closes.
-        if (_overlayHost.IsOpen || WindowState != WindowState.Normal || _viewModel.IsWidgetCollapsed == collapsed) return;
-        _viewModel.IsWidgetCollapsed = collapsed;
-        PlaceWidget();
+        Width = CapsuleWidth;
+        Height = CapsuleHeight;
     }
 
     private void OnHistoryToggleRequested(object? sender, EventArgs args)
     {
+        if (_overlayHost.IsOpen || _viewModel.IsClosing) return;
         if (_view.IsHistoryPopupOpen)
         {
             _view.CloseHistoryPopup();
             return;
         }
 
-        OpenHistoryPopup();
+        ShowHistoryAndFocus();
     }
 
     private void OpenHistoryPopup()
@@ -256,7 +217,7 @@ public sealed class MainWindow : Window
         Point capsuleOrigin = _view.Capsule.TranslatePoint(new Point(), this);
         var target = new Rect(Left + capsuleOrigin.X, Top + capsuleOrigin.Y,
             _view.Capsule.ActualWidth, _view.Capsule.ActualHeight);
-        Size desired = _view.MeasureHistoryPopup(Math.Min(PanelWidth, workArea.Width));
+        Size desired = _view.MeasureHistoryPopup(Math.Min(HistoryPopupWidth, workArea.Width));
         CapsulePopupLayout layout = CapsulePopupPositioning.Calculate(workArea, target, desired);
         _view.ShowHistoryPopup(layout);
     }
@@ -267,7 +228,7 @@ public sealed class MainWindow : Window
         _view.CloseHistoryPopup();
         if (!IsVisible) Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-        if (_viewModel.IsWidgetCollapsed) PlaceOverlayBounds();
+        PlaceOverlayBounds();
         Activate();
     }
 
@@ -279,25 +240,19 @@ public sealed class MainWindow : Window
 
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
-            if (!_overlayHost.IsOpen && !_viewModel.IsClosing && !_exitRequested && _viewModel.IsWidgetCollapsed)
+            if (!_overlayHost.IsOpen && !_viewModel.IsClosing && !_exitRequested)
                 OpenHistoryPopup();
         }));
     }
 
     private void PlaceOverlayBounds()
     {
-        Point position = ClampToWorkArea(_anchor, PanelWidth, PanelHeight);
+        Point position = ClampToWorkArea(_anchor, OverlayWidth, OverlayHeight);
         Left = position.X;
         Top = position.Y;
-        Width = PanelWidth;
-        Height = PanelHeight;
+        Width = OverlayWidth;
+        Height = OverlayHeight;
     }
-    private void CollapseAndReturnFocus()
-    {
-        SetCollapsed(true);
-        if (_viewModel.IsWidgetCollapsed) RestoreForeground(_foregroundBeforeShow);
-    }
-
     private void OnCapsuleDragHandleMouseDown(object sender, MouseButtonEventArgs args)
     {
         if (_overlayHost.IsOpen) return;
@@ -307,13 +262,6 @@ public sealed class MainWindow : Window
         if (!TryDragMove()) return;
         if (Math.Abs(Left - start.X) >= DragThreshold || Math.Abs(Top - start.Y) >= DragThreshold)
             CommitWidgetPosition();
-    }
-
-    private void OnDragHandleMouseDown(object sender, MouseButtonEventArgs args)
-    {
-        if (_overlayHost.IsOpen) return;
-        args.Handled = true;
-        if (TryDragMove()) CommitWidgetPosition();
     }
 
     private bool TryDragMove()
@@ -356,122 +304,26 @@ public sealed class MainWindow : Window
             _deactivationDeferredForRecordDrag = true;
             return;
         }
-        if (_viewModel.IsWidgetCollapsed)
+        bool applicationDeactivated = _applicationDeactivated;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
-            bool applicationDeactivated = _applicationDeactivated;
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            if (IsActive || _viewModel.IsClosing || (applicationDeactivated && !_applicationDeactivated)) return;
+            if (ShouldDeferDeactivationForRecordDrag(_view.IsRecordDragInProgress))
             {
-                if (IsActive || _viewModel.IsClosing || (applicationDeactivated && !_applicationDeactivated)) return;
-                if (ShouldDeferDeactivationForRecordDrag(_view.IsRecordDragInProgress))
-                {
-                    _deactivationDeferredForRecordDrag = true;
-                    return;
-                }
-                if (_applicationDeactivated || ShouldCloseHistoryPopupOnDeactivation(_view.IsHistoryPopupOpen, _view.IsContextMenuOpen,
-                        _view.IsHistoryPopupPointerOver))
-                    _view.CloseHistoryPopup();
-            }));
-            return;
-        }
-        if (_viewModel.IsAlwaysOnTop || _overlayHost.IsOpen || _view.IsMenuOpen || _viewModel.IsClosing) return;
-        // A confirmation dialog owned by the widget disables it and takes the focus; that is not the user leaving.
-        IntPtr handle = new WindowInteropHelper(this).Handle;
-        if (handle != IntPtr.Zero && !NativeMethods.IsWindowEnabled(handle)) return;
-        SetCollapsed(true);
-    }
-    private void OnHistoryMouseDown(object sender, MouseButtonEventArgs args)
-    {
-        if (args.ChangedButton == MouseButton.Left && args.OriginalSource is DependencyObject source
-            && ItemsControl.ContainerFromElement(_historyList, source) is ListBoxItem item)
-        {
-            item.IsSelected = true;
-            item.Focus();
-        }
-    }
-
-    private void OnHistoryKeyDown(object sender, KeyEventArgs args)
-    {
-        if (!_historyList.IsKeyboardFocusWithin || _viewModel.IsClosing) return;
-        ModifierKeys modifiers = Keyboard.Modifiers;
-        if (modifiers == ModifierKeys.None && (args.Key is Key.Up or Key.Down))
-        {
-            args.Handled = true;
-            int count = _historyList.Items.Count;
-            if (count == 0) return;
-            int index = _historyList.SelectedIndex;
-            _historyList.SelectedIndex = index < 0 ? (args.Key == Key.Up ? count - 1 : 0)
-                : Math.Clamp(index + (args.Key == Key.Up ? -1 : 1), 0, count - 1);
-            FocusSelectedRecord();
-        }
-        else if ((args.Key == Key.Enter && modifiers == ModifierKeys.None) || (args.Key == Key.C && modifiers == ModifierKeys.Control))
-        {
-            args.Handled = true;
-            if (_historyList.SelectedItem is RecordViewModel item && item.CopyCommand.CanExecute(null)) item.CopyCommand.Execute(null);
-        }
-        else if (args.Key == Key.Delete && modifiers == ModifierKeys.None)
-        {
-            args.Handled = true;
-            if (_historyList.SelectedItem is RecordViewModel item && item.DeleteCommand.CanExecute(null)) item.DeleteCommand.Execute(null);
-        }
-        else if (args.Key == Key.P && modifiers == ModifierKeys.Control)
-        {
-            args.Handled = true;
-            if (_historyList.SelectedItem is RecordViewModel item && item.PinCommand.CanExecute(null)) item.PinCommand.Execute(null);
-        }
-        else if (modifiers == ModifierKeys.None && TryGetDigit(args.Key, out int digit) && digit >= 1 && digit <= 9)
-        {
-            args.Handled = true;
-            int index = digit - 1;
-            if (index >= _historyList.Items.Count) return;
-            if (_historyList.Items[index] is RecordViewModel item && item.CopyCommand.CanExecute(null))
-            {
-                _historyList.SelectedIndex = index;
-                item.CopyCommand.Execute(null);
+                _deactivationDeferredForRecordDrag = true;
+                return;
             }
-        }
-    }
-
-    private static bool TryGetDigit(Key key, out int digit)
-    {
-        digit = key switch
-        {
-            >= Key.D1 and <= Key.D9 => key - Key.D0,
-            >= Key.NumPad1 and <= Key.NumPad9 => key - Key.NumPad0,
-            _ => 0
-        };
-        return digit > 0;
-    }
-
-    private void FocusSelectedRecord()
-    {
-        if (_historyList.SelectedItem is null) { _historyList.Focus(); return; }
-        _historyList.ScrollIntoView(_historyList.SelectedItem);
-        _historyList.UpdateLayout();
-        if (_historyList.ItemContainerGenerator.ContainerFromItem(_historyList.SelectedItem) is ListBoxItem container) container.Focus();
-        else _historyList.Focus();
-    }
-
-    private void ApplyWindowSettings()
-    {
-        _hideAfterCopy = _viewModel.HideAfterCopy;
-    }
-
-    private void OnSettingsApplied(object? sender, EventArgs args)
-    {
-        _hideAfterCopy = _viewModel.HideAfterCopy;
+            if (_applicationDeactivated || ShouldCloseHistoryPopupOnDeactivation(_view.IsHistoryPopupOpen,
+                    _view.IsContextMenuOpen, _view.IsHistoryPopupPointerOver))
+                _view.CloseHistoryPopup();
+        }));
     }
 
     private void OnCopyCompleted(object? sender, EventArgs args)
     {
         _view.CloseHistoryPopup();
-        if (_viewModel.IsWidgetCollapsed)
-        {
-            IntPtr previous = _foregroundBeforeShow;
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => RestoreForeground(previous)));
-            return;
-        }
-        if (!_hideAfterCopy || _overlayHost.IsOpen) return;
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(CollapseAndReturnFocus));
+        IntPtr previous = _foregroundBeforeShow;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => RestoreForeground(previous)));
     }
 
     private void RestoreForeground(IntPtr window)
@@ -493,59 +345,50 @@ public sealed class MainWindow : Window
 
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs args)
     {
-        if (_overlayHost.IsOpen || _viewModel.IsClosing) return;
-        if (_viewModel.IsWidgetCollapsed && _view.IsHistoryPopupOpen && args.Key == Key.Escape)
+        if (_overlayHost.IsOpen || _viewModel.IsClosing || Keyboard.Modifiers != ModifierKeys.None) return;
+        if (_view.IsHistoryPopupOpen && args.Key == Key.Escape)
         {
             args.Handled = true;
             _view.CloseHistoryPopup();
+            RestoreForeground(_foregroundBeforeShow);
             return;
         }
-        if (_viewModel.IsWidgetCollapsed)
-        {
-            if (Keyboard.FocusedElement is Button || Keyboard.Modifiers != ModifierKeys.None || args.Key is not (Key.Enter or Key.Space or Key.Down)) return;
-            args.Handled = true;
-            ExpandAndFocus();
-            return;
-        }
-        if (args.Key != Key.Escape) return;
+        if (_view.IsHistoryPopupOpen) return;
+        if (Keyboard.FocusedElement is System.Windows.Controls.Primitives.ButtonBase
+            || args.Key is not (Key.Enter or Key.Space or Key.Down)) return;
         args.Handled = true;
-        if (Keyboard.FocusedElement is TextBox { Text.Length: > 0 } search && ReferenceEquals(search, _searchBox))
-        {
-            _viewModel.ClearSearchCommand.Execute(null);
-            return;
-        }
-        CollapseAndReturnFocus();
+        ShowHistoryAndFocus();
     }
 
-    /// <summary>Expands the widget when a second launch finds this instance already running.</summary>
-    public void ShowFromExternalRequest() => ExpandAndFocus();
+    /// <summary>Opens history when a second launch finds this instance already running.</summary>
+    public void ShowFromExternalRequest() => ShowHistoryAndFocus();
 
     private void OnHotKeyPressed(object? sender, EventArgs args)
     {
-        bool expandedInFront = !_viewModel.IsWidgetCollapsed && IsVisible && IsActive && WindowState == WindowState.Normal;
-        if (expandedInFront && !_overlayHost.IsOpen && !_viewModel.IsClosing) CollapseAndReturnFocus();
-        else ExpandAndFocus();
+        if (_view.IsHistoryPopupOpen && IsVisible && !_applicationDeactivated && !_overlayHost.IsOpen)
+        {
+            _view.CloseHistoryPopup();
+            RestoreForeground(_foregroundBeforeShow);
+        }
+        else ShowHistoryAndFocus();
     }
 
-    private void ExpandAndFocus()
+    private void ShowHistoryAndFocus()
     {
         if (_viewModel.IsClosing) return;
-        _view.CloseHistoryPopup();
-        RememberForeground();
+        if (!_view.IsHistoryPopupOpen && !_overlayHost.IsOpen) RememberForeground();
         if (!IsVisible) Show();
         if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
-        SetCollapsed(false);
         Activate();
         if (_overlayHost.IsOpen) return;
-        Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() =>
+        PlaceWidget();
+        UpdateLayout();
+        OpenHistoryPopup();
+        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
-            if (_viewModel.IsClosing || !IsEnabled || _viewModel.IsWidgetCollapsed || _overlayHost.IsOpen) return;
-            if (_historyList.Items.Count == 0) _searchBox.Focus();
-            else
-            {
-                if (_historyList.SelectedIndex < 0) _historyList.SelectedIndex = 0;
-                FocusSelectedRecord();
-            }
+            if (IsActive && !_applicationDeactivated && !_viewModel.IsClosing && !_overlayHost.IsOpen
+                && _view.IsHistoryPopupOpen)
+                _view.FocusHistoryRecords();
         }));
     }
 

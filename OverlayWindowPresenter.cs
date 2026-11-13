@@ -42,7 +42,6 @@ internal sealed record WindowPresentationState(WindowState WindowState, double L
 /// <summary>Owns the owner-window presentation for overlay sessions: page sizing, snapshots, and restoration.</summary>
 internal sealed class OverlayWindowPresenter
 {
-    private const double WorkAreaMargin = 18;
     private const double WidgetMargin = 8;
 
     private readonly Window _owner;
@@ -89,38 +88,12 @@ internal sealed class OverlayWindowPresenter
     internal void ApplyPageSize(OverlaySize size)
     {
         Size desired = OverlaySizePolicy.GetDesiredSize(size);
-        if (OverlaySizePolicy.StaysInWidget(size))
-        {
-            // The window keeps its bounds; the card takes what fits inside and is only as tall as its content.
-            double roomWidth = FiniteOr(_owner.Width, _owner.ActualWidth) - WidgetMargin * 2;
-            double roomHeight = FiniteOr(_owner.Height, _owner.ActualHeight) - WidgetMargin * 2;
-            _overlayPanel.Width = roomWidth > 0 ? Math.Min(desired.Width, roomWidth) : desired.Width;
-            _overlayPanel.Height = double.NaN;
-            _overlayPanel.MaxHeight = roomHeight > 0 ? Math.Min(desired.Height, roomHeight) : desired.Height;
-            return;
-        }
-
-        _overlayPanel.MaxHeight = double.PositiveInfinity;
-        Rect workArea = GetOwnerWorkArea();
-        Rect fitted = OverlayWindowGeometry.Fit(workArea, desired, WorkAreaMargin);
-        double outerWidth = Math.Min(workArea.Width, fitted.Width + WorkAreaMargin * 2);
-        double outerHeight = Math.Min(workArea.Height, fitted.Height + WorkAreaMargin * 2);
-        double ownerWidth = Math.Min(workArea.Width, Math.Max(_owner.Width, outerWidth));
-        double ownerHeight = Math.Min(workArea.Height, Math.Max(_owner.Height, outerHeight));
-        if (_owner.WindowState != WindowState.Maximized
-            && (_owner.Width < outerWidth || _owner.Height < outerHeight
-                || _owner.Left < workArea.Left || _owner.Top < workArea.Top
-                || _owner.Left + _owner.Width > workArea.Right || _owner.Top + _owner.Height > workArea.Bottom))
-        {
-            _owner.WindowState = WindowState.Normal;
-            _owner.Left = workArea.Left + (workArea.Width - ownerWidth) / 2;
-            _owner.Top = workArea.Top + (workArea.Height - ownerHeight) / 2;
-            _owner.Width = ownerWidth;
-            _owner.Height = ownerHeight;
-        }
-
-        _overlayPanel.Width = Math.Min(fitted.Width, Math.Max(0, ownerWidth - WorkAreaMargin * 2));
-        _overlayPanel.Height = Math.Min(fitted.Height, Math.Max(0, ownerHeight - WorkAreaMargin * 2));
+        // Every page is a card inside the temporary overlay window bounds.
+        double roomWidth = FiniteOr(_owner.Width, _owner.ActualWidth) - WidgetMargin * 2;
+        double roomHeight = FiniteOr(_owner.Height, _owner.ActualHeight) - WidgetMargin * 2;
+        _overlayPanel.Width = roomWidth > 0 ? Math.Min(desired.Width, roomWidth) : desired.Width;
+        _overlayPanel.Height = double.NaN;
+        _overlayPanel.MaxHeight = roomHeight > 0 ? Math.Min(desired.Height, roomHeight) : desired.Height;
     }
 
     private static double FiniteOr(double value, double fallback) =>
@@ -160,8 +133,6 @@ internal sealed class OverlayWindowPresenter
             catch (Exception exception) { AppLogger.LogException("恢复覆盖层前的键盘焦点失败", exception); }
         }
     }
-
-    private Rect GetOwnerWorkArea() => GetWorkArea(_owner);
 
     /// <summary>Work area, in device-independent units, of the monitor the window is on.</summary>
     internal static Rect GetWorkArea(Window owner)

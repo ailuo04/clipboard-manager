@@ -22,7 +22,7 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
     private static readonly XNamespace Xaml = "http://schemas.microsoft.com/winfx/2006/xaml";
 
     [Fact]
-    public void MainViewHasACapsuleAndAPanelSwitchedByTheCollapsedState()
+    public void MainViewAlwaysShowsCapsuleAndUsesOnlyTheHistoryPopup()
     {
         XElement root = LoadView("MainView.xaml");
         XElement capsule = Named(root, "Capsule");
@@ -30,19 +30,9 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("40", (string?)capsule.Attribute("Height"));
         Assert.Equal("Left", (string?)capsule.Attribute("HorizontalAlignment"));
         Assert.Equal("Top", (string?)capsule.Attribute("VerticalAlignment"));
-        XElement panel = Named(root, "Panel");
-
-        Assert.Equal("{Binding IsWidgetCollapsed, Converter={StaticResource BoolVisibility}}", (string?)capsule.Attribute("Visibility"));
-        Assert.Contains(capsule.Descendants(Presentation + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding CapsuleText}");
-        Assert.Contains(capsule.Descendants(Presentation + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding RecordCount}");
-        XElement trigger = panel.Descendants(Presentation + "DataTrigger")
-            .First(element => (string?)element.Attribute("Binding") == "{Binding IsWidgetCollapsed}");
-        Assert.Equal("True", (string?)trigger.Attribute("Value"));
-        // The panel keeps everything the keyboard handling in MainWindow relies on.
-        Assert.Equal(panel, Named(root, "HistoryList").Ancestors().First(element => element == panel));
-        Assert.Equal(panel, Named(root, "SearchBox").Ancestors().First(element => element == panel));
-        Assert.Equal(panel, Named(root, "DragHandle").Ancestors().First(element => element == panel));
-        Assert.Equal(panel, Named(root, "MenuButton").Ancestors().First(element => element == panel));
+        Assert.Null(capsule.Attribute("Visibility"));
+        Assert.NotNull(Named(root, "HistoryRecords"));
+        Assert.DoesNotContain(root.Descendants(), element => (string?)element.Attribute(Xaml + "Name") == "Panel");
     }
 
     [Fact]
@@ -125,13 +115,13 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
                 historyPopup.IsOpen = true;
                 moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, moreButton));
                 Assert.True(moreMenu.IsOpen);
-                Assert.True(view.IsMenuOpen);
+                Assert.True(view.IsContextMenuOpen);
                 Assert.True(view.IsContextMenuOpen);
                 Assert.True(historyPopup.IsOpen);
 
                 moreButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, moreButton));
                 Assert.False(moreMenu.IsOpen);
-                Assert.False(view.IsMenuOpen);
+                Assert.False(view.IsContextMenuOpen);
                 Assert.True(historyPopup.IsOpen);
                 historyPopup.IsOpen = false;
             }
@@ -143,24 +133,28 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
     }
 
     [Fact]
-    public void MainPanelMenuButtonStillOpensItsContextMenu()
+    public void CapsuleContextMenuContainsOnlySupportedActions()
     {
         wpf.Run(() =>
         {
             ThemeManager.Apply(AppTheme.Light);
-            var view = new ClipboardManager.Views.MainView();
-            var menuButton = (Button)typeof(ClipboardManager.Views.MainView)
-                .GetField("MenuButton", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-                .GetValue(view)!;
+            var view = new ClipboardManager.Views.MainView { DataContext = new { PauseToolTip = "暂停监听" } };
+            var owner = new Window { Content = view, Width = 240, Height = 40, ShowInTaskbar = false, ShowActivated = false, Opacity = 0 };
+            owner.Show();
+            owner.UpdateLayout();
+            var capsule = (Grid)view.FindName("Capsule");
+            capsule.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Right)
+                { RoutedEvent = UIElement.MouseRightButtonUpEvent });
             var menu = (ContextMenu)typeof(ClipboardManager.Views.MainView)
-                .GetField("_menu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-                .GetValue(view)!;
-
-            menuButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, menuButton));
-
-            Assert.True(view.IsContextMenuOpen);
-            menu.IsOpen = false;
-            Assert.False(menu.IsOpen);
+                .GetField("_menu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(view)!;
+            try
+            {
+                menu.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                Assert.True(view.IsContextMenuOpen);
+                Assert.Equal(new[] { "暂停监听", "设置", "检查更新", "清空全部历史记录…", "退出" },
+                    menu.Items.OfType<MenuItem>().Select(item => item.Header));
+            }
+            finally { menu.IsOpen = false; owner.Close(); }
         });
     }
 
@@ -257,7 +251,7 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
             .Where(element => (string?)element.Attribute("ContentTemplateSelector") == "{x:Static local:MainView.RecordHoverSelector}")
             .ToArray();
 
-        Assert.Equal(3, previews.Length);
+        Assert.Equal(2, previews.Length);
         Assert.All(previews, preview => Assert.Equal("Custom", (string?)preview.Attribute("Placement")));
     }
     [Fact]
@@ -268,7 +262,7 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
             .Where(element => (string?)element.Attribute("ContentTemplateSelector") == "{x:Static local:MainView.RecordHoverSelector}")
             .ToArray();
 
-        Assert.Equal(3, previews.Length);
+        Assert.Equal(2, previews.Length);
         Assert.All(previews, preview =>
             Assert.Equal("{StaticResource HoverPreviewToolTip}", (string?)preview.Attribute("Style")));
         XElement style = root.Descendants(Presentation + "Style")
@@ -553,9 +547,6 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
     [Fact]
     public void SettingsAndUpdatesOpenInsideTheWidgetWithoutResizingIt()
     {
-        Assert.True(OverlaySizePolicy.StaysInWidget(OverlaySize.Settings));
-        Assert.True(OverlaySizePolicy.StaysInWidget(OverlaySize.Update));
-        Assert.False(OverlaySizePolicy.StaysInWidget(OverlaySize.Details));
 
         wpf.Run(() =>
         {
@@ -584,7 +575,7 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
     }
 
     [Fact]
-    public void SettingsOverlayRestoresTheCollapsedCapsuleBoundsAfterUsingExpandedBounds()
+    public void SettingsOverlayRestoresCapsuleBoundsAfterUsingCardBounds()
     {
         wpf.Run(() =>
         {
@@ -656,25 +647,26 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
     }
 
     [Fact]
-    public void WidgetStartsCollapsedAndShowsTheLoadingStatusBeforeHistoryIsReady()
+    public void LongHoverPreviewPointsToCopyingTheCompleteRecord()
     {
         WithViewModel(owner =>
         {
-            var raised = new List<string?>();
-            owner.PropertyChanged += (_, args) => raised.Add(args.PropertyName);
+            var item = new RecordViewModel(TextRecord(new string('x', 1600)), owner);
+            Assert.StartsWith(new string('x', 1500), item.HoverText);
+            Assert.EndsWith("…（预览已截断，复制可获取完整内容）", item.HoverText);
+            Assert.Equal(1600, item.Record.Text!.Length);
+        });
+    }
 
-            Assert.True(owner.IsWidgetCollapsed);
-            Assert.Equal("展开", owner.WidgetToggleLabel);
+    [Fact]
+    public void CapsuleShowsLoadingStatusBeforeHistoryIsReady()
+    {
+        WithViewModel(owner =>
+        {
             Assert.Equal(owner.Status, owner.CapsuleText);
             Assert.Null(owner.WidgetPosition);
             Assert.Equal(0, owner.RecordCount);
             Assert.False(owner.HasRecords);
-
-            owner.IsWidgetCollapsed = false;
-
-            Assert.Equal("收起", owner.WidgetToggleLabel);
-            Assert.Contains(nameof(MainViewModel.IsWidgetCollapsed), raised);
-            Assert.Contains(nameof(MainViewModel.WidgetToggleLabel), raised);
         });
     }
 
@@ -711,6 +703,7 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
                 Assert.Equal("newest copy", latest.SingleLine);
                 var records = owner.HistoryRecords;
                 Assert.Equal(new[] { "newest copy", "older" }, records.Select(record => record.SingleLine));
+                Assert.Equal(new[] { "1", "2" }, records.Select(record => record.PositionLabel));
                 Assert.Equal(new Point(120, 64), owner.WidgetPosition);
             });
 
@@ -764,7 +757,6 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
             var view = (ClipboardManager.Views.SettingsView)overlay.Content!;
 
             Assert.False(view.HideCapsulePreviewCheckBox.IsChecked);
-            Assert.Equal("保持展开", view.AlwaysOnTopCheckBox.Content);
             view.HideCapsulePreviewCheckBox.IsChecked = true;
             view.SaveButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, view.SaveButton));
 
