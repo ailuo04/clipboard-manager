@@ -21,6 +21,7 @@ public sealed class MainWindow : Window
     private const double EdgeMargin = 24;
     private const double DragThreshold = 3;
     private const int WmMouseActivate = 0x0021;
+    private const int WmActivateApp = 0x001C;
 
     private readonly MainViewModel _viewModel;
     private readonly ListBox _historyList;
@@ -36,6 +37,7 @@ public sealed class MainWindow : Window
     private bool _hideAfterCopy = true;
     private bool _restoreHistoryPopupAfterOverlay;
     private bool _deactivationDeferredForRecordDrag;
+    private bool _applicationDeactivated;
     private IntPtr _foregroundBeforeShow;
     private bool _backdropAttempted;
     // Where the capsule sits. The expanded panel opens from here, shifted only as far as the work area requires.
@@ -183,6 +185,14 @@ public sealed class MainWindow : Window
     {
         // A click is about to activate the widget: remember who had the focus so a copy can hand it back.
         if (message == WmMouseActivate) RememberForeground();
+        if (message == WmActivateApp)
+        {
+            // A popup/menu can already have deactivated the owner. Leaving the app
+            // must still dismiss history even if no second Window.Deactivated fires.
+            _applicationDeactivated = wParam == IntPtr.Zero;
+            if (_applicationDeactivated && _viewModel.IsWidgetCollapsed)
+                OnDeactivated(this, EventArgs.Empty);
+        }
         return IntPtr.Zero;
     }
 
@@ -334,7 +344,7 @@ public sealed class MainWindow : Window
         _deactivationDeferredForRecordDrag = false;
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
-            if (ShouldReplayDeactivationAfterRecordDrag(true, IsActive)) return;
+            if (!ShouldReplayDeactivationAfterRecordDrag(true, IsActive)) return;
             OnDeactivated(this, EventArgs.Empty);
         }));
     }
@@ -348,14 +358,16 @@ public sealed class MainWindow : Window
         }
         if (_viewModel.IsWidgetCollapsed)
         {
+            bool applicationDeactivated = _applicationDeactivated;
             Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
             {
+                if (IsActive || _viewModel.IsClosing || (applicationDeactivated && !_applicationDeactivated)) return;
                 if (ShouldDeferDeactivationForRecordDrag(_view.IsRecordDragInProgress))
                 {
                     _deactivationDeferredForRecordDrag = true;
                     return;
                 }
-                if (ShouldCloseHistoryPopupOnDeactivation(_view.IsHistoryPopupOpen, _view.IsContextMenuOpen,
+                if (_applicationDeactivated || ShouldCloseHistoryPopupOnDeactivation(_view.IsHistoryPopupOpen, _view.IsContextMenuOpen,
                         _view.IsHistoryPopupPointerOver))
                     _view.CloseHistoryPopup();
             }));
