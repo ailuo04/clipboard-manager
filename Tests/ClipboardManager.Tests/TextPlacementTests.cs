@@ -22,10 +22,14 @@ public sealed class TextPlacementTests(SettingsOverlayWpfFixture wpf)
         wpf.Run(() => WithEditor(editor =>
         {
             ComboBox fonts = FontsBox(editor);
+            var installedNames = Fonts.SystemFontFamilies
+                .SelectMany(font => font.FamilyNames.Values.Prepend(font.Source))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Assert.NotEmpty(fonts.Items);
             foreach (string family in new[] { "SimSun", "Microsoft YaHei", "SimHei", "KaiTi", "Times New Roman", "Arial" })
             {
                 fonts.SelectedValue = family;
-                Assert.Equal(family, fonts.SelectedValue);
+                Assert.Equal(installedNames.Contains(family) ? family : null, fonts.SelectedValue);
             }
             Assert.False(fonts.IsEditable);
         }));
