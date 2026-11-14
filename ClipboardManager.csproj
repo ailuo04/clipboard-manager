@@ -7,7 +7,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClipboardManager</RootNamespace>
     <AssemblyName>ClipboardManager</AssemblyName>
-    <Version>0.0.15</Version>
+    <Version>0.0.16</Version>
     <Product>ClipboardManager</Product>
     <Description>Windows clipboard history manager with text, images, search, and pinning.</Description>
     <ApplicationIcon>Assets\Clipboard.ico</ApplicationIcon>
@@ -29,6 +29,7 @@
     <Page Include="Views\SettingsView.xaml" />
     <Page Include="Views\ClearConfirmationView.xaml" />
     <Page Include="Views\UpdateView.xaml" />
+    <Page Include="Views\ImageEditorWindow.xaml" />
     <Page Include="Views\LightGlass.xaml" />
     <Page Include="Views\LiquidGlass.xaml" />
   </ItemGroup>

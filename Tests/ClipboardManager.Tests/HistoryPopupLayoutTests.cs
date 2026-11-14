@@ -146,7 +146,7 @@ public sealed class HistoryPopupLayoutTests(SettingsOverlayWpfFixture wpf)
             more.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, more));
             PumpLayout(view);
             var menu = GetMenu(view);
-            Assert.Equal(new[] { "暂停监听", "设置", "检查更新", "清空全部历史记录…", "退出" },
+            Assert.Equal(new[] { "编辑最新图片", "暂停监听", "设置", "检查更新", "清空全部历史记录…", "退出" },
                 menu.Items.OfType<MenuItem>().Select(item => item.Header));
             Assert.True(menu.ActualHeight > 0);
             var exit = Assert.IsType<MenuItem>(menu.Items[^1]);

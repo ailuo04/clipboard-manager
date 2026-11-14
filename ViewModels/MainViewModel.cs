@@ -9,6 +9,8 @@ namespace ClipboardManager.ViewModels;
 public sealed class MainViewModel : ObservableObject
 {
     private readonly HistoryService _history;
+    private readonly Window _owner;
+    private Views.ImageEditorWindow? _imageEditor;
     private readonly Action<bool>? _trayModeChanged;
     private readonly WindowOverlayHost? _overlays;
     private readonly ClipboardReader _clipboard = new();
@@ -32,6 +34,7 @@ public sealed class MainViewModel : ObservableObject
     internal MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged, WindowOverlayHost? overlays)
     {
         _history = history;
+        _owner = owner;
         _trayModeChanged = trayModeChanged;
         _overlays = overlays;
         _monitor = new ClipboardMonitor(owner);
@@ -43,12 +46,16 @@ public sealed class MainViewModel : ObservableObject
         _updateCoordinator = new UpdateCoordinator(owner, history, overlays, _lifetime,
             () => IsClosing, () => Notice, value => Notice = value, Report);
         ClearCommand = new AsyncRelayCommand(ClearAsync, () => CanAct && _allRecords.Count > 0);
+        EditLatestImageCommand = new AsyncRelayCommand(
+            () => LatestImageRecord is { } image ? EditImageAsync(image) : Task.CompletedTask,
+            () => CanAct && LatestImageRecord is not null);
         SettingsCommand = new AsyncRelayCommand(ShowSettingsAsync, () => CanAct);
         UpdateCommand = new AsyncRelayCommand(ShowUpdatesAsync, () => CanAct);
         PauseCommand = new RelayCommand(() => { IsPaused = !IsPaused; _capture.Pause(); }, () => IsReady && !IsClosing);
     }
 
     public ICommand ClearCommand { get; }
+    public ICommand EditLatestImageCommand { get; }
     public ICommand SettingsCommand { get; }
     public ICommand UpdateCommand { get; }
     public ICommand PauseCommand { get; }
@@ -56,6 +63,7 @@ public sealed class MainViewModel : ObservableObject
     public int RecordCount => _allRecords.Count;
     public IReadOnlyList<RecordViewModel> HistoryRecords => _allRecords;
     public RecordViewModel? LatestRecord => _allRecords.FirstOrDefault();
+    public RecordViewModel? LatestImageRecord => LatestRecord is { IsImage: true } image ? image : null;
     public bool HasRecords => _allRecords.Count > 0;
     public string CapsuleText => !IsReady ? Status
         : _history.Settings.HideCapsulePreview || _allRecords.Count == 0 ? "剪贴板"
@@ -116,6 +124,30 @@ public sealed class MainViewModel : ObservableObject
         CopyCompleted?.Invoke(this, EventArgs.Empty);
     }, "复制记录失败");
 
+    public Task EditImageAsync(RecordViewModel item)
+    {
+        if (!item.IsImage || string.IsNullOrWhiteSpace(item.ImagePath)) return Task.CompletedTask;
+        return RunOperationAsync(async () =>
+        {
+            var image = await ImageLoader.LoadAsync(item.ImagePath, cancellationToken: _lifetime.Token);
+            if (IsClosing) return;
+            var editor = new Views.ImageEditorWindow(image, async edited =>
+            {
+                var saved = await _history.AddAsync(ClipboardSnapshot.FromImage(edited, "ImageAnnotation"),
+                    _lifetime.Token, protectedRecordId: item.Record.Id);
+                RefreshRecords();
+                if (saved.Warning is not null) Notice = saved.Warning;
+                if (saved.Record is null)
+                    throw new InvalidOperationException(saved.Warning ?? "容量不足，标注图片未能保存。");
+                await _clipboard.WriteImageAsync(_history.GetImagePath(saved.Record), _monitor.Handle, _lifetime.Token);
+                Status = "标注图片已保存并复制到剪贴板";
+            }) { Owner = _owner };
+            _imageEditor = editor;
+            try { editor.ShowDialog(); }
+            finally { _imageEditor = null; }
+        }, "打开图片编辑器失败");
+    }
+
     public event EventHandler? CopyCompleted;
 
     public Task SaveWidgetPositionAsync(double left, double top)
@@ -135,6 +167,7 @@ public sealed class MainViewModel : ObservableObject
     {
         if (IsClosing) return;
         IsClosing = true;
+        _imageEditor?.CloseForShutdown();
         Task captureTask = _capture.ShutdownAsync();
         Task updateTask = _updateCoordinator.ShutdownAsync();
         _monitor.Dispose();
@@ -218,7 +251,7 @@ public sealed class MainViewModel : ObservableObject
         _allRecords = _history.Records.OrderByDescending(record => record.CopiedAtUtc)
             .Select((record, index) => new RecordViewModel(record, this) { Position = index + 1 }).ToList();
         Raise(nameof(RecordCount)); Raise(nameof(HistoryRecords)); Raise(nameof(LatestRecord));
-        Raise(nameof(HasRecords)); Raise(nameof(CapsuleText));
+        Raise(nameof(HasRecords)); Raise(nameof(CapsuleText)); Raise(nameof(LatestImageRecord));
         RaiseState();
     }
 
@@ -226,6 +259,7 @@ public sealed class MainViewModel : ObservableObject
     {
         Raise(nameof(CanAct)); Raise(nameof(MonitorStatus));
         (ClearCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
+        (EditLatestImageCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (SettingsCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (UpdateCommand as AsyncRelayCommand)?.RaiseCanExecuteChanged();
         (PauseCommand as RelayCommand)?.RaiseCanExecuteChanged();

@@ -83,7 +83,7 @@ public sealed class HistoryService
         finally { _gate.Release(); }
     }
 
-    public async Task<HistoryChangeResult> AddAsync(ClipboardSnapshot snapshot, CancellationToken cancellationToken = default)
+    public async Task<HistoryChangeResult> AddAsync(ClipboardSnapshot snapshot, CancellationToken cancellationToken = default, Guid? protectedRecordId = null)
     {
         byte[]? imageBytes = null;
         string hash;
@@ -126,7 +126,7 @@ public sealed class HistoryService
                     await Task.Run(() => Directory.CreateDirectory(_store.ImagesDirectory), cancellationToken).ConfigureAwait(false);
                     await File.WriteAllBytesAsync(createdFile, imageBytes, cancellationToken).ConfigureAwait(false);
                 }
-                var removed = ApplyRetention(next, _settings);
+                var removed = ApplyRetention(next, _settings, protectedRecordId);
                 await CommitAsync(next, _settings, removed, cancellationToken).ConfigureAwait(false);
                 createdFile = null;
                 string? warning = await CleanupPendingAsync().ConfigureAwait(false);
@@ -229,11 +229,11 @@ public sealed class HistoryService
         return failed == 0 ? null : $"{failed} 个图片文件暂时无法删除，已记入重试队列。请检查权限或文件占用。";
     }
 
-    public static List<ClipboardRecord> ApplyRetention(List<ClipboardRecord> records, AppSettings settings)
+    public static List<ClipboardRecord> ApplyRetention(List<ClipboardRecord> records, AppSettings settings, Guid? protectedRecordId = null)
     {
         var removed = new List<ClipboardRecord>();
         long total = records.Sum(record => record.ByteLength);
-        foreach (var candidate in records.Where(record => !record.IsPinned).OrderBy(record => record.CopiedAtUtc).ToArray())
+        foreach (var candidate in records.Where(record => !record.IsPinned && record.Id != protectedRecordId).OrderBy(record => record.CopiedAtUtc).ToArray())
         {
             if (records.Count <= settings.MaxRecords && total <= (long)settings.MaxStorageMb * 1024 * 1024) break;
             records.Remove(candidate);

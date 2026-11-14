@@ -24,6 +24,7 @@ public partial class MainView : Grid
 
     private readonly ContextMenu _menu = new();
     private bool _menuOpening;
+    private bool _recordContextMenuOpen;
     private bool _recordDragInProgress;
     private Button? _dragCandidate;
     private Button? _draggedButtonAwaitingRelease;
@@ -55,7 +56,7 @@ public partial class MainView : Grid
 
     public bool IsRecordDragInProgress => _recordDragInProgress;
 
-    public bool IsContextMenuOpen => _menu.IsOpen || _menuOpening;
+    public bool IsContextMenuOpen => _menu.IsOpen || _menuOpening || _recordContextMenuOpen;
 
     public bool IsMoreMenuOpen => _menu.IsOpen && ReferenceEquals(_menu.PlacementTarget, MoreButton);
 
@@ -271,11 +272,27 @@ public partial class MainView : Grid
         catch (Exception exception) { AppLogger.LogException("拖放图片时读取图像失败", exception); }
         return RecordDragData.CreateImage(record.ImagePath, bitmap);
     }
+    private void OnRecordContextMenuOpening(object sender, ContextMenuEventArgs args)
+    {
+        if (sender is not Button button || button.DataContext is not RecordViewModel { IsImage: true } record)
+        {
+            args.Handled = true;
+            return;
+        }
+        if (button.ContextMenu is null) return;
+        button.ContextMenu.DataContext = record;
+        _recordContextMenuOpen = true;
+    }
+
+    private void OnRecordContextMenuClosed(object sender, RoutedEventArgs args) => _recordContextMenuOpen = false;
+
     private void BuildMenu()
     {
         var exit = new MenuItem { Header = "退出" };
         exit.Click += (_, _) => ExitRequested?.Invoke(this, EventArgs.Empty);
 
+        _menu.Items.Add(CommandItem(nameof(MainViewModel.EditLatestImageCommand), "编辑最新图片"));
+        _menu.Items.Add(new Separator());
         _menu.Items.Add(CommandItem(nameof(MainViewModel.PauseCommand), headerPath: nameof(MainViewModel.PauseToolTip)));
         _menu.Items.Add(new Separator());
         _menu.Items.Add(CommandItem(nameof(MainViewModel.SettingsCommand), "设置"));

@@ -196,8 +196,6 @@
                         <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
                             <Grid>
-                                <Border x:Name="Sheen" Background="{DynamicResource GlassSheenBrush}" CornerRadius="7" Margin="1"
-                                        IsHitTestVisible="False" />
                                 <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                                   VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
                                                   Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"

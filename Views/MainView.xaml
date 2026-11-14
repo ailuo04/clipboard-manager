@@ -164,7 +164,12 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Button Command="{Binding CopyCommand}" Style="{StaticResource RecordCopySurface}"
-                                    Padding="7,5" AutomationProperties.Name="复制此历史记录">
+                                    Padding="7,5" AutomationProperties.Name="复制此历史记录" ContextMenuOpening="OnRecordContextMenuOpening">
+                                <Button.ContextMenu>
+                                    <ContextMenu Closed="OnRecordContextMenuClosed">
+                                        <MenuItem Header="编辑图片" Command="{Binding EditImageCommand}" />
+                                    </ContextMenu>
+                                </Button.ContextMenu>
                                 <Button.ToolTip>
                                     <ToolTip Placement="Custom" Style="{StaticResource HoverPreviewToolTip}" Padding="11,9,11,10" Content="{Binding}" ContentTemplateSelector="{x:Static local:MainView.RecordHoverSelector}" ContentTemplate="{x:Null}" />
                                 </Button.ToolTip>

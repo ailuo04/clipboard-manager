@@ -15,6 +15,7 @@ public sealed class RecordViewModel : INotifyPropertyChanged
         Record = record;
         ImagePath = record.Kind == ClipboardRecordKind.Image ? owner.GetImagePath(record) : null;
         CopyCommand = new AsyncRelayCommand(() => owner.CopyAsync(this), () => owner.CanAct);
+        EditImageCommand = new AsyncRelayCommand(() => owner.EditImageAsync(this), () => IsImage && owner.CanAct);
     }
 
     public ClipboardRecord Record { get; }
@@ -87,9 +88,11 @@ public sealed class RecordViewModel : INotifyPropertyChanged
     }
 
     public ICommand CopyCommand { get; }
+    public ICommand EditImageCommand { get; }
 
     public void RefreshCommands()
     {
         ((AsyncRelayCommand)CopyCommand).RaiseCanExecuteChanged();
+        ((AsyncRelayCommand)EditImageCommand).RaiseCanExecuteChanged();
     }
 }

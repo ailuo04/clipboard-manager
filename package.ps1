@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.0.15',
+    [string]$Version = '0.0.16',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist')
 )
 
