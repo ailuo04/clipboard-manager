@@ -47,7 +47,7 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
         XElement historyToggle = Named(root, "HistoryToggleButton");
         Assert.Equal(Presentation + "ToggleButton", historyToggle.Name);
         Assert.Equal("{StaticResource PinCaptionButton}", (string?)historyToggle.Attribute("Style"));
-Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
+        Assert.Equal("0,0,10,0", (string?)historyToggle.Attribute("Margin"));
 
         XElement popup = Named(root, "HistoryPopup");
         Assert.Equal("Bottom", (string?)popup.Attribute("Placement"));
@@ -655,6 +655,46 @@ Assert.Equal("0,0,6,0", (string?)historyToggle.Attribute("Margin"));
             Assert.StartsWith(new string('x', 1500), item.HoverText);
             Assert.EndsWith("…（预览已截断，复制可获取完整内容）", item.HoverText);
             Assert.Equal(1600, item.Record.Text!.Length);
+        });
+    }
+
+    [Fact]
+    public void HistoryRecordNumbersContinuePastNineAndFitWhenPositionChanges()
+    {
+        WithViewModel(owner =>
+        {
+            var item = new RecordViewModel(TextRecord("历史记录内容"), owner);
+            var view = new ClipboardManager.Views.MainView();
+            var button = Assert.IsType<Button>(view.HistoryRecords.ItemTemplate.LoadContent());
+            button.DataContext = item;
+            var grid = Assert.IsType<Grid>(button.Content);
+            var number = grid.Children.OfType<TextBlock>().Single(text => Grid.GetColumn(text) == 0);
+            var content = grid.Children.OfType<TextBlock>().Single(text => Grid.GetColumn(text) == 2);
+            var cases = new (int Position, string? Label)[]
+            {
+                (0, null), (1, "1"), (9, "9"), (10, "10"), (99, "99"),
+                (100, "100"), (999, "999"), (1000, "1000"), (5000, "5000"), (-1, null)
+            };
+            foreach (var (position, expected) in cases)
+            {
+                item.Position = position;
+                button.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.DataBind);
+                button.Measure(new Size(280, 38));
+                button.Arrange(new Rect(0, 0, 280, 38));
+                button.UpdateLayout();
+
+                Assert.Equal(expected, item.PositionLabel);
+                Assert.Equal(expected ?? string.Empty, number.Text);
+                if (expected is null) continue;
+                var formatted = new FormattedText(expected, System.Globalization.CultureInfo.CurrentCulture,
+                    number.FlowDirection, new Typeface(number.FontFamily, number.FontStyle, number.FontWeight, number.FontStretch),
+                    number.FontSize, Brushes.Black, VisualTreeHelper.GetDpi(number).PixelsPerDip);
+                Assert.True(number.ActualWidth >= formatted.WidthIncludingTrailingWhitespace - 0.1,
+                    $"Record number {expected} is clipped: needs {formatted.WidthIncludingTrailingWhitespace}, has {number.ActualWidth}.");
+                Rect numberBounds = number.TransformToAncestor(grid).TransformBounds(new Rect(number.RenderSize));
+                Rect contentBounds = content.TransformToAncestor(grid).TransformBounds(new Rect(content.RenderSize));
+                Assert.True(numberBounds.Right <= contentBounds.Left, $"Record number {expected} overlaps its content.");
+            }
         });
     }
 

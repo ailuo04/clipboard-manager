@@ -68,6 +68,7 @@ public sealed class MainViewModel : ObservableObject
     public string CapsuleText => !IsReady ? Status
         : _history.Settings.HideCapsulePreview || _allRecords.Count == 0 ? "剪贴板"
         : _allRecords[0].SingleLine;
+    public string? CapsuleImagePath => IsReady && !_history.Settings.HideCapsulePreview ? LatestRecord?.ImagePath : null;
     public Point? WidgetPosition
     {
         get
@@ -76,7 +77,7 @@ public sealed class MainViewModel : ObservableObject
             return settings.WidgetLeft is double left && settings.WidgetTop is double top ? new Point(left, top) : null;
         }
     }
-    public bool IsReady { get => _isReady; private set { if (Set(ref _isReady, value)) { RaiseState(); Raise(nameof(CapsuleText)); } } }
+    public bool IsReady { get => _isReady; private set { if (Set(ref _isReady, value)) { RaiseState(); Raise(nameof(CapsuleText)); Raise(nameof(CapsuleImagePath)); } } }
     public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) RaiseState(); } }
     public bool IsClosing { get => _isClosing; private set { if (Set(ref _isClosing, value)) RaiseState(); } }
     public bool IsPaused
@@ -251,7 +252,7 @@ public sealed class MainViewModel : ObservableObject
         _allRecords = _history.Records.OrderByDescending(record => record.CopiedAtUtc)
             .Select((record, index) => new RecordViewModel(record, this) { Position = index + 1 }).ToList();
         Raise(nameof(RecordCount)); Raise(nameof(HistoryRecords)); Raise(nameof(LatestRecord));
-        Raise(nameof(HasRecords)); Raise(nameof(CapsuleText)); Raise(nameof(LatestImageRecord));
+        Raise(nameof(HasRecords)); Raise(nameof(CapsuleText)); Raise(nameof(CapsuleImagePath)); Raise(nameof(LatestImageRecord));
         RaiseState();
     }
 

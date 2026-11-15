@@ -153,6 +153,112 @@ public sealed class CapsuleImageEditingTests(SettingsOverlayWpfFixture wpf)
             finally { wpf.Run(() => timer?.Stop()); }
         });
 
+    [Fact]
+    public Task InlineThumbnailsLoadWithoutHoverAndImageRowsFitOnFirstOpen() => WithState(
+        async history =>
+        {
+            await history.AddAsync(ClipboardSnapshot.FromImage(Image(160, 80), "test"));
+            await history.AddAsync(ClipboardSnapshot.FromText("文字记录保持紧凑"));
+            await history.AddAsync(ClipboardSnapshot.FromImage(Image(40, 60), "test"));
+        },
+        async (history, vm, view) =>
+        {
+            ClipboardManager.Controls.AsyncThumbnail[] thumbnails = [];
+            wpf.Run(() =>
+            {
+                var capsuleThumbnail = Assert.Single(VisualDescendants<ClipboardManager.Controls.AsyncThumbnail>(view.LatestCopyButton),
+                    image => image.IsVisible);
+                Assert.Equal(vm.LatestRecord!.ImagePath, capsuleThumbnail.FilePath);
+                Assert.NotNull(view.LatestCopyButton.ToolTip);
+                Assert.False(((ToolTip)view.LatestCopyButton.ToolTip).IsOpen);
+                view.HistoryPopup.Child.Opacity = 0;
+                Size desired = view.MeasureHistoryPopup(300);
+                view.ShowHistoryPopup(ClipboardManager.Utilities.CapsulePopupPositioning.Calculate(
+                    SystemParameters.WorkArea, new Rect(100, 100, 240, 40), desired));
+                DrainDispatcher();
+                view.HistoryPopupBorder.UpdateLayout();
+                var rows = Enumerable.Range(0, 3).Select(index =>
+                    Assert.IsType<ListBoxItem>(view.HistoryRecords.ItemContainerGenerator.ContainerFromIndex(index))).ToArray();
+                Assert.True(rows[0].ActualHeight > rows[1].ActualHeight);
+                Assert.True(rows[2].ActualHeight > rows[1].ActualHeight);
+                foreach (int index in new[] { 0, 2 })
+                {
+                    var image = Assert.Single(VisualDescendants<ClipboardManager.Controls.AsyncThumbnail>(rows[index]),
+                        image => image.IsVisible);
+                    Rect rowBounds = rows[index].TransformToAncestor(view.HistoryRecords)
+                        .TransformBounds(new Rect(rows[index].RenderSize));
+                    Assert.True(rowBounds.Top >= 0 && rowBounds.Bottom <= view.HistoryRecords.ActualHeight,
+                        $"Image row clipped on first open: {rowBounds} in {view.HistoryRecords.ActualHeight}.");
+                }
+                Assert.DoesNotContain(VisualDescendants<ClipboardManager.Controls.AsyncThumbnail>(rows[1]), image => image.IsVisible);
+                thumbnails = new[] { capsuleThumbnail }.Concat(new[] { 0, 2 }.SelectMany(index =>
+                    VisualDescendants<ClipboardManager.Controls.AsyncThumbnail>(rows[index]).Where(image => image.IsVisible))).ToArray();
+            });
+            bool loaded = false;
+            for (int attempt = 0; attempt < 100 && !loaded; attempt++)
+            {
+                wpf.Run(() => loaded = thumbnails.All(image => image.Source is BitmapSource));
+                if (!loaded) await Task.Delay(20);
+            }
+            wpf.Run(() =>
+            {
+                Assert.True(loaded, "Inline images did not load without opening a hover preview.");
+                // An Image has no intrinsic size before its asynchronous Source is assigned.
+                view.UpdateLayout();
+                view.HistoryPopupBorder.UpdateLayout();
+                foreach (var thumbnail in thumbnails)
+                {
+                    Assert.True(Assert.IsAssignableFrom<BitmapSource>(thumbnail.Source).IsFrozen);
+                    FrameworkElement container = ReferenceEquals(thumbnail, thumbnails[0]) ? view.Capsule
+                        : Assert.IsType<ListBoxItem>(ItemsControl.ContainerFromElement(view.HistoryRecords, thumbnail));
+                    Rect bounds = thumbnail.TransformToAncestor(container).TransformBounds(new Rect(thumbnail.RenderSize));
+                    Assert.True(bounds.Width > 0 && bounds.Height > 0);
+                    Assert.True(new Rect(container.RenderSize).Contains(bounds), $"Thumbnail clipped: {bounds} in {container.RenderSize}.");
+                }
+                view.CloseHistoryPopup();
+            });
+        });
+
+    [Fact]
+    public Task CapsuleThumbnailHonorsHiddenPreviewAndLatestRecordTransitions() => WithState(
+        history => history.AddAsync(ClipboardSnapshot.FromImage(Image(40, 20), "test")),
+        async (history, vm, view) =>
+        {
+            void AssertThumbnail(bool visible)
+            {
+                DrainDispatcher();
+                view.UpdateLayout();
+                var thumbnails = VisualDescendants<ClipboardManager.Controls.AsyncThumbnail>(view.LatestCopyButton).ToArray();
+                Assert.Single(thumbnails);
+                Assert.Equal(visible, thumbnails[0].IsVisible);
+                Assert.Equal(visible ? vm.LatestRecord!.ImagePath : null, thumbnails[0].FilePath);
+            }
+            wpf.Run(() => AssertThumbnail(true));
+            var settings = history.Settings;
+            settings.HideCapsulePreview = true;
+            await history.UpdateSettingsAsync(settings);
+            wpf.Run(() => { Refresh(vm); AssertThumbnail(false); Assert.Equal("剪贴板", vm.CapsuleText); });
+            settings.HideCapsulePreview = false;
+            await history.UpdateSettingsAsync(settings);
+            wpf.Run(() => { Refresh(vm); AssertThumbnail(true); });
+            await history.AddAsync(ClipboardSnapshot.FromText("最新的是文字"));
+            wpf.Run(() => { Refresh(vm); AssertThumbnail(false); });
+            await history.AddAsync(ClipboardSnapshot.FromImage(Image(60, 30), "test"));
+            wpf.Run(() => { Refresh(vm); AssertThumbnail(true); });
+            await history.ClearAsync();
+            wpf.Run(() => { Refresh(vm); AssertThumbnail(false); });
+        });
+
+    private static IEnumerable<T> VisualDescendants<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T match) yield return match;
+            foreach (T descendant in VisualDescendants<T>(child)) yield return descendant;
+        }
+    }
+
     private async Task WithState(Func<HistoryService, Task> seed, Func<HistoryService, MainViewModel, MainView, Task> assert)
     {
         string root = Path.Combine(Path.GetTempPath(), "ClipboardManager.CapsuleImageTests", Guid.NewGuid().ToString("N"));

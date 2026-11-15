@@ -6,6 +6,44 @@
       Background="Transparent" UseLayoutRounding="True" SnapsToDevicePixels="True"
       TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Grid.Resources>
+        <Style x:Key="HistoryFooterAction" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="10,4" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource HoverSurfaceBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PressedSurfaceBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="HistorySettingsAction" TargetType="Button" BasedOn="{StaticResource HistoryFooterAction}">
+            <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource PinnedBorderBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
         <Style x:Key="StatusDot" TargetType="Ellipse">
             <Setter Property="Width" Value="8" />
             <Setter Property="Height" Value="8" />
@@ -32,6 +70,7 @@
 
 
         <sys:Double x:Key="HistoryRowHeight" xmlns:sys="clr-namespace:System;assembly=mscorlib">38</sys:Double>
+        <sys:Double x:Key="HistoryImageRowHeight" xmlns:sys="clr-namespace:System;assembly=mscorlib">72</sys:Double>
         <DropShadowEffect x:Key="HoverPreviewShadow" Color="#42505A" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.30" />
         <Style x:Key="HoverPreviewToolTip" TargetType="ToolTip" BasedOn="{StaticResource {x:Type ToolTip}}">
             <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
@@ -85,29 +124,62 @@
     <!-- Capsule: the preview copies the newest record; the chevron opens history. -->
     <Grid x:Name="Capsule" Width="240" Height="40" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent" AutomationProperties.Name="剪贴板小组件">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="30" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="32" />
+            <ColumnDefinition Width="30" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="40" />
         </Grid.ColumnDefinitions>
         <Border x:Name="CapsuleDragHandle" Grid.Column="0" Background="Transparent" Cursor="SizeAll"
                 ToolTip="拖动移动小组件" AutomationProperties.Name="拖动移动小组件">
             <Ellipse Style="{StaticResource StatusDot}" HorizontalAlignment="Center" />
         </Border>
         <Button x:Name="LatestCopyButton" Grid.Column="1" Command="{Binding LatestRecord.CopyCommand}"
-                Style="{StaticResource RecordCopySurface}" Padding="2,0"
+                Style="{StaticResource RecordCopySurface}" Padding="2,0" ClipToBounds="True"
                 AutomationProperties.Name="复制最新记录" IsEnabled="{Binding HasRecords}" Focusable="True" IsTabStop="True">
             <Button.ToolTip>
                 <ToolTip Placement="Custom" Style="{StaticResource HoverPreviewToolTip}" Padding="11,9,11,10" Content="{Binding LatestRecord}" ContentTemplateSelector="{x:Static local:MainView.RecordHoverSelector}" ContentTemplate="{x:Null}" />
             </Button.ToolTip>
-            <TextBlock Text="{Binding CapsuleText}" FontSize="12.5" VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Foreground="{DynamicResource TextPrimaryBrush}" />
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <Border Width="32" Height="28" Margin="0,0,6,0" CornerRadius="4" Padding="1"
+                        Background="{DynamicResource ImageWellBackgroundBrush}" BorderBrush="{DynamicResource ImageWellBorderBrush}"
+                        BorderThickness="1" VerticalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CapsuleImagePath, FallbackValue={x:Null}}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <controls:AsyncThumbnail FilePath="{Binding CapsuleImagePath}" Stretch="Uniform"
+                                             RenderOptions.BitmapScalingMode="HighQuality" />
+                </Border>
+                <TextBlock Grid.Column="1" Text="{Binding CapsuleText}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="FontSize" Value="11" />
+                            <Setter Property="TextWrapping" Value="Wrap" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CapsuleImagePath, FallbackValue={x:Null}}" Value="{x:Null}">
+                                    <Setter Property="FontSize" Value="12.5" />
+                                    <Setter Property="TextWrapping" Value="NoWrap" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
         </Button>
         <Border Grid.Column="2" Background="{DynamicResource TagBackgroundBrush}" BorderBrush="{DynamicResource TagBorderBrush}"
                 BorderThickness="1" CornerRadius="9" Padding="7,0" Height="18" Margin="5,0,5,0" VerticalAlignment="Center">
             <TextBlock Text="{Binding RecordCount}" FontSize="10.5" FontWeight="SemiBold" VerticalAlignment="Center"
                        Foreground="{DynamicResource FilterSelectedForegroundBrush}" />
         </Border>
+        <Border Grid.Column="3" BorderBrush="{DynamicResource CaptionDividerBrush}" BorderThickness="1,0,0,0"
+                Margin="0,7,0,7" IsHitTestVisible="False" />
         <ToggleButton x:Name="HistoryToggleButton" Grid.Column="3" Style="{StaticResource PinCaptionButton}"
                       IsThreeState="False" ToolTip="显示历史记录" AutomationProperties.Name="显示历史记录"
-                      HorizontalAlignment="Right" Margin="0,0,6,0">
+                      HorizontalAlignment="Right" Margin="0,0,10,0">
             <TextBlock Style="{StaticResource Icon}" Text="&#xE70D;" FontSize="11" />
         </ToggleButton>
     </Grid>
@@ -159,6 +231,11 @@
                                     </ControlTemplate>
                                 </Setter.Value>
                             </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsImage}" Value="True">
+                                    <Setter Property="Height" Value="{StaticResource HistoryImageRowHeight}" />
+                                </DataTrigger>
+                            </Style.Triggers>
                         </Style>
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
@@ -173,16 +250,36 @@
                                 <Button.ToolTip>
                                     <ToolTip Placement="Custom" Style="{StaticResource HoverPreviewToolTip}" Padding="11,9,11,10" Content="{Binding}" ContentTemplateSelector="{x:Static local:MainView.RecordHoverSelector}" ContentTemplate="{x:Null}" />
                                 </Button.ToolTip>
-                                <Grid Height="26">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding PositionLabel}" Width="18" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"
+                                <Grid MinHeight="26">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding PositionLabel}" MinWidth="18" Margin="0,0,4,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"
                                                VerticalAlignment="Center" />
-                                    <TextBlock Grid.Column="1" Text="{Binding SingleLine}" FontSize="12" VerticalAlignment="Center"
+                                    <Border x:Name="HistoryThumbnail" Grid.Column="1" Width="76" Height="54" Margin="0,0,8,0"
+                                            Background="{DynamicResource ImageWellBackgroundBrush}" BorderBrush="{DynamicResource ImageWellBorderBrush}"
+                                            BorderThickness="1" CornerRadius="5" Padding="2" VerticalAlignment="Center" Visibility="Collapsed">
+                                        <controls:AsyncThumbnail FilePath="{Binding ImagePath}" Stretch="Uniform"
+                                                                 RenderOptions.BitmapScalingMode="HighQuality" />
+                                    </Border>
+                                    <TextBlock x:Name="HistorySingleLine" Grid.Column="2" Text="{Binding SingleLine}" FontSize="12" VerticalAlignment="Center"
                                                TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Grid.Column="2" Text="{Binding ShortTimeLabel}" FontSize="10" Margin="8,0,1,0"
+                                    <TextBlock x:Name="HistoryTime" Grid.Column="3" Text="{Binding ShortTimeLabel}" FontSize="10" Margin="8,0,1,0"
                                                VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    <StackPanel x:Name="HistoryImageInfo" Grid.Column="2" Grid.ColumnSpan="2" VerticalAlignment="Center" Visibility="Collapsed">
+                                        <TextBlock Text="{Binding ContentInfo}" FontSize="11.5" TextWrapping="Wrap" MaxHeight="32"
+                                                   TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <TextBlock Text="{Binding ShortTimeLabel}" FontSize="10.5" Margin="0,4,0,0"
+                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                                    </StackPanel>
                                 </Grid>
                             </Button>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsImage}" Value="True">
+                                    <Setter TargetName="HistoryThumbnail" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="HistoryImageInfo" Property="Visibility" Value="Visible" />
+                                    <Setter TargetName="HistorySingleLine" Property="Visibility" Value="Collapsed" />
+                                    <Setter TargetName="HistoryTime" Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
@@ -199,13 +296,19 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <Border x:Name="HistoryFooter" Grid.Row="2" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="0,1,0,0" Padding="8,5">
+                <Border x:Name="HistoryFooter" Grid.Row="2" Background="{DynamicResource ReadOnlyBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" CornerRadius="0,0,11,11" Padding="10,8">
                     <Grid>
                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <Button x:Name="SettingsButton" Command="{Binding SettingsCommand}" Content="设置" HorizontalAlignment="Left"
-                                MinHeight="28" Padding="9,3" AutomationProperties.Name="打开设置" />
-                        <Button x:Name="MoreButton" Grid.Column="1" Content="更多 ⋯" HorizontalAlignment="Right"
-                                MinHeight="28" Padding="9,3" AutomationProperties.Name="更多操作" />
+                        <Button x:Name="SettingsButton" Command="{Binding SettingsCommand}" Style="{StaticResource HistorySettingsAction}"
+                                HorizontalAlignment="Left" AutomationProperties.Name="打开设置">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE713;" FontSize="13" Margin="0,0,6,0" />
+                                <TextBlock Text="设置" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="MoreButton" Grid.Column="1" Content="更多 ⋯" Style="{StaticResource HistoryFooterAction}"
+                                HorizontalAlignment="Right" AutomationProperties.Name="更多操作" />
                     </Grid>
                 </Border>
             </Grid>

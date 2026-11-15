@@ -96,13 +96,16 @@ public partial class MainView : Grid
         HistoryPopupBorder.MaxHeight = 360;
 
         // Closed virtualized popups may report only their chrome before rows are realized.
-        // Size the viewport from the fixed row extent, independently of that stale DesiredSize.
+        // Reserve each record's row extent before its template is loaded.
         double innerWidth = Math.Max(0, width - HistoryPopupBorder.BorderThickness.Left - HistoryPopupBorder.BorderThickness.Right);
         HistoryHeader.Measure(new Size(innerWidth, double.PositiveInfinity));
         HistoryFooter.Measure(new Size(innerWidth, double.PositiveInfinity));
-        double rowExtent = (double)FindResource("HistoryRowHeight") + 1; // Item's bottom margin.
+        double textRowHeight = (double)FindResource("HistoryRowHeight");
+        double imageRowHeight = (double)FindResource("HistoryImageRowHeight");
+        double rowsHeight = HistoryRecords.Items.Cast<object>().Sum(item =>
+            (item is RecordViewModel { IsImage: true } ? imageRowHeight : textRowHeight) + 1); // Item's bottom margin.
         double viewport = Math.Min(280, Math.Max(44,
-            HistoryRecords.Items.Count * rowExtent + HistoryRecords.Padding.Top + HistoryRecords.Padding.Bottom));
+            rowsHeight + HistoryRecords.Padding.Top + HistoryRecords.Padding.Bottom));
         double height = viewport + HistoryHeader.DesiredSize.Height + HistoryFooter.DesiredSize.Height
             + HistoryPopupBorder.BorderThickness.Top + HistoryPopupBorder.BorderThickness.Bottom;
         HistoryPopupBorder.Height = Math.Min(360, Math.Ceiling(height));

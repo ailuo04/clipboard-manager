@@ -174,6 +174,76 @@ public sealed class HistoryPopupLayoutTests(SettingsOverlayWpfFixture wpf)
         }, nearScreenEdge));
     }
 
+    [Theory]
+    [InlineData(ClipboardManager.Models.AppTheme.Light)]
+    [InlineData(ClipboardManager.Models.AppTheme.Dark)]
+    public void FooterButtonsRemainVisibleAndClickableInBothThemes(ClipboardManager.Models.AppTheme theme)
+    {
+        wpf.Run(() =>
+        {
+            var originalTheme = ClipboardManager.Services.ThemeManager.Preference;
+            try
+            {
+                ClipboardManager.Services.ThemeManager.Apply(theme);
+                WithView(view =>
+                {
+                    var window = Window.GetWindow(view)!;
+                    window.WindowStyle = WindowStyle.None;
+                    window.ResizeMode = ResizeMode.NoResize;
+                    window.UpdateLayout();
+                    view.Capsule.DataContext = new { CapsuleText = "307 × 51 · 3.9 KB", CapsuleImagePath = (string?)null, RecordCount = 24, HasRecords = true };
+                    int settingsRequests = 0;
+                    view.SettingsButton.Command = new RelayCommand(() => settingsRequests++);
+                    view.ShowHistoryPopup(CapsulePopupPositioning.Calculate(SystemParameters.WorkArea,
+                        new Rect(100, 100, 240, 40), view.MeasureHistoryPopup(300)));
+                    PumpLayout(view);
+                    foreach (var button in new[] { view.SettingsButton, view.MoreButton })
+                    {
+                        Rect bounds = button.TransformToAncestor(view.HistoryFooter).TransformBounds(new Rect(button.RenderSize));
+                        Assert.True(bounds.Width > 0 && bounds.Height >= 28);
+                        Assert.True(new Rect(view.HistoryFooter.RenderSize).Contains(bounds));
+                        var hit = view.HistoryFooter.InputHitTest(new Point(bounds.Left + bounds.Width / 2, bounds.Top + bounds.Height / 2)) as DependencyObject;
+                        while (hit is not null && !ReferenceEquals(hit, button)) hit = VisualTreeHelper.GetParent(hit);
+                        Assert.Same(button, hit);
+                    }
+                    string? directory = Environment.GetEnvironmentVariable("CLIPBOARD_WIDGET_QA_DIR");
+                    if (!string.IsNullOrWhiteSpace(directory))
+                    {
+                        CaptureWidgetVisual(view.Capsule, System.IO.Path.Combine(directory, $"capsule-{theme}.png"));
+                        CaptureWidgetVisual(view.HistoryPopupBorder, System.IO.Path.Combine(directory, $"history-{theme}.png"));
+                    }
+                    var click = typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                    click.Invoke(view.SettingsButton, null);
+                    Assert.Equal(1, settingsRequests);
+                    click.Invoke(view.MoreButton, null);
+                    PumpLayout(view);
+                    Assert.True(view.IsMoreMenuOpen);
+                });
+            }
+            finally { ClipboardManager.Services.ThemeManager.Apply(originalTheme); }
+        });
+    }
+
+    private static void CaptureWidgetVisual(FrameworkElement element, string path)
+    {
+        element.UpdateLayout();
+        System.IO.Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+        var drawing = new DrawingVisual();
+        using (var context = drawing.RenderOpen())
+        {
+            Rect bounds = new(element.RenderSize);
+            context.DrawRectangle((Brush)element.FindResource("PopupBackgroundBrush"), null, bounds);
+            context.DrawRectangle(new VisualBrush(element), null, bounds);
+        }
+        var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap((int)Math.Ceiling(element.ActualWidth),
+            (int)Math.Ceiling(element.ActualHeight), 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(drawing);
+        var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+        encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+        using var stream = System.IO.File.Create(path);
+        encoder.Save(stream);
+    }
+
     private static void PumpLayout(MainView view)
     {
         view.Dispatcher.Invoke(() => { }, DispatcherPriority.Loaded);

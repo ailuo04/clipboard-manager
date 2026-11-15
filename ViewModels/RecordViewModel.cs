@@ -32,7 +32,7 @@ public sealed class RecordViewModel : INotifyPropertyChanged
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PositionLabel)));
         }
     }
-    public string? PositionLabel => Position is >= 1 and <= 9 ? Position.ToString() : null;
+    public string? PositionLabel => Position > 0 ? Position.ToString() : null;
     public event PropertyChangedEventHandler? PropertyChanged;
     public string? ImagePath { get; }
     public string ShortTimeLabel => Record.CopiedAtUtc.ToLocalTime().ToString("MM-dd HH:mm");

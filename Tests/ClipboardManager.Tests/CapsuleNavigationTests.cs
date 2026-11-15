@@ -162,6 +162,59 @@ public sealed class CapsuleNavigationTests(SettingsOverlayWpfFixture wpf)
         }
     }
 
+    [Theory]
+    [InlineData(1, 24)]
+    [InlineData(1.5, 5000)]
+    [InlineData(2, 5000)]
+    public Task CapsuleArrowStaysInsideClientAreaAndRemainsClickable(double scale, int count) => WithWindow((window, view) =>
+    {
+        view.DataContext = new
+        {
+            CapsuleText = new string('W', 300),
+            CapsuleImagePath = (string?)null,
+            RecordCount = count,
+            HasRecords = true
+        };
+        view.LayoutTransform = new System.Windows.Media.ScaleTransform(scale, scale);
+        window.Width = 240 * scale;
+        window.Height = 40 * scale;
+        window.UpdateLayout();
+        DrainDispatcher();
+        window.UpdateLayout();
+
+        var toggle = view.HistoryToggleButton;
+        double reservedWidth = view.Capsule.ColumnDefinitions[Grid.GetColumn(toggle)].ActualWidth;
+        double columnLeft = view.Capsule.ColumnDefinitions.Take(Grid.GetColumn(toggle)).Sum(column => column.ActualWidth);
+        Rect bounds = toggle.TransformToAncestor(view).TransformBounds(new Rect(toggle.RenderSize));
+        Assert.True(bounds.Left >= columnLeft && bounds.Right <= columnLeft + reservedWidth,
+            $"Arrow {bounds} spills outside its reserved column [{columnLeft}, {columnLeft + reservedWidth}].");
+        Assert.True(bounds.Left >= 0 && bounds.Top >= 0 && bounds.Right <= view.ActualWidth - 4 && bounds.Bottom <= view.ActualHeight,
+            $"Arrow {bounds} is clipped by client {view.RenderSize}, capsule {view.Capsule.RenderSize}, window {window.RenderSize}, scale {scale}.");
+        var glyph = Assert.IsType<TextBlock>(toggle.Content);
+        Rect glyphBounds = glyph.TransformToAncestor(view).TransformBounds(new Rect(glyph.RenderSize));
+        Assert.True(bounds.Contains(glyphBounds), $"Arrow glyph {glyphBounds} is clipped by button {bounds}.");
+        Rect copyBounds = view.LatestCopyButton.TransformToAncestor(view)
+            .TransformBounds(new Rect(view.LatestCopyButton.RenderSize));
+        Assert.True(copyBounds.Right <= bounds.Left, $"Copy content {copyBounds} covers arrow {bounds}.");
+        foreach (Point point in new[]
+        {
+            new Point(bounds.Left + 3, bounds.Top + bounds.Height / 2),
+            new Point(bounds.Right - 3, bounds.Top + bounds.Height / 2),
+            new Point(bounds.Left + bounds.Width / 2, bounds.Top + 3),
+            new Point(bounds.Left + bounds.Width / 2, bounds.Bottom - 3)
+        })
+        {
+            var hit = view.InputHitTest(point) as DependencyObject;
+            while (hit is not null && !ReferenceEquals(hit, toggle))
+                hit = System.Windows.Media.VisualTreeHelper.GetParent(hit);
+            Assert.Same(toggle, hit);
+        }
+        int requests = 0;
+        view.HistoryToggleRequested += (_, _) => requests++;
+        toggle.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent, toggle));
+        Assert.Equal(1, requests);
+    });
+
     private async Task WithWindow(Action<MainWindow, MainView> action)
     {
         MainWindow? window = null;
