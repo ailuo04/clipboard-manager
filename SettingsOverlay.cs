@@ -68,7 +68,7 @@ internal sealed class SettingsOverlay : OverlayView
             }
             if (count < settings.MaxRecords || megabytes < settings.MaxStorageMb)
             {
-                const string message = "降低上限可能立即清理最早的未固定记录，确定保存吗？";
+                const string message = "降低上限可能立即清理最早的未收藏记录，确定保存吗？";
                 const string title = "调整保留上限";
                 Window? owner = Window.GetWindow(this);
                 MessageBoxResult confirmation = owner is null

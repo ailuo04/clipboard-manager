@@ -18,7 +18,7 @@
                    HorizontalAlignment="Center" Margin="0,9,0,0" />
         <TextBlock x:Name="RecordSummaryText" Style="{StaticResource SecondaryText}" TextWrapping="Wrap"
                    TextAlignment="Center" Margin="0,5,0,0" AutomationProperties.Name="将删除的记录数量" />
-        <TextBlock Text="固定记录和已保存的图片也会一并删除。" Style="{StaticResource SecondaryText}"
+        <TextBlock Text="收藏记录和已保存的图片也会一并删除。" Style="{StaticResource SecondaryText}"
                    TextWrapping="Wrap" TextAlignment="Center" Margin="0,5,0,0" />
     </StackPanel>
 

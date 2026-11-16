@@ -132,7 +132,7 @@ public sealed class HistoryService
                 string? warning = await CleanupPendingAsync().ConfigureAwait(false);
                 bool kept = next.Any(item => item.Id == record.Id);
                 return new HistoryChangeResult(kept ? record : null,
-                    JoinWarnings(warning, kept ? CapacityWarning() : "当前容量不足，新记录未被保留；固定记录未被清理。"));
+                    JoinWarnings(warning, kept ? CapacityWarning() : "当前容量不足，新记录未被保留；收藏记录未被清理。"));
             }
             finally
             {
@@ -245,7 +245,7 @@ public sealed class HistoryService
 
     private string? CapacityWarning()
         => _records.Count > _settings.MaxRecords || _records.Sum(record => record.ByteLength) > (long)_settings.MaxStorageMb * 1024 * 1024
-            ? "固定记录已超过容量限制；它们不会被自动清理。" : null;
+            ? "收藏记录已超过容量限制；它们不会被自动清理。" : null;
 
     private static bool IsValidRecord(ClipboardRecord? record)
         => record is not null && record.Id != Guid.Empty && record.ContentHash is { Length: 64 } && record.ByteLength >= 0

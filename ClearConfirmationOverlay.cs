@@ -12,7 +12,7 @@ internal sealed class ClearConfirmationOverlay : OverlayView
 
         var view = new Views.ClearConfirmationView();
         Content = view;
-        view.RecordSummaryText.Text = $"将清空全部 {recordCount} 条记录，其中 {pinnedCount} 条固定记录。";
+        view.RecordSummaryText.Text = $"将清空全部 {recordCount} 条记录，其中 {pinnedCount} 条收藏记录。";
         view.CancelButton.Click += (_, _) => Complete(false);
         view.ClearButton.Click += (_, _) => Complete(true);
     }

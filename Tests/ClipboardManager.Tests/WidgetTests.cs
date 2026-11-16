@@ -659,8 +659,9 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
         {
             var item = new RecordViewModel(TextRecord("历史记录内容"), owner);
             var view = new ClipboardManager.Views.MainView();
-            var button = Assert.IsType<Button>(view.HistoryRecords.ItemTemplate.LoadContent());
-            button.DataContext = item;
+            var row = Assert.IsType<Grid>(view.HistoryRecords.ItemTemplate.LoadContent());
+            row.DataContext = item;
+            var button = Assert.Single(row.Children.OfType<Button>(), child => Grid.GetColumn(child) == 0);
             var grid = Assert.IsType<Grid>(button.Content);
             var number = grid.Children.OfType<TextBlock>().Single(text => Grid.GetColumn(text) == 0);
             var content = grid.Children.OfType<TextBlock>().Single(text => Grid.GetColumn(text) == 2);
@@ -672,10 +673,10 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
             foreach (var (position, expected) in cases)
             {
                 item.Position = position;
-                button.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.DataBind);
-                button.Measure(new Size(280, 38));
-                button.Arrange(new Rect(0, 0, 280, 38));
-                button.UpdateLayout();
+                row.Dispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.DataBind);
+                row.Measure(new Size(280, 38));
+                row.Arrange(new Rect(0, 0, 280, 38));
+                row.UpdateLayout();
 
                 Assert.Equal(expected, item.PositionLabel);
                 Assert.Equal(expected ?? string.Empty, number.Text);

@@ -111,6 +111,8 @@ public partial class MainView : Grid
         else OpenMenu(MoreButton, PlacementMode.Top);
     }
 
+    private void OnHistoryFilterClick(object sender, RoutedEventArgs args) => CloseHoverPreview();
+
     public void CloseHistoryPopup()
     {
         CloseHoverPreview();

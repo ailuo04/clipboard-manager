@@ -15,12 +15,14 @@ public sealed class RecordViewModel : INotifyPropertyChanged
         Record = record;
         ImagePath = record.Kind == ClipboardRecordKind.Image ? owner.GetImagePath(record) : null;
         CopyCommand = new AsyncRelayCommand(() => owner.CopyAsync(this), () => owner.CanAct);
+        ToggleFavoriteCommand = new AsyncRelayCommand(() => owner.ToggleFavoriteAsync(this), () => owner.CanAct);
         EditImageCommand = new AsyncRelayCommand(() => owner.EditImageAsync(this), () => IsImage && owner.CanAct);
     }
 
     public ClipboardRecord Record { get; }
     public bool IsImage => Record.Kind == ClipboardRecordKind.Image;
     public bool IsPinned => Record.IsPinned;
+    public string FavoriteToolTip => IsPinned ? "取消收藏" : "收藏";
     public int Position
     {
         get => _position;
@@ -89,10 +91,12 @@ public sealed class RecordViewModel : INotifyPropertyChanged
 
     public ICommand CopyCommand { get; }
     public ICommand EditImageCommand { get; }
+    public ICommand ToggleFavoriteCommand { get; }
 
     public void RefreshCommands()
     {
         ((AsyncRelayCommand)CopyCommand).RaiseCanExecuteChanged();
         ((AsyncRelayCommand)EditImageCommand).RaiseCanExecuteChanged();
+        ((AsyncRelayCommand)ToggleFavoriteCommand).RaiseCanExecuteChanged();
     }
 }

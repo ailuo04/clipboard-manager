@@ -20,6 +20,8 @@ public sealed class MainViewModel : ObservableObject
     private readonly CancellationTokenSource _lifetime = new();
     private readonly SemaphoreSlim _actionGate = new(1, 1);
     private List<RecordViewModel> _allRecords = [];
+    private List<RecordViewModel> _visibleRecords = [];
+    private bool _isShowingFavorites;
     private Task _initializationTask = Task.CompletedTask;
     private bool _isReady;
     private bool _isBusy;
@@ -45,6 +47,8 @@ public sealed class MainViewModel : ObservableObject
         _capture.Attach(_monitor);
         _updateCoordinator = new UpdateCoordinator(owner, history, overlays, _lifetime,
             () => IsClosing, () => Notice, value => Notice = value, Report);
+        ShowHistoryCommand = new RelayCommand(() => IsShowingFavorites = false);
+        ShowFavoritesCommand = new RelayCommand(() => IsShowingFavorites = true);
         ClearCommand = new AsyncRelayCommand(ClearAsync, () => CanAct && _allRecords.Count > 0);
         EditLatestImageCommand = new AsyncRelayCommand(
             () => LatestImageRecord is { } image ? EditImageAsync(image) : Task.CompletedTask,
@@ -54,6 +58,8 @@ public sealed class MainViewModel : ObservableObject
         PauseCommand = new RelayCommand(() => { IsPaused = !IsPaused; _capture.Pause(); }, () => IsReady && !IsClosing);
     }
 
+    public ICommand ShowHistoryCommand { get; }
+    public ICommand ShowFavoritesCommand { get; }
     public ICommand ClearCommand { get; }
     public ICommand EditLatestImageCommand { get; }
     public ICommand SettingsCommand { get; }
@@ -61,7 +67,19 @@ public sealed class MainViewModel : ObservableObject
     public ICommand PauseCommand { get; }
     public bool CanAct => IsReady && !IsBusy && !IsClosing;
     public int RecordCount => _allRecords.Count;
-    public IReadOnlyList<RecordViewModel> HistoryRecords => _allRecords;
+    public IReadOnlyList<RecordViewModel> HistoryRecords => _visibleRecords;
+    public bool IsShowingFavorites
+    {
+        get => _isShowingFavorites;
+        private set
+        {
+            if (!Set(ref _isShowingFavorites, value)) return;
+            Raise(nameof(IsShowingHistory));
+            RefreshVisibleRecords();
+        }
+    }
+    public bool IsShowingHistory => !IsShowingFavorites;
+    public string EmptyMessage => IsShowingFavorites ? "暂无收藏，点击记录旁的星标收藏" : "暂无剪贴板记录";
     public RecordViewModel? LatestRecord => _allRecords.FirstOrDefault();
     public RecordViewModel? LatestImageRecord => LatestRecord is { IsImage: true } image ? image : null;
     public bool HasRecords => _allRecords.Count > 0;
@@ -124,6 +142,16 @@ public sealed class MainViewModel : ObservableObject
         Status = item.IsImage ? "图片已复制到剪贴板" : "完整文本已复制到剪贴板";
         CopyCompleted?.Invoke(this, EventArgs.Empty);
     }, "复制记录失败");
+
+    public Task ToggleFavoriteAsync(RecordViewModel item) => RunOperationAsync(async () =>
+    {
+        var current = _history.Records.FirstOrDefault(record => record.Id == item.Record.Id);
+        if (current is null) return;
+        string? warning = await _history.TogglePinAsync(current.Id, _lifetime.Token);
+        RefreshRecords();
+        Status = current.IsPinned ? "已取消收藏" : "已收藏";
+        if (warning is not null) Notice = warning;
+    }, "更新收藏失败");
 
     public Task EditImageAsync(RecordViewModel item)
     {
@@ -250,10 +278,19 @@ public sealed class MainViewModel : ObservableObject
     private void RefreshRecords()
     {
         _allRecords = _history.Records.OrderByDescending(record => record.CopiedAtUtc)
-            .Select((record, index) => new RecordViewModel(record, this) { Position = index + 1 }).ToList();
-        Raise(nameof(RecordCount)); Raise(nameof(HistoryRecords)); Raise(nameof(LatestRecord));
+            .Select(record => new RecordViewModel(record, this)).ToList();
+        RefreshVisibleRecords();
+        Raise(nameof(RecordCount)); Raise(nameof(LatestRecord));
         Raise(nameof(HasRecords)); Raise(nameof(CapsuleText)); Raise(nameof(CapsuleImagePath)); Raise(nameof(LatestImageRecord));
         RaiseState();
+    }
+
+    private void RefreshVisibleRecords()
+    {
+        _visibleRecords = _allRecords.Where(item => !IsShowingFavorites || item.IsPinned).ToList();
+        for (int index = 0; index < _visibleRecords.Count; index++) _visibleRecords[index].Position = index + 1;
+        Raise(nameof(HistoryRecords));
+        Raise(nameof(EmptyMessage));
     }
 
     private void RaiseState()

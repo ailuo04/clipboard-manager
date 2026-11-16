@@ -60,7 +60,7 @@ public sealed class ClearConfirmationOverlayTests(SettingsOverlayWpfFixture wpf)
                 Assert.Equal(284, ((ClipboardManager.Views.WindowFrame)window.Content).OverlayPanel.Width);
                 Assert.Equal(300, window.Width);
                 Assert.Contains("2 条记录", view.RecordSummaryText.Text, StringComparison.Ordinal);
-                Assert.Contains("1 条固定记录", view.RecordSummaryText.Text, StringComparison.Ordinal);
+                Assert.Contains("1 条收藏记录", view.RecordSummaryText.Text, StringComparison.Ordinal);
                 Assert.True(view.CancelButton.IsDefault);
                 Assert.Equal(0, KeyboardNavigation.GetTabIndex(view.CancelButton));
                 Assert.Equal(1, KeyboardNavigation.GetTabIndex(view.ClearButton));
