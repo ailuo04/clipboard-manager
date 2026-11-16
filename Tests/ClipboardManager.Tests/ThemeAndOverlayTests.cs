@@ -226,8 +226,9 @@ public sealed class ThemeAndOverlayTests
         Assert.Equal("{DynamicResource OverlayGlassBrush}", (string?)panel.Attribute("Background"));
         Assert.Equal("{DynamicResource OverlayEdgeBrush}", (string?)panel.Attribute("BorderBrush"));
         Assert.Null(panel.Attribute("Effect"));
-        XElement shadow = overlay.Elements(ns + "Border").Single(element => element.Attribute("Effect") is not null);
+        XElement shadow = overlay.Descendants(ns + "Border").Single(element => element.Attribute("Effect") is not null);
         Assert.Empty(shadow.Elements());
+        Assert.Equal("BitmapCache", (string?)shadow.Parent!.Attribute("CacheMode"));
         Assert.Equal("{DynamicResource OverlayShadowEffect}", (string?)shadow.Attribute("Effect"));
         Assert.Equal(ns + "ContentControl", overlayContent.Name);
         Assert.Equal("OverlayContent", (string?)overlayContent.Attribute(x + "Name"));

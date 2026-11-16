@@ -3,6 +3,7 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:controls="clr-namespace:ClipboardManager.Controls"
       xmlns:local="clr-namespace:ClipboardManager.Views"
+      xmlns:utilities="clr-namespace:ClipboardManager.Utilities"
       Background="Transparent" UseLayoutRounding="True" SnapsToDevicePixels="True"
       TextOptions.TextFormattingMode="Display" TextOptions.TextRenderingMode="ClearType">
     <Grid.Resources>
@@ -121,18 +122,22 @@
             <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Margin" Value="8" />
-            <Setter Property="Effect" Value="{StaticResource HoverPreviewShadow}" />
             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Background" Value="{DynamicResource HoverPreviewBackgroundBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ContentControl">
-                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}">
-                            <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
-                                              ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
-                                              ContentStringFormat="{TemplateBinding ContentStringFormat}" RecognizesAccessKey="True" />
-                        </Border>
+                        <Grid>
+                            <!-- Only the card silhouette casts a shadow; text and scrolling stay outside the shader. -->
+                            <Border Background="{TemplateBinding Background}" CornerRadius="10"
+                                    Effect="{StaticResource HoverPreviewShadow}" IsHitTestVisible="False" />
+                            <Border Background="Transparent" BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                  ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                                  ContentStringFormat="{TemplateBinding ContentStringFormat}" RecognizesAccessKey="True" />
+                            </Border>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -279,9 +284,11 @@
                         BorderBrush="{DynamicResource ImageWellBorderBrush}"
                         BorderThickness="1" CornerRadius="6" ClipToBounds="True" Padding="1" Margin="0,0,0,7">
                     <Grid>
-                        <controls:AsyncThumbnail FilePath="{Binding ImagePath}" Stretch="Uniform"
-                                                 MaxWidth="{Binding PreviewImageWidth}" MaxHeight="{Binding PreviewImageHeight}"
-                                                 HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Center">
+                            <controls:AsyncThumbnail FilePath="{Binding ImagePath}" Stretch="Uniform"
+                                                     Width="{Binding PreviewImageWidth}" Height="{Binding PreviewImageHeight}"
+                                                     RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Viewbox>
                         <Button x:Name="HoverPreviewEditButton" Command="{Binding EditImageCommand}"
                                 Style="{StaticResource HoverPreviewEditAction}" HorizontalAlignment="Right"
                                 VerticalAlignment="Top" Margin="6" Click="OnHoverPreviewEditClick"
@@ -361,7 +368,7 @@
     </Grid>
 
     <Popup x:Name="HoverPreviewPopup" Placement="Custom" AllowsTransparency="True" StaysOpen="True"
-           PopupAnimation="Fade" Focusable="False">
+           PopupAnimation="None" utilities:TransitionAnimations.EnterOnOpen="True" Focusable="False">
         <ContentControl x:Name="HoverPreviewSurface" Style="{StaticResource HoverPreviewChrome}" Padding="11,9,11,10"
                         ContentTemplateSelector="{x:Static local:MainView.RecordHoverSelector}"
                         Focusable="True" AutomationProperties.Name="剪贴板记录预览"
@@ -371,7 +378,7 @@
     </Popup>
 
     <Popup x:Name="HistoryPopup" PlacementTarget="{Binding ElementName=Capsule}" Placement="Bottom"
-           AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade" Focusable="False">
+           AllowsTransparency="True" StaysOpen="True" PopupAnimation="None" utilities:TransitionAnimations.EnterOnOpen="True" Focusable="False">
         <Border x:Name="HistoryPopupBorder" Width="300" MaxHeight="360" Padding="0"
                 Background="{DynamicResource PopupBackgroundBrush}" BorderBrush="{DynamicResource GlassEdgeBrush}"
                 BorderThickness="1" CornerRadius="12" RenderOptions.ClearTypeHint="Enabled">

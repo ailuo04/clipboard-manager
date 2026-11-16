@@ -136,8 +136,12 @@ public partial class MainView : Grid
         HistoryFooter.Measure(new Size(innerWidth, double.PositiveInfinity));
         double textRowHeight = (double)FindResource("HistoryRowHeight");
         double imageRowHeight = (double)FindResource("HistoryImageRowHeight");
-        double rowsHeight = HistoryRecords.Items.Cast<object>().Sum(item =>
-            (item is RecordViewModel { IsImage: true } ? imageRowHeight : textRowHeight) + 1); // Item's bottom margin.
+        double rowsHeight = 0;
+        foreach (object item in HistoryRecords.Items)
+        {
+            rowsHeight += (item is RecordViewModel { IsImage: true } ? imageRowHeight : textRowHeight) + 1;
+            if (rowsHeight >= 280) break; // Further rows cannot enlarge the capped viewport.
+        }
         double viewport = Math.Min(280, Math.Max(44,
             rowsHeight + HistoryRecords.Padding.Top + HistoryRecords.Padding.Bottom));
         double height = viewport + HistoryHeader.DesiredSize.Height + HistoryFooter.DesiredSize.Height

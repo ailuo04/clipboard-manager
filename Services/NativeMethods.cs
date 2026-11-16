@@ -35,6 +35,32 @@ internal static class NativeMethods
         internal uint Flags;
     }
 
+    // DEVMODEW's fixed header is sufficient when reading the current display frequency.
+    [StructLayout(LayoutKind.Explicit, Size = 220)]
+    internal struct DisplayMode
+    {
+        [FieldOffset(68)] internal ushort Size;
+        [FieldOffset(184)] internal uint DisplayFrequency;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct MonitorInfoEx
+    {
+        internal int Size;
+        internal NativeRect Monitor;
+        internal NativeRect Work;
+        internal uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] internal string DeviceName;
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetMonitorInfoW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetMonitorInfoEx(IntPtr monitor, ref MonitorInfoEx info);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "EnumDisplaySettingsW")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EnumDisplaySettings(string deviceName, int modeNumber, ref DisplayMode mode);
+
     [DllImport("user32.dll")]
     internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
 

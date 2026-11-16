@@ -266,7 +266,11 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("{DynamicResource TextSecondaryBrush}", (string?)Setter("BorderBrush").Attribute("Value"));        Assert.Equal("{DynamicResource HoverPreviewBackgroundBrush}", (string?)Setter("Background").Attribute("Value"));
         XElement template = style.Elements(Presentation + "Setter")
             .Single(element => (string?)element.Attribute("Property") == "Template");
-        Assert.Equal("10", (string?)template.Descendants(Presentation + "Border").Single().Attribute("CornerRadius"));
+        XElement[] borders = template.Descendants(Presentation + "Border").ToArray();
+        Assert.Equal(2, borders.Length);
+        Assert.All(borders, border => Assert.Equal("10", (string?)border.Attribute("CornerRadius")));
+        XElement shadowCaster = borders.Single(border => border.Attribute("Effect") is not null);
+        Assert.Equal("False", (string?)shadowCaster.Attribute("IsHitTestVisible"));
 
         XElement light = LoadView("LightGlass.xaml");
         XElement dark = LoadView("LiquidGlass.xaml");
@@ -278,7 +282,7 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("#F2292D35", (string?)darkBackground.Attribute("Color"));
         Assert.Equal("1", (string?)Setter("BorderThickness").Attribute("Value"));
         Assert.Equal("8", (string?)Setter("Margin").Attribute("Value"));
-        Assert.Equal("{StaticResource HoverPreviewShadow}", (string?)Setter("Effect").Attribute("Value"));
+        Assert.Equal("{StaticResource HoverPreviewShadow}", (string?)shadowCaster.Attribute("Effect"));
         XElement shadow = root.Descendants().Single(element => (string?)element.Attribute(Xaml + "Key") == "HoverPreviewShadow");
         Assert.Equal("18", (string?)shadow.Attribute("BlurRadius"));
         Assert.Equal("0.30", (string?)shadow.Attribute("Opacity"));

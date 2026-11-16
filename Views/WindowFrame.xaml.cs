@@ -1,15 +1,12 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
-using System.Windows.Media.Animation;
+using ClipboardManager.Utilities;
 
 namespace ClipboardManager.Views;
 
 public partial class WindowFrame : Grid
 {
-    private static readonly Duration FadeDuration = new(TimeSpan.FromMilliseconds(180));
-
     public WindowFrame() => InitializeComponent();
 
     /// <summary>Raised by the page header's back and close buttons; both leave the current page.</summary>
@@ -22,15 +19,7 @@ public partial class WindowFrame : Grid
         BackButton.Visibility = canGoBack ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    public void PlayOverlayEnter()
-    {
-        var fade = new DoubleAnimation(0, 1, FadeDuration) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        var rise = new DoubleAnimation(8, 0, FadeDuration) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
-        OverlayPanel.BeginAnimation(OpacityProperty, fade);
-        var transform = OverlayPanel.RenderTransform as TranslateTransform ?? new TranslateTransform();
-        OverlayPanel.RenderTransform = transform;
-        transform.BeginAnimation(TranslateTransform.YProperty, rise);
-    }
+    public void PlayOverlayEnter() => TransitionAnimations.PlayEnter(OverlayPanel, verticalOffset: 8, milliseconds: 180);
 
     private void OnBackClick(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 }

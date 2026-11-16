@@ -12,7 +12,10 @@
           KeyboardNavigation.TabNavigation="Cycle" FocusManager.IsFocusScope="True">
         <Border Width="{Binding ActualWidth, ElementName=OverlayPanel}" Height="{Binding ActualHeight, ElementName=OverlayPanel}"
                 HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8" CornerRadius="14"
-                Background="{DynamicResource OverlayGlassBrush}" Effect="{DynamicResource OverlayShadowEffect}" IsHitTestVisible="False" />
+                CacheMode="BitmapCache" IsHitTestVisible="False">
+            <!-- Cache above the effect so the shadow shader output is reused during card motion. -->
+            <Border CornerRadius="14" Background="{DynamicResource OverlayGlassBrush}" Effect="{DynamicResource OverlayShadowEffect}" />
+        </Border>
         <Border x:Name="OverlayPanel" HorizontalAlignment="Center" VerticalAlignment="Center"
                 Margin="8" Padding="0"
                 Background="{DynamicResource OverlayGlassBrush}"
