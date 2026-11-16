@@ -275,6 +275,31 @@ public sealed class HoverPreviewInteractionTests(SettingsOverlayWpfFixture wpf)
         Assert.Equal("可滚动", text.SelectedText);
     }));
 
+    [Fact]
+    public void EditClickClosesPreviewBeforeFurtherInputWithoutDroppingTheCommand() => wpf.Run(() => WithView(view =>
+    {
+        Popup popup = Preview(view);
+        Enter(view.LatestCopyButton);
+        Pump(360);
+        bool executed = false;
+        view.HoverPreviewSurface.ContentTemplateSelector = null;
+        view.HoverPreviewSurface.ContentTemplate = (DataTemplate)view.FindResource("HoverPreviewImage");
+        view.HoverPreviewSurface.Content = new
+        {
+            ImagePath = (string?)null, PreviewImageWidth = 200d, PreviewImageHeight = 100d,
+            ContentInfo = "编辑切换测试", EditImageCommand = new RelayCommand(() => executed = true)
+        };
+        view.HoverPreviewSurface.UpdateLayout();
+        Button edit = Assert.Single(Descendants<Button>(view.HoverPreviewSurface));
+        typeof(Button).GetMethod("OnClick", System.Reflection.BindingFlags.Instance
+            | System.Reflection.BindingFlags.NonPublic)!.Invoke(edit, null);
+        var frame = new DispatcherFrame();
+        Dispatcher.CurrentDispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() => frame.Continue = false));
+        Dispatcher.PushFrame(frame);
+        Assert.True(executed);
+        Assert.False(popup.IsOpen);
+    }));
+
     private static void AssertCompactScrollbar(ScrollBar bar)
     {
         Assert.InRange(bar.ActualWidth, 6, 8);

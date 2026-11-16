@@ -247,8 +247,8 @@ public partial class MainView : Grid
 
     private void OnHoverPreviewEditClick(object sender, RoutedEventArgs args)
     {
-        // Button executes its command after Click; keep the binding alive until then.
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(CloseHoverPreview));
+        // Run after Button captures its command, before editor loading and further input.
+        Dispatcher.BeginInvoke(DispatcherPriority.Send, new Action(CloseHoverPreview));
     }
 
     private void ScheduleHoverPreviewClose()
