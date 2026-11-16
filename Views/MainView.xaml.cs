@@ -5,6 +5,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using ClipboardManager.Controls;
 using ClipboardManager.Services;
 using ClipboardManager.ViewModels;
@@ -29,18 +30,41 @@ public partial class MainView : Grid
     private Button? _dragCandidate;
     private Button? _draggedButtonAwaitingRelease;
     private Point _dragOrigin;
+    private readonly DispatcherTimer _hoverPreviewOpenTimer;
+    private readonly DispatcherTimer _hoverPreviewCloseTimer;
+    private FrameworkElement? _hoverPreviewTarget;
+    private ContextMenu? _hoverPreviewContextMenu;
 
     public MainView()
     {
         InitializeComponent();
         RecordHoverSelector.TextTemplate = (DataTemplate)FindResource("HoverPreviewText");
         RecordHoverSelector.ImageTemplate = (DataTemplate)FindResource("HoverPreviewImage");
+        _hoverPreviewOpenTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher)
+            { Interval = TimeSpan.FromMilliseconds(300) };
+        _hoverPreviewCloseTimer = new DispatcherTimer(DispatcherPriority.Input, Dispatcher)
+            { Interval = TimeSpan.FromMilliseconds(300) };
+        _hoverPreviewOpenTimer.Tick += (_, _) =>
+        {
+            _hoverPreviewOpenTimer.Stop();
+            if (_hoverPreviewTarget is not { IsLoaded: true, Tag: not null } target
+                || _recordDragInProgress || IsContextMenuOpen) return;
+            HoverPreviewSurface.Content = target.Tag;
+            ConfigureHoverPreviewPlacement(HoverPreviewPopup, target);
+            HoverPreviewPopup.IsOpen = true;
+        };
+        _hoverPreviewCloseTimer.Tick += (_, _) =>
+        {
+            _hoverPreviewCloseTimer.Stop();
+            if (!HoverPreviewSurface.IsMouseCaptureWithin && _hoverPreviewContextMenu is null) CloseHoverPreview();
+        };
+        Unloaded += (_, _) => CloseHoverPreview();
         BuildMenu();
         HistoryToggleButton.Click += (_, _) => HistoryToggleRequested?.Invoke(this, EventArgs.Empty);
         MoreButton.Click += (_, _) => ToggleMoreMenu();
         _menu.Closed += (_, _) => _menuOpening = false;
         HistoryRecords.PreviewKeyDown += OnHistoryRecordsPreviewKeyDown;
-        HistoryPopup.Closed += (_, _) => { CloseMoreMenu(); HistoryToggleButton.IsChecked = false; };
+        HistoryPopup.Closed += (_, _) => { CloseHoverPreview(); CloseMoreMenu(); HistoryToggleButton.IsChecked = false; };
         Capsule.MouseRightButtonUp += (_, args) =>
         {
             args.Handled = true;
@@ -56,13 +80,20 @@ public partial class MainView : Grid
 
     public bool IsRecordDragInProgress => _recordDragInProgress;
 
-    public bool IsContextMenuOpen => _menu.IsOpen || _menuOpening || _recordContextMenuOpen;
+    public bool IsContextMenuOpen => _menu.IsOpen || _menuOpening || _recordContextMenuOpen
+        || _hoverPreviewContextMenu is not null;
 
     public bool IsMoreMenuOpen => _menu.IsOpen && ReferenceEquals(_menu.PlacementTarget, MoreButton);
 
     public bool IsHistoryPopupOpen => HistoryPopup.IsOpen;
 
-    public bool IsHistoryPopupPointerOver => HistoryPopupBorder.IsMouseOver;
+    public bool IsHistoryPopupPointerOver => HistoryPopupBorder.IsMouseOver || IsHoverPreviewPointerOver;
+
+    public bool IsHoverPreviewOpen => HoverPreviewPopup.IsOpen;
+
+    public bool IsHoverPreviewPointerOver => HoverPreviewPopup.IsOpen
+        && (HoverPreviewSurface.IsMouseOver || HoverPreviewSurface.IsMouseCaptureWithin
+            || _hoverPreviewContextMenu is not null);
 
 
     public bool IsHistoryTogglePointerOver => HistoryToggleButton.IsMouseOver;
@@ -82,6 +113,7 @@ public partial class MainView : Grid
 
     public void CloseHistoryPopup()
     {
+        CloseHoverPreview();
         CloseMoreMenu();
         HistoryPopup.IsOpen = false;
         HistoryToggleButton.IsChecked = false;
@@ -156,19 +188,93 @@ public partial class MainView : Grid
         }
     }
 
-    private void OnHoverPreviewToolTipOpening(object sender, ToolTipEventArgs args)
+    private void OnRecordPreviewMouseEnter(object sender, MouseEventArgs args)
     {
-        if (sender is not FrameworkElement target
-            || ToolTipService.GetToolTip(target) is not ToolTip tooltip
-            || !ReferenceEquals(tooltip.ContentTemplateSelector, RecordHoverSelector))
-            return;
-
-        ConfigureHoverPreviewPlacement(tooltip, target);
+        if (sender is not FrameworkElement { Tag: not null } target || _recordDragInProgress || IsContextMenuOpen) return;
+        _hoverPreviewCloseTimer.Stop();
+        if (ReferenceEquals(target, _hoverPreviewTarget) && HoverPreviewPopup.IsOpen) return;
+        CloseHoverPreview();
+        _hoverPreviewTarget = target;
+        _hoverPreviewOpenTimer.Start();
     }
 
-    internal void ConfigureHoverPreviewPlacement(ToolTip tooltip, FrameworkElement target)
+    private void OnRecordPreviewMouseLeave(object sender, MouseEventArgs args)
     {
-        tooltip.Placement = PlacementMode.Custom;
+        if (!ReferenceEquals(sender, _hoverPreviewTarget)) return;
+        _hoverPreviewOpenTimer.Stop();
+        if (HoverPreviewPopup.IsOpen) ScheduleHoverPreviewClose();
+        else _hoverPreviewTarget = null;
+    }
+
+    private void OnRecordPreviewUnloaded(object sender, RoutedEventArgs args)
+    {
+        if (ReferenceEquals(sender, _hoverPreviewTarget)) CloseHoverPreview();
+    }
+
+    private void OnHoverPreviewMouseEnter(object sender, MouseEventArgs args) => _hoverPreviewCloseTimer.Stop();
+
+    private void OnHoverPreviewMouseLeave(object sender, MouseEventArgs args) => ScheduleHoverPreviewClose();
+
+    private void OnHoverPreviewLostMouseCapture(object sender, MouseEventArgs args)
+    {
+        if (!HoverPreviewSurface.IsMouseOver && _hoverPreviewTarget?.IsMouseOver != true)
+            ScheduleHoverPreviewClose();
+    }
+
+    private void OnHoverPreviewMouseDown(object sender, MouseButtonEventArgs args) => HoverPreviewSurface.Focus();
+
+    private void OnHoverPreviewKeyDown(object sender, KeyEventArgs args)
+    {
+        if (args.Key != Key.Escape || Keyboard.Modifiers != ModifierKeys.None) return;
+        CloseHistoryPopup();
+        args.Handled = true;
+    }
+
+    private void OnHoverPreviewContextMenuOpening(object sender, RoutedEventArgs args)
+    {
+        _hoverPreviewContextMenu = sender as ContextMenu ?? ContextMenuService.GetContextMenu((DependencyObject)sender);
+        _hoverPreviewCloseTimer.Stop();
+        CommandManager.InvalidateRequerySuggested();
+    }
+
+    private void OnHoverPreviewContextMenuClosed(object sender, RoutedEventArgs args)
+    {
+        if (!ReferenceEquals(sender, _hoverPreviewContextMenu)) return;
+        _hoverPreviewContextMenu = null;
+        if (!HoverPreviewSurface.IsMouseOver && _hoverPreviewTarget?.IsMouseOver != true)
+            ScheduleHoverPreviewClose();
+    }
+
+    private void OnHoverPreviewEditClick(object sender, RoutedEventArgs args)
+    {
+        // Button executes its command after Click; keep the binding alive until then.
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(CloseHoverPreview));
+    }
+
+    private void ScheduleHoverPreviewClose()
+    {
+        _hoverPreviewCloseTimer.Stop();
+        _hoverPreviewCloseTimer.Start();
+    }
+
+    public void CloseHoverPreview()
+    {
+        ContextMenu? menu = _hoverPreviewContextMenu;
+        _hoverPreviewContextMenu = null;
+        if (menu is not null) menu.IsOpen = false;
+        _hoverPreviewOpenTimer.Stop();
+        _hoverPreviewCloseTimer.Stop();
+        HoverPreviewPopup.IsOpen = false;
+        HoverPreviewSurface.Content = null;
+        HoverPreviewPopup.PlacementTarget = null;
+        HoverPreviewPopup.CustomPopupPlacementCallback = null;
+        _hoverPreviewTarget = null;
+    }
+
+    internal void ConfigureHoverPreviewPlacement(Popup popup, FrameworkElement target)
+    {
+        popup.PlacementTarget = target;
+        popup.Placement = PlacementMode.Custom;
         Point screenOrigin = target.PointToScreen(new Point());
         Matrix? transformFromDevice = PresentationSource.FromVisual(target)?.CompositionTarget?.TransformFromDevice;
         Point targetOrigin = transformFromDevice.HasValue
@@ -178,9 +284,9 @@ public partial class MainView : Grid
         Rect workArea = owner is null ? SystemParameters.WorkArea : OverlayWindowPresenter.GetWorkArea(owner);
         var preferredTarget = new Rect(targetOrigin, target.RenderSize);
         HoverPreviewLayout preferredLayout = HoverPreviewPositioning.Calculate(workArea, preferredTarget, new Size(424, 360));
-        tooltip.MaxWidth = preferredLayout.Width;
-        tooltip.MaxHeight = preferredLayout.Height;
-        tooltip.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
+        HoverPreviewSurface.MaxWidth = preferredLayout.Width;
+        HoverPreviewSurface.MaxHeight = preferredLayout.Height;
+        popup.CustomPopupPlacementCallback = (popupSize, targetSize, _) =>
         {
             var targetBounds = new Rect(targetOrigin, targetSize);
             HoverPreviewLayout layout = HoverPreviewPositioning.Calculate(workArea, targetBounds, popupSize);
@@ -188,7 +294,11 @@ public partial class MainView : Grid
             return [new CustomPopupPlacement(offset, PopupPrimaryAxis.None)];
         };
     }
-    private void BeginRecordDrag() => _recordDragInProgress = true;
+    private void BeginRecordDrag()
+    {
+        CloseHoverPreview();
+        _recordDragInProgress = true;
+    }
 
     private void CompleteRecordDrag()
     {
@@ -277,6 +387,7 @@ public partial class MainView : Grid
     }
     private void OnRecordContextMenuOpening(object sender, ContextMenuEventArgs args)
     {
+        CloseHoverPreview();
         if (sender is not Button button || button.DataContext is not RecordViewModel { IsImage: true } record)
         {
             args.Handled = true;
@@ -317,6 +428,7 @@ public partial class MainView : Grid
 
     private void OpenMenu(UIElement target, PlacementMode placement)
     {
+        CloseHoverPreview();
         // The menu lives outside the visual tree, so it needs the view model handed to it.
         // Mark it before opening the popup HWND: the owner can deactivate during this transition.
         _menuOpening = true;

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Threading;
 using ClipboardManager.Services;
 using ClipboardManager.ViewModels;
@@ -89,6 +90,54 @@ public sealed class HistoryPopupDismissalTests(SettingsOverlayWpfFixture wpf)
 
         Assert.False(view.IsHistoryPopupOpen);
     });
+
+    [Fact]
+    public Task ApplicationDeactivationAlsoClosesTheInteractivePreview() => WithHistoryPopup((window, view) =>
+    {
+        OpenPreview(view);
+        SendApplicationActivation(window, false);
+        DrainDispatcher();
+        Assert.False(view.IsHoverPreviewOpen);
+        Assert.False(view.IsHistoryPopupOpen);
+    });
+
+    [Fact]
+    public Task ClickingOutsideTheInteractivePreviewClosesIt() => WithHistoryPopup((window, view) =>
+    {
+        OpenPreview(view);
+        Invoke(window, "OnWindowPreviewMouseDown", window,
+            new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left));
+        Assert.False(view.IsHoverPreviewOpen);
+        Assert.False(view.IsHistoryPopupOpen);
+    });
+
+    [Fact]
+    public Task OwnerDeactivationDoesNotDismissWhileDraggingInsidePreview() => WithHistoryPopup((window, view) =>
+    {
+        OpenPreview(view);
+        try
+        {
+            Assert.True(Mouse.Capture(view.HoverPreviewSurface, CaptureMode.SubTree));
+            Invoke(window, "OnDeactivated", window, EventArgs.Empty);
+            DrainDispatcher();
+            Assert.True(view.IsHoverPreviewOpen);
+            Assert.True(view.IsHistoryPopupOpen);
+        }
+        finally { Mouse.Capture(null); }
+    });
+
+    private static void OpenPreview(MainView view)
+    {
+        Popup preview = view.HoverPreviewPopup;
+        view.Children.Remove(preview);
+        preview.Placement = PlacementMode.Absolute;
+        preview.HorizontalOffset = 0;
+        preview.VerticalOffset = 0;
+        preview.Child.Opacity = 0;
+        view.HoverPreviewSurface.Content = new { HoverText = "可交互预览", ContentInfo = "6 字符" };
+        preview.IsOpen = true;
+        Assert.True(view.IsHoverPreviewOpen);
+    }
 
     private async Task WithHistoryPopup(Action<MainWindow, MainView> action)
     {

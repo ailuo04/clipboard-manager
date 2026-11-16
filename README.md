@@ -6,18 +6,18 @@ Windows 11 中文桌面剪贴板管理器。自动保存文本、截图和图片
 
 在仓库的 [最新正式版](../../releases/latest) 页面选择 Windows 11 x64 版本：
 
-- 安装版：下载 `ClipboardManager-0.1.0-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
-- 便携版：下载 `ClipboardManager-0.1.0-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
+- 安装版：下载 `ClipboardManager-0.1.1-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
+- 便携版：下载 `ClipboardManager-0.1.1-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
 
 两种版本均自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。安装版与便携版共用历史数据，不能同时运行；安装、升级和卸载均不删除历史。仓库现已公开，任何人都可以下载正式发行版。
 
 首次运行可能出现 Windows 未知发布者提示，应用尚未代码签名。请确认来源并核对同版本 `.sha256` 文件，不要关闭系统安全防护。在 PowerShell 中校验：
 
 ```powershell
-Get-FileHash .\ClipboardManager-0.1.0-win-x64.zip -Algorithm SHA256
-Get-Content .\ClipboardManager-0.1.0-win-x64.sha256
-Get-FileHash .\ClipboardManager-0.1.0-win-x64-setup.exe -Algorithm SHA256
-Get-Content .\ClipboardManager-0.1.0-win-x64-setup.sha256
+Get-FileHash .\ClipboardManager-0.1.1-win-x64.zip -Algorithm SHA256
+Get-Content .\ClipboardManager-0.1.1-win-x64.sha256
+Get-FileHash .\ClipboardManager-0.1.1-win-x64-setup.exe -Algorithm SHA256
+Get-Content .\ClipboardManager-0.1.1-win-x64-setup.sha256
 ```
 
 完整操作、升级和卸载说明见 [使用说明](docs/USAGE.md)，当前版本介绍见 [发行说明](RELEASE_NOTES.md)。
@@ -92,8 +92,8 @@ v0.0.2 曾按确认完成同版本重建，旧批次用户需重新安装一次�
 旧发行版不含更新器，必须先手动升级一次到含本功能的发行版。此后新发行版必须由新版发布流程生成更新清单和文件附件，且打包方式保持一致；缺少附件、无权限或打包方式改变时明确报错，**绝不退回全量更新**。自动更新需要程序目录可写，不申请管理员权限。
 
 ```powershell
-.\package.ps1 -Version 0.1.0
-.\installer.ps1 -Archive .\dist\ClipboardManager-0.1.0-win-x64.zip -Version 0.1.0
+.\package.ps1 -Version 0.1.1
+.\installer.ps1 -Archive .\dist\ClipboardManager-0.1.1-win-x64.zip -Version 0.1.1
 ```
 
 在 `dist` 生成 Windows x64 便携 ZIP、SHA256、增量更新清单及逐文件压缩附件。打包使用标准 `dotnet publish --self-contained true`，需要安装 .NET 8 SDK；先前的无 SDK 离线打包路径已移除，因为视图改为编译式 XAML 后必须经过 WPF XAML 编译器。包内 `release.json` 记录应用版本、运行环境版本和构建方式。
@@ -112,6 +112,7 @@ GitHub Actions 工作流 `.github/workflows/release.yml` 支持版本标签和�
 - 胶囊右键菜单和历史弹窗“更多”菜单提供暂停/恢复监听、设置、检查更新、清空历史和退出。
 - 设置、更新和清空确认沿用卡片界面，打开时窗口临时使用卡片所需的空间；关闭后恢复胶囊位置和尺寸，从历史弹窗进入的页面会返回历史弹窗。标题、关闭按钮和返回按钮都在卡片顶部，Esc 同样返回。
 - 历史按复制时间倒序排列，显示序号、单行内容和时间。悬停预览文字或图片，长文本最多预览 1500 字符；点击记录始终复制完整内容，也可拖入兼容应用。
+- 鼠标可从记录移入预览框，滚轮滚动或拖动细滚动条查看内容；文字预览支持拖选，并用 Ctrl+C 或右键菜单复制所选文字。图片预览右上角的半透明“编辑”按钮可直接打开当前图片的编辑器，原有右键编辑入口保留。
 - 历史列表获得焦点后，可用 Up/Down 选择记录，Enter 或 Ctrl+C 复制当前记录。
 - Ctrl+Shift+Space 打开历史弹窗并聚焦列表，弹窗已在前台时再按一次关闭。再次启动程序和托盘“打开剪贴板”统一唤起历史弹窗；设置等页面打开时保留当前页面。快捷键使用 Windows 消息注册，冲突时记录错误，仍可点击胶囊箭头查看历史。
 - 相同文本按完整 UTF-8 内容哈希去重；相同图片按标准化像素和尺寸哈希去重，不依赖文件名、PNG 编码元数据或来源。重复复制更新原记录时间，并保留固定状态。

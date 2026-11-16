@@ -215,24 +215,20 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
             owner.Top = SystemParameters.WorkArea.Top + 120;
             var target = new Button { Width = 30, Height = 26, HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Top };
             target.Style = (Style)view.FindResource("RecordCopySurface");
-            var tooltip = new ToolTip { ContentTemplateSelector = ClipboardManager.Views.MainView.RecordHoverSelector };
-            target.ToolTip = tooltip;
+            Popup popup = view.HoverPreviewPopup;
             view.Children.Add(target);
 
             try
             {
                 owner.Show();
                 owner.UpdateLayout();
-                var opening = (ToolTipEventArgs)Activator.CreateInstance(typeof(ToolTipEventArgs),
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
-                    binder: null, args: [false], culture: null)!;
-                opening.RoutedEvent = ToolTipService.ToolTipOpeningEvent;
-                target.RaiseEvent(opening);
+                view.ConfigureHoverPreviewPlacement(popup, target);
 
-                Assert.Equal(424, tooltip.MaxWidth);
-                Assert.Equal(360, tooltip.MaxHeight);
-                Assert.NotNull(tooltip.CustomPopupPlacementCallback);
-                CustomPopupPlacement[] placements = tooltip.CustomPopupPlacementCallback!(new Size(420, 340), target.RenderSize, new Point());
+                Assert.Equal(424, view.HoverPreviewSurface.MaxWidth);
+                Assert.Equal(360, view.HoverPreviewSurface.MaxHeight);
+                Assert.Same(target, popup.PlacementTarget);
+                Assert.NotNull(popup.CustomPopupPlacementCallback);
+                CustomPopupPlacement[] placements = popup.CustomPopupPlacementCallback!(new Size(420, 340), target.RenderSize, new Point());
 
                 Assert.Single(placements);
                 Assert.True(placements[0].Point.X > target.ActualWidth);
@@ -247,26 +243,24 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
     public void RecordHoverPreviewsUseCustomPlacementBesideTheirContent()
     {
         XElement root = LoadView("MainView.xaml");
-        XElement[] previews = root.Descendants(Presentation + "ToolTip")
-            .Where(element => (string?)element.Attribute("ContentTemplateSelector") == "{x:Static local:MainView.RecordHoverSelector}")
-            .ToArray();
-
-        Assert.Equal(2, previews.Length);
-        Assert.All(previews, preview => Assert.Equal("Custom", (string?)preview.Attribute("Placement")));
+        XElement popup = Named(root, "HoverPreviewPopup");
+        Assert.Equal("Custom", (string?)popup.Attribute("Placement"));
+        Assert.Equal("True", (string?)popup.Attribute("StaysOpen"));
+        Assert.Equal("{x:Static local:MainView.RecordHoverSelector}",
+            (string?)Named(root, "HoverPreviewSurface").Attribute("ContentTemplateSelector"));
+        XElement[] targets = root.Descendants(Presentation + "Button")
+            .Where(element => (string?)element.Attribute("Style") == "{StaticResource RecordCopySurface}").ToArray();
+        Assert.Equal(2, targets.Length);
+        Assert.All(targets, target => Assert.NotNull(target.Attribute("Tag")));
     }
     [Fact]
     public void HoverPreviewsHaveVisibleBorderAndShadowAgainstLightBackground()
     {
         XElement root = LoadView("MainView.xaml");
-        XElement[] previews = root.Descendants(Presentation + "ToolTip")
-            .Where(element => (string?)element.Attribute("ContentTemplateSelector") == "{x:Static local:MainView.RecordHoverSelector}")
-            .ToArray();
-
-        Assert.Equal(2, previews.Length);
-        Assert.All(previews, preview =>
-            Assert.Equal("{StaticResource HoverPreviewToolTip}", (string?)preview.Attribute("Style")));
+        XElement preview = Named(root, "HoverPreviewSurface");
+        Assert.Equal("{StaticResource HoverPreviewChrome}", (string?)preview.Attribute("Style"));
         XElement style = root.Descendants(Presentation + "Style")
-            .Single(element => (string?)element.Attribute(Xaml + "Key") == "HoverPreviewToolTip");
+            .Single(element => (string?)element.Attribute(Xaml + "Key") == "HoverPreviewChrome");
         XElement Setter(string property) => style.Elements(Presentation + "Setter")
             .Single(element => (string?)element.Attribute("Property") == property);
         Assert.Equal("{DynamicResource TextSecondaryBrush}", (string?)Setter("BorderBrush").Attribute("Value"));        Assert.Equal("{DynamicResource HoverPreviewBackgroundBrush}", (string?)Setter("Background").Attribute("Value"));

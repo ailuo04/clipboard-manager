@@ -314,7 +314,8 @@ public sealed class MainWindow : Window
                 return;
             }
             if (_applicationDeactivated || ShouldCloseHistoryPopupOnDeactivation(_view.IsHistoryPopupOpen,
-                    _view.IsContextMenuOpen, _view.IsHistoryPopupPointerOver))
+                    _view.IsContextMenuOpen, _view.IsHistoryPopupPointerOver)
+                || (_view.IsHoverPreviewOpen && !_view.IsHoverPreviewPointerOver))
                 _view.CloseHistoryPopup();
         }));
     }
@@ -338,6 +339,7 @@ public sealed class MainWindow : Window
 
     private void OnWindowPreviewMouseDown(object sender, MouseButtonEventArgs args)
     {
+        if (!_view.IsHoverPreviewPointerOver) _view.CloseHoverPreview();
         if (ShouldCloseHistoryPopupOnMouseDown(_view.IsHistoryPopupOpen,
                 _view.IsHistoryPopupPointerOver, _view.IsHistoryTogglePointerOver))
             _view.CloseHistoryPopup();
@@ -346,7 +348,7 @@ public sealed class MainWindow : Window
     private void OnWindowPreviewKeyDown(object sender, KeyEventArgs args)
     {
         if (_overlayHost.IsOpen || _viewModel.IsClosing || Keyboard.Modifiers != ModifierKeys.None) return;
-        if (_view.IsHistoryPopupOpen && args.Key == Key.Escape)
+        if ((_view.IsHistoryPopupOpen || _view.IsHoverPreviewOpen) && args.Key == Key.Escape)
         {
             args.Handled = true;
             _view.CloseHistoryPopup();

@@ -59,9 +59,10 @@
             <Setter Property="Padding" Value="6,0,4,0" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="IsTabStop" Value="False" />
-            <Setter Property="ToolTipService.InitialShowDelay" Value="300" />
-            <Setter Property="ToolTipService.ShowDuration" Value="60000" />
-            <EventSetter Event="ToolTipOpening" Handler="OnHoverPreviewToolTipOpening" />
+            <Setter Property="ToolTip" Value="{x:Null}" />
+            <EventSetter Event="MouseEnter" Handler="OnRecordPreviewMouseEnter" />
+            <EventSetter Event="MouseLeave" Handler="OnRecordPreviewMouseLeave" />
+            <EventSetter Event="Unloaded" Handler="OnRecordPreviewUnloaded" />
             <EventSetter Event="PreviewMouseLeftButtonDown" Handler="OnRecordDragMouseLeftButtonDown" />
             <EventSetter Event="PreviewMouseMove" Handler="OnRecordDragMouseMove" />
             <EventSetter Event="PreviewMouseLeftButtonUp" Handler="OnRecordDragMouseLeftButtonUp" />
@@ -72,16 +73,16 @@
         <sys:Double x:Key="HistoryRowHeight" xmlns:sys="clr-namespace:System;assembly=mscorlib">38</sys:Double>
         <sys:Double x:Key="HistoryImageRowHeight" xmlns:sys="clr-namespace:System;assembly=mscorlib">72</sys:Double>
         <DropShadowEffect x:Key="HoverPreviewShadow" Color="#42505A" BlurRadius="18" ShadowDepth="3" Direction="270" Opacity="0.30" />
-        <Style x:Key="HoverPreviewToolTip" TargetType="ToolTip" BasedOn="{StaticResource {x:Type ToolTip}}">
+        <Style x:Key="HoverPreviewChrome" TargetType="ContentControl">
             <Setter Property="BorderBrush" Value="{DynamicResource TextSecondaryBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Margin" Value="8" />
             <Setter Property="Effect" Value="{StaticResource HoverPreviewShadow}" />
-            <Setter Property="HasDropShadow" Value="False" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
             <Setter Property="Background" Value="{DynamicResource HoverPreviewBackgroundBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
-                    <ControlTemplate TargetType="ToolTip">
+                    <ControlTemplate TargetType="ContentControl">
                         <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}">
                             <ContentPresenter Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
@@ -92,14 +93,137 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="CompactScrollBar" TargetType="ScrollBar">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Border Background="{TemplateBinding Background}">
+                            <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False" Opacity="0" />
+                                </Track.DecreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb x:Name="ScrollThumb" MinHeight="24" Opacity="0.55">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Margin="2,1" CornerRadius="2" Background="{DynamicResource ScrollThumbBrush}" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False" Opacity="0" />
+                                </Track.IncreaseRepeatButton>
+                            </Track>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ScrollThumb" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <Trigger SourceName="ScrollThumb" Property="IsDragging" Value="True">
+                                <Setter TargetName="ScrollThumb" Property="Opacity" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="CompactScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
+                                                    Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                    ContentTemplateSelector="{TemplateBinding ContentTemplateSelector}"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}" />
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1" Style="{StaticResource CompactScrollBar}"
+                                       Orientation="Vertical" Minimum="0" Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}" Value="{TemplateBinding VerticalOffset}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="HoverPreviewTextBox" TargetType="TextBox">
+            <Setter Property="IsReadOnly" Value="True" />
+            <Setter Property="IsInactiveSelectionHighlightEnabled" Value="True" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="AcceptsReturn" Value="True" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="VerticalContentAlignment" Value="Top" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
+            <Setter Property="SelectionOpacity" Value="0.35" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto" />
+            <Setter Property="HorizontalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost" Focusable="False" Style="{StaticResource CompactScrollViewer}"
+                                      VerticalScrollBarVisibility="{TemplateBinding VerticalScrollBarVisibility}"
+                                      HorizontalScrollBarVisibility="{TemplateBinding HorizontalScrollBarVisibility}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="HoverPreviewEditAction" TargetType="Button">
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Border x:Name="Chrome" CornerRadius="7" Opacity="0.72" BorderThickness="1"
+                                    Background="{DynamicResource HoverPreviewBackgroundBrush}"
+                                    BorderBrush="{DynamicResource GlassEdgeBrush}" />
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" RecognizesAccessKey="True" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Opacity" Value="1" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PressedSurfaceBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <DataTemplate x:Key="HoverPreviewText">
             <StackPanel MaxWidth="400">
                 <TextBlock Text="文本预览" FontSize="10.5" FontWeight="SemiBold"
                            Foreground="{DynamicResource AccentBrush}" Margin="1,0,0,7" />
-                <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                    <TextBlock Text="{Binding HoverText}" TextWrapping="Wrap" FontSize="12.5" LineHeight="19"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                </ScrollViewer>
+                <TextBox x:Name="HoverPreviewTextContent" MaxHeight="280" Style="{StaticResource HoverPreviewTextBox}"
+                         Text="{Binding HoverText, Mode=OneWay}" AutomationProperties.Name="可选择复制的文本预览"
+                         ContextMenuOpening="OnHoverPreviewContextMenuOpening">
+                    <TextBox.ContextMenu>
+                        <ContextMenu Opened="OnHoverPreviewContextMenuOpening" Closed="OnHoverPreviewContextMenuClosed">
+                            <MenuItem Header="复制" Command="ApplicationCommands.Copy"
+                                      CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType={x:Type ContextMenu}}}" />
+                        </ContextMenu>
+                    </TextBox.ContextMenu>
+                </TextBox>
                 <TextBlock Text="{Binding ContentInfo}" Margin="1,7,0,0" FontSize="10.5"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
             </StackPanel>
@@ -110,9 +234,20 @@
                 <Border Background="{DynamicResource ImageWellBackgroundBrush}"
                         BorderBrush="{DynamicResource ImageWellBorderBrush}"
                         BorderThickness="1" CornerRadius="6" ClipToBounds="True" Padding="1" Margin="0,0,0,7">
-                    <controls:AsyncThumbnail FilePath="{Binding ImagePath}" Stretch="Uniform"
-                                             MaxWidth="{Binding PreviewImageWidth}" MaxHeight="{Binding PreviewImageHeight}"
-                                             HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                    <Grid>
+                        <controls:AsyncThumbnail FilePath="{Binding ImagePath}" Stretch="Uniform"
+                                                 MaxWidth="{Binding PreviewImageWidth}" MaxHeight="{Binding PreviewImageHeight}"
+                                                 HorizontalAlignment="Center" RenderOptions.BitmapScalingMode="HighQuality" />
+                        <Button x:Name="HoverPreviewEditButton" Command="{Binding EditImageCommand}"
+                                Style="{StaticResource HoverPreviewEditAction}" HorizontalAlignment="Right"
+                                VerticalAlignment="Top" Margin="6" Click="OnHoverPreviewEditClick"
+                                AutomationProperties.Name="编辑预览图片">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE70F;" FontSize="12" Margin="0,0,4,0" />
+                                <TextBlock Text="编辑" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </Grid>
                 </Border>
                 <TextBlock Text="{Binding ContentInfo}" HorizontalAlignment="Center" FontSize="10.5"
                            Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -131,11 +266,8 @@
             <Ellipse Style="{StaticResource StatusDot}" HorizontalAlignment="Center" />
         </Border>
         <Button x:Name="LatestCopyButton" Grid.Column="1" Command="{Binding LatestRecord.CopyCommand}"
-                Style="{StaticResource RecordCopySurface}" Padding="2,0" ClipToBounds="True"
+                Style="{StaticResource RecordCopySurface}" Tag="{Binding LatestRecord}" Padding="2,0" ClipToBounds="True"
                 AutomationProperties.Name="复制最新记录" IsEnabled="{Binding HasRecords}" Focusable="True" IsTabStop="True">
-            <Button.ToolTip>
-                <ToolTip Placement="Custom" Style="{StaticResource HoverPreviewToolTip}" Padding="11,9,11,10" Content="{Binding LatestRecord}" ContentTemplateSelector="{x:Static local:MainView.RecordHoverSelector}" ContentTemplate="{x:Null}" />
-            </Button.ToolTip>
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                 <Border Width="32" Height="28" Margin="0,0,6,0" CornerRadius="4" Padding="1"
@@ -184,6 +316,16 @@
         </ToggleButton>
     </Grid>
 
+    <Popup x:Name="HoverPreviewPopup" Placement="Custom" AllowsTransparency="True" StaysOpen="True"
+           PopupAnimation="Fade" Focusable="False">
+        <ContentControl x:Name="HoverPreviewSurface" Style="{StaticResource HoverPreviewChrome}" Padding="11,9,11,10"
+                        ContentTemplateSelector="{x:Static local:MainView.RecordHoverSelector}"
+                        Focusable="True" AutomationProperties.Name="剪贴板记录预览"
+                        MouseEnter="OnHoverPreviewMouseEnter" MouseLeave="OnHoverPreviewMouseLeave"
+                        LostMouseCapture="OnHoverPreviewLostMouseCapture" MouseDown="OnHoverPreviewMouseDown"
+                        PreviewKeyDown="OnHoverPreviewKeyDown" />
+    </Popup>
+
     <Popup x:Name="HistoryPopup" PlacementTarget="{Binding ElementName=Capsule}" Placement="Bottom"
            AllowsTransparency="True" StaysOpen="True" PopupAnimation="Fade" Focusable="False">
         <Border x:Name="HistoryPopupBorder" Width="300" MaxHeight="360" Padding="0"
@@ -208,6 +350,9 @@
                          VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                          VirtualizingPanel.ScrollUnit="Pixel" ScrollViewer.CanContentScroll="True"
                          AutomationProperties.Name="剪贴板历史记录下拉列表">
+                    <ListBox.Resources>
+                        <Style TargetType="ScrollViewer" BasedOn="{StaticResource CompactScrollViewer}" />
+                    </ListBox.Resources>
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Height" Value="{StaticResource HistoryRowHeight}" />
@@ -240,16 +385,13 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Button Command="{Binding CopyCommand}" Style="{StaticResource RecordCopySurface}"
+                            <Button Command="{Binding CopyCommand}" Tag="{Binding}" Style="{StaticResource RecordCopySurface}"
                                     Padding="7,5" AutomationProperties.Name="复制此历史记录" ContextMenuOpening="OnRecordContextMenuOpening">
                                 <Button.ContextMenu>
                                     <ContextMenu Closed="OnRecordContextMenuClosed">
                                         <MenuItem Header="编辑图片" Command="{Binding EditImageCommand}" />
                                     </ContextMenu>
                                 </Button.ContextMenu>
-                                <Button.ToolTip>
-                                    <ToolTip Placement="Custom" Style="{StaticResource HoverPreviewToolTip}" Padding="11,9,11,10" Content="{Binding}" ContentTemplateSelector="{x:Static local:MainView.RecordHoverSelector}" ContentTemplate="{x:Null}" />
-                                </Button.ToolTip>
                                 <Grid MinHeight="26">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding PositionLabel}" MinWidth="18" Margin="0,0,4,0" FontSize="10" Foreground="{DynamicResource TextSecondaryBrush}"

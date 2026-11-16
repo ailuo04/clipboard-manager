@@ -153,6 +153,76 @@ public sealed class CapsuleImageEditingTests(SettingsOverlayWpfFixture wpf)
             finally { wpf.Run(() => timer?.Stop()); }
         });
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task PreviewEditButtonOpensTheImageBeingPreviewed(bool fromHistory) => WithState(
+        async history =>
+        {
+            await history.AddAsync(ClipboardSnapshot.FromImage(Image(240, 120), "test"));
+            await history.AddAsync(ClipboardSnapshot.FromImage(Image(320, 160), "test"));
+        },
+        async (history, vm, view) =>
+        {
+            var opened = new TaskCompletionSource<Size>(TaskCreationOptions.RunContinuationsAsynchronously);
+            DispatcherTimer? timer = null;
+            wpf.Run(() =>
+            {
+                view.HoverPreviewPopup.Child.Opacity = 0;
+                Button target = view.LatestCopyButton;
+                RecordViewModel record = vm.LatestRecord!;
+                if (fromHistory)
+                {
+                    record = vm.HistoryRecords[1];
+                    view.ShowHistoryPopup(ClipboardManager.Utilities.CapsulePopupPositioning.Calculate(
+                        SystemParameters.WorkArea, new Rect(100, 100, 240, 40), view.MeasureHistoryPopup(300)));
+                    view.HistoryPopupBorder.UpdateLayout();
+                    target = VisualDescendants<Button>(view.HistoryRecords).Single(button => ReferenceEquals(button.Tag, record));
+                    Assert.Single(target.ContextMenu.Items.OfType<MenuItem>());
+                }
+                target.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice, Environment.TickCount)
+                    { RoutedEvent = UIElement.MouseEnterEvent });
+            });
+            await Task.Delay(400);
+            wpf.Run(() =>
+            {
+                Assert.True(view.IsHoverPreviewOpen);
+                view.HoverPreviewSurface.UpdateLayout();
+                Button edit = Assert.Single(VisualDescendants<Button>(view.HoverPreviewSurface),
+                    button => System.Windows.Automation.AutomationProperties.GetName(button) == "编辑预览图片");
+                Assert.Same((fromHistory ? vm.HistoryRecords[1] : vm.LatestRecord)!.EditImageCommand, edit.Command);
+                Assert.True(edit.IsEnabled);
+                Grid image = Assert.IsType<Grid>(VisualTreeHelper.GetParent(edit));
+                Rect bounds = edit.TransformToAncestor(image).TransformBounds(new Rect(edit.RenderSize));
+                Assert.True(new Rect(image.RenderSize).Contains(bounds));
+                Assert.InRange(bounds.Top, 0, 8);
+                Assert.InRange(image.ActualWidth - bounds.Right, 0, 8);
+                string? directory = Environment.GetEnvironmentVariable("CLIPBOARD_WIDGET_QA_DIR");
+                if (!string.IsNullOrWhiteSpace(directory))
+                    HoverPreviewInteractionTests.Capture(view.HoverPreviewSurface,
+                        Path.Combine(directory, $"image-edit-preview-{fromHistory}.png"));
+                timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(20) };
+                timer.Tick += (_, _) =>
+                {
+                    var editor = Application.Current.Windows.OfType<ImageEditorWindow>().FirstOrDefault(window => window.IsLoaded);
+                    if (editor is null) return;
+                    timer.Stop();
+                    editor.Opacity = 0;
+                    opened.TrySetResult(new Size(editor.ImageCanvas.Width, editor.ImageCanvas.Height));
+                    editor.CloseForShutdown();
+                };
+                timer.Start();
+                typeof(Button).GetMethod("OnClick", Private)!.Invoke(edit, null);
+            });
+            try
+            {
+                Size size = await opened.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(fromHistory ? new Size(240, 120) : new Size(320, 160), size);
+                wpf.Run(() => Assert.False(view.IsHoverPreviewOpen));
+            }
+            finally { wpf.Run(() => timer?.Stop()); }
+        });
+
     [Fact]
     public Task InlineThumbnailsLoadWithoutHoverAndImageRowsFitOnFirstOpen() => WithState(
         async history =>
@@ -169,8 +239,8 @@ public sealed class CapsuleImageEditingTests(SettingsOverlayWpfFixture wpf)
                 var capsuleThumbnail = Assert.Single(VisualDescendants<ClipboardManager.Controls.AsyncThumbnail>(view.LatestCopyButton),
                     image => image.IsVisible);
                 Assert.Equal(vm.LatestRecord!.ImagePath, capsuleThumbnail.FilePath);
-                Assert.NotNull(view.LatestCopyButton.ToolTip);
-                Assert.False(((ToolTip)view.LatestCopyButton.ToolTip).IsOpen);
+                Assert.Same(vm.LatestRecord, view.LatestCopyButton.Tag);
+                Assert.False(view.IsHoverPreviewOpen);
                 view.HistoryPopup.Child.Opacity = 0;
                 Size desired = view.MeasureHistoryPopup(300);
                 view.ShowHistoryPopup(ClipboardManager.Utilities.CapsulePopupPositioning.Calculate(
