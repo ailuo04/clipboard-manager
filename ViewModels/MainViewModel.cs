@@ -88,7 +88,7 @@ public sealed class MainViewModel : ObservableObject
     public bool HasRecords => _allRecords.Count > 0;
     public string CapsuleText => !IsReady ? Status
         : _history.Settings.HideCapsulePreview || _allRecords.Count == 0 ? "剪贴板"
-        : _allRecords[0].SingleLine;
+        : _allRecords[0].CapsulePreview;
     public string? CapsuleImagePath => IsReady && !_history.Settings.HideCapsulePreview ? LatestRecord?.ImagePath : null;
     public Point? WidgetPosition
     {

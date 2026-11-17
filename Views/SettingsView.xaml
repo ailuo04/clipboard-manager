@@ -3,9 +3,152 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       AutomationProperties.Name="设置" Margin="0" TextElement.FontSize="12.5">
     <Grid.Resources>
+        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Background" Value="{DynamicResource SettingsInputBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SettingsBorderBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+                            <ScrollViewer x:Name="PART_ContentHost" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{DynamicResource SettingsInputBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SettingsBorderBrush}" />
+        </Style>
+        <Style x:Key="SettingsTextButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Padding" Value="6,3" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource HoverSurfaceBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource PressedSurfaceBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsIconButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Background" Value="{DynamicResource SettingsInputBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SettingsBorderBrush}" />
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Background="Transparent">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="16" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                            <Border x:Name="Box" Width="16" Height="16" CornerRadius="4" VerticalAlignment="Center"
+                                    Background="{DynamicResource SettingsInputBrush}" BorderBrush="{DynamicResource SettingsBorderBrush}" BorderThickness="1">
+                                <Path x:Name="Tick" Data="M 0 3 L 3 6 L 9 0" Width="9" Height="6" Stretch="Uniform"
+                                      Stroke="{DynamicResource SettingsPageBrush}" StrokeThickness="1.8" Visibility="Collapsed"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <ContentPresenter Grid.Column="1" Margin="7,0,0,0" VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Box" Property="Background" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Tick" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.45" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsScrollBar" TargetType="ScrollBar">
+            <Setter Property="Width" Value="8" />
+            <Setter Property="MinWidth" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Track x:Name="PART_Track" Orientation="Vertical" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand" Focusable="False" Opacity="0" />
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb MinHeight="24">
+                                    <Thumb.Template>
+                                        <ControlTemplate TargetType="Thumb">
+                                            <Border x:Name="ThumbSurface" Background="{DynamicResource SettingsScrollThumbBrush}"
+                                                    CornerRadius="2" Margin="2,2" Opacity="0.4" />
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ThumbSurface" Property="Opacity" Value="0.75" /></Trigger>
+                                                <Trigger Property="IsDragging" Value="True"><Setter TargetName="ThumbSurface" Property="Opacity" Value="1" /></Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand" Focusable="False" Opacity="0" />
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Margin="{TemplateBinding Padding}"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}" Content="{TemplateBinding Content}"
+                                                    ContentTemplate="{TemplateBinding ContentTemplate}" />
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Column="1" Orientation="Vertical" Style="{StaticResource SettingsScrollBar}"
+                                       Minimum="0" Maximum="{TemplateBinding ScrollableHeight}" ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Value="{Binding VerticalOffset, RelativeSource={RelativeSource TemplatedParent}, Mode=OneWay}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="SettingsCard" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource SoftSurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource GlassStrokeBrush}" />
+            <Setter Property="Background" Value="{DynamicResource SettingsCardBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SettingsBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="Padding" Value="12,10" />
@@ -29,30 +172,40 @@
     <Grid.RowDefinitions>
         <RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
+    <Border x:Name="SettingsBackground" Grid.RowSpan="3" Background="{DynamicResource SettingsPageBrush}"
+            CornerRadius="0,0,12,12" IsHitTestVisible="False" />
     <Border Grid.Row="0" Height="0" />
 
-    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12,2,12,0">
+    <ScrollViewer Grid.Row="1" Style="{StaticResource SettingsScrollViewer}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="12,2,12,0">
         <StackPanel>
 
             <TextBlock Text="外观" Style="{StaticResource SectionLabel}" />
             <Border Style="{StaticResource SettingsCard}">
                 <StackPanel>
-                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource GlassStrokeBrush}"
-                            BorderThickness="1" CornerRadius="11" Padding="3" HorizontalAlignment="Left">
-                        <StackPanel Orientation="Horizontal">
-                            <RadioButton x:Name="ThemeDarkRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}" Height="30"
+                    <Border Background="{DynamicResource SettingsPageBrush}" CornerRadius="9" Padding="4">
+                        <UniformGrid Columns="3">
+                            <RadioButton x:Name="ThemeDarkRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}"
                                          ToolTip="深色" AutomationProperties.Name="深色主题">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE708;" />
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE708;" />
+                                    <TextBlock Text="深色" FontSize="10.5" HorizontalAlignment="Center" Margin="0,5,0,0" />
+                                </StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="ThemeLightRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}" Height="30"
+                            <RadioButton x:Name="ThemeLightRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}"
                                          ToolTip="浅色" AutomationProperties.Name="浅色主题">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE706;" />
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE706;" />
+                                    <TextBlock Text="浅色" FontSize="10.5" HorizontalAlignment="Center" Margin="0,5,0,0" />
+                                </StackPanel>
                             </RadioButton>
-                            <RadioButton x:Name="ThemeSystemRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}" Height="30"
+                            <RadioButton x:Name="ThemeSystemRadio" GroupName="AppTheme" Style="{StaticResource ThemeChoice}"
                                          ToolTip="跟随系统" AutomationProperties.Name="跟随系统主题">
-                                <TextBlock Style="{StaticResource Icon}" Text="&#xE7F4;" />
+                                <StackPanel>
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE7F4;" />
+                                    <TextBlock Text="跟随系统" FontSize="10.5" HorizontalAlignment="Center" Margin="0,5,0,0" />
+                                </StackPanel>
                             </RadioButton>
-                        </StackPanel>
+                        </UniformGrid>
                     </Border>
                     <TextBlock Text="深色、浅色，或跟随 Windows 的应用主题。" Style="{StaticResource Hint}" Margin="0,7,0,0" />
                 </StackPanel>
@@ -112,13 +265,12 @@
                                      Foreground="{DynamicResource TextSecondaryBrush}" AutomationProperties.Name="数据目录"
                                      FontSize="11" BorderThickness="0" Padding="6,4" Margin="0,5,0,0" />
                         </StackPanel>
-                        <Button x:Name="OpenDirectoryButton" Grid.Column="1" Style="{StaticResource IconButton}" Width="28" Height="28" MinHeight="28"
+                        <Button x:Name="OpenDirectoryButton" Grid.Column="1" Style="{StaticResource SettingsIconButton}" Width="28" Height="28" MinHeight="28"
                                 ToolTip="打开数据目录" AutomationProperties.Name="打开数据目录" Margin="8,0,0,0">
                             <TextBlock Style="{StaticResource Icon}" Text="&#xED25;" FontSize="13" />
                         </Button>
                     </Grid>
-                    <Button x:Name="OpenLogButton" HorizontalAlignment="Left" Margin="0,6,0,0" BorderThickness="0"
-                            Background="Transparent" Padding="0,2" MinHeight="24">
+                    <Button x:Name="OpenLogButton" Style="{StaticResource SettingsTextButton}" HorizontalAlignment="Left" Margin="0,6,0,0">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Style="{StaticResource Icon}" Text="&#xE8A5;" FontSize="13" Margin="0,0,6,0" />
                             <TextBlock Text="查看日志" />
@@ -145,7 +297,7 @@
         </StackPanel>
     </ScrollViewer>
 
-    <Border Grid.Row="2" BorderBrush="{DynamicResource GlassEdgeBrush}" BorderThickness="0,1,0,0" Padding="12,9">
+    <Border Grid.Row="2" BorderBrush="{DynamicResource SettingsBorderBrush}" BorderThickness="0,1,0,0" Padding="12,9">
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CancelButton" Content="取消" IsCancel="True" MinWidth="68" MinHeight="28" Padding="10,4" Margin="0,0,8,0" />
             <Button x:Name="SaveButton" Content="保存" IsDefault="True" Style="{StaticResource PrimaryButton}" MinWidth="68" MinHeight="28" Padding="10,4" />

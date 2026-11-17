@@ -336,6 +336,19 @@
                     <controls:AsyncThumbnail FilePath="{Binding CapsuleImagePath}" Stretch="Uniform"
                                              RenderOptions.BitmapScalingMode="HighQuality" />
                 </Border>
+                <controls:MarqueeText x:Name="CapsuleMarquee" Grid.Column="1" Text="{Binding CapsuleText}" FontSize="12.5"
+                                      Foreground="{DynamicResource TextPrimaryBrush}">
+                    <controls:MarqueeText.Style>
+                        <Style TargetType="controls:MarqueeText">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CapsuleImagePath, FallbackValue={x:Null}}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </controls:MarqueeText.Style>
+                </controls:MarqueeText>
                 <TextBlock Grid.Column="1" Text="{Binding CapsuleText}" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimaryBrush}">
                     <TextBlock.Style>
@@ -344,7 +357,7 @@
                             <Setter Property="TextWrapping" Value="Wrap" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding CapsuleImagePath, FallbackValue={x:Null}}" Value="{x:Null}">
-                                    <Setter Property="FontSize" Value="12.5" />
+                                    <Setter Property="Visibility" Value="Collapsed" />
                                     <Setter Property="TextWrapping" Value="NoWrap" />
                                 </DataTrigger>
                             </Style.Triggers>

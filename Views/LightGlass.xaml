@@ -7,6 +7,12 @@
     <Color x:Key="CardShadowColor">#243D43</Color>
 
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="SettingsPageBrush" Color="#EDF2F3" />
+    <SolidColorBrush x:Key="SettingsCardBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SettingsInputBrush" Color="#EFF3F4" />
+    <SolidColorBrush x:Key="SettingsBorderBrush" Color="#C6D2D5" />
+    <SolidColorBrush x:Key="SettingsSelectedBrush" Color="#CFE9E2" />
+    <SolidColorBrush x:Key="SettingsScrollThumbBrush" Color="#63777D" />
     <SolidColorBrush x:Key="AccentSoftBrush" Color="#DDF2EC" />
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="#1D2930" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="#53636A" />

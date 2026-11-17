@@ -76,7 +76,12 @@ public sealed class RecordViewModel : INotifyPropertyChanged
             return new Size(Math.Max(1, Math.Round(width * scale)), Math.Max(1, Math.Round(height * scale)));
         }
     }
-    /// <summary>The record on one line for compact rows: text with whitespace runs collapsed, or the image summary.</summary>
+    /// <summary>The complete normalized text for the scrolling capsule, or the image summary.</summary>
+    public string CapsulePreview => IsImage ? ContentInfo
+        : string.IsNullOrWhiteSpace(Record.Text) ? Preview
+        : string.Join(' ', Record.Text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+    /// <summary>A bounded single-line summary for compact history rows.</summary>
     public string SingleLine
     {
         get
