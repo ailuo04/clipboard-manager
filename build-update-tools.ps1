@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][string]$OutputDirectory,
-    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '0.1.3',
+    [ValidatePattern('^\d+\.\d+\.\d+$')][string]$Version = '0.1.4',
     [switch]$SelfContainedAppHost
 )
 
@@ -15,7 +15,7 @@ $staging = Join-Path $output ('.tools-' + [guid]::NewGuid().ToString('N'))
 try {
     $metadata = Join-Path $staging 'Version.cs'
     [IO.File]::WriteAllText($metadata, ('[assembly: System.Reflection.AssemblyVersion("{0}.0")] [assembly: System.Reflection.AssemblyFileVersion("{0}.0")]' -f $Version), [Text.UTF8Encoding]::new($false))
-    $shared = @((Join-Path $PSScriptRoot 'Updates\UpdateManifest.cs'), (Join-Path $PSScriptRoot 'Updates\UpdateFiles.cs'), $metadata)
+    $shared = @((Join-Path $PSScriptRoot 'Updates\UpdateManifest.cs'), (Join-Path $PSScriptRoot 'Updates\UpdateFiles.cs'), (Join-Path $PSScriptRoot 'Updates\StartupRegistration.cs'), $metadata)
     foreach ($target in @(@{ Source = 'Program.cs'; Name = 'ClipboardManager.Update.exe' }, @{ Source = 'Launcher.cs'; Name = 'ClipboardManager.exe' })) {
         $built = Join-Path $staging $target.Name
         & $compiler /nologo /target:winexe /platform:x64 /optimize+ /codepage:65001 /reference:System.Runtime.Serialization.dll /reference:System.Windows.Forms.dll "/win32icon:$(Join-Path $PSScriptRoot 'Assets\Clipboard.ico')" "/out:$built" @shared (Join-Path $PSScriptRoot "UpdateHelper\$($target.Source)")

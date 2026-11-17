@@ -6,18 +6,18 @@ Windows 11 中文桌面剪贴板管理器。自动保存文本、截图和图片
 
 在仓库的 [最新正式版](../../releases/latest) 页面选择 Windows 11 x64 版本：
 
-- 安装版：下载 `ClipboardManager-0.1.3-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
-- 便携版：下载 `ClipboardManager-0.1.3-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
+- 安装版：下载 `ClipboardManager-0.1.4-win-x64-setup.exe`，运行中文安装向导。默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardManager`，创建开始菜单快捷方式；“创建桌面快捷方式”和安装完成页的“启动剪贴板”默认勾选，可手动取消，重装时也使用这两个默认值。支持从 Windows“设置 → 应用 → 已安装的应用”卸载。
+- 便携版：下载 `ClipboardManager-0.1.4-win-x64.zip`，完整解压后双击 `ClipboardManager.exe`。
 
 两种版本均自带运行环境，不需要管理员权限，不必另装 .NET SDK 或运行时。安装版与便携版共用历史数据，不能同时运行；安装、升级和卸载均不删除历史。仓库现已公开，任何人都可以下载正式发行版。
 
 首次运行可能出现 Windows 未知发布者提示，应用尚未代码签名。请确认来源并核对同版本 `.sha256` 文件，不要关闭系统安全防护。在 PowerShell 中校验：
 
 ```powershell
-Get-FileHash .\ClipboardManager-0.1.3-win-x64.zip -Algorithm SHA256
-Get-Content .\ClipboardManager-0.1.3-win-x64.sha256
-Get-FileHash .\ClipboardManager-0.1.3-win-x64-setup.exe -Algorithm SHA256
-Get-Content .\ClipboardManager-0.1.3-win-x64-setup.sha256
+Get-FileHash .\ClipboardManager-0.1.4-win-x64.zip -Algorithm SHA256
+Get-Content .\ClipboardManager-0.1.4-win-x64.sha256
+Get-FileHash .\ClipboardManager-0.1.4-win-x64-setup.exe -Algorithm SHA256
+Get-Content .\ClipboardManager-0.1.4-win-x64-setup.sha256
 ```
 
 完整操作、升级和卸载说明见 [使用说明](docs/USAGE.md)，当前版本介绍见 [发行说明](RELEASE_NOTES.md)。
@@ -93,8 +93,8 @@ v0.0.2 曾按确认完成同版本重建，旧批次用户需重新安装一次�
 旧发行版不含更新器，必须先手动升级一次到含本功能的发行版。此后新发行版必须由新版发布流程生成更新清单和文件附件，且打包方式保持一致；缺少附件、无权限或打包方式改变时明确报错，**绝不退回全量更新**。自动更新需要程序目录可写，不申请管理员权限。
 
 ```powershell
-.\package.ps1 -Version 0.1.3
-.\installer.ps1 -Archive .\dist\ClipboardManager-0.1.3-win-x64.zip -Version 0.1.3
+.\package.ps1 -Version 0.1.4
+.\installer.ps1 -Archive .\dist\ClipboardManager-0.1.4-win-x64.zip -Version 0.1.4
 ```
 
 在 `dist` 生成 Windows x64 便携 ZIP、SHA256、增量更新清单及逐文件压缩附件。打包使用标准 `dotnet publish --self-contained true`，需要安装 .NET 8 SDK；先前的无 SDK 离线打包路径已移除，因为视图改为编译式 XAML 后必须经过 WPF XAML 编译器。包内 `release.json` 记录应用版本、运行环境版本和构建方式。
@@ -121,7 +121,7 @@ GitHub Actions 工作流 `.github/workflows/release.yml` 支持版本标签和�
 - 监听通知防抖为 100 ms，短时间内的密集变化可能合并为最后一次内容。应用回写携带进程专用标记，不会触发历史反馈循环。
 - 默认最多 500 条记录、512 MB 内容数据。容量计算包括文本 UTF-8 字节与 PNG 文件大小，不包含 JSON 格式开销与日志。自动清理先移除最早的未收藏记录；收藏记录继续保留，因此收藏内容本身可超过限制。旧数据中的固定状态兼容为收藏。
 - 清空包含收藏记录，确认框会明确显示收藏数量，操作前需确认，并清理对应图片。文件被占用或无权限删除时记录错误并持久化待删除队列，在后续操作或重启时重试。
-- 应用单实例运行；深色、浅色或跟随系统主题可在设置中切换并即时预览，保存到 `theme.json`。系统托盘后台运行可在设置中启用，默认关闭；托盘菜单可重新打开窗口、暂停或恢复监听、退出程序。程序不提供开机自启。
+- 应用单实例运行；深色、浅色或跟随系统主题可在设置中切换并即时预览，保存到 `theme.json`。系统托盘后台运行可在设置中启用，默认关闭；托盘菜单可重新打开窗口、暂停或恢复监听、退出程序。可在设置的“行为”中启用“开机自启动”，默认关闭；点击“保存”后生效，登录 Windows 后自动启动并显示胶囊，无需管理员权限。关闭该选项会移除启动项，卸载安装版时也会清理指向该安装目录的启动项。
 
 ## 图片来源
 

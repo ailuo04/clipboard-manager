@@ -242,6 +242,48 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
         });
     }
 
+    [Fact]
+    public void StartWithWindowsIsOffByDefaultAndCancelDoesNotApplyTheChoice()
+    {
+        wpf.Run(() =>
+        {
+            SettingsOverlay overlay = CreateOverlay(new AppSettings(), showUpdates: null);
+            var view = (ClipboardManager.Views.SettingsView)overlay.Content!;
+            var startup = view.StartWithWindowsCheckBox;
+            bool? result = null;
+            overlay.CloseRequest = value => result = value;
+
+            Assert.False(startup.IsChecked);
+            startup.IsChecked = true;
+            Click(view.CancelButton);
+
+            Assert.False(result);
+            Assert.False(overlay.StartWithWindows);
+        });
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void SaveReturnsTheSelectedStartWithWindowsChoice(bool initialValue, bool selectedValue)
+    {
+        wpf.Run(() =>
+        {
+            var overlay = new SettingsOverlay(new AppSettings(), Path.GetTempPath(), startWithWindows: initialValue);
+            var view = (ClipboardManager.Views.SettingsView)overlay.Content!;
+            var startup = view.StartWithWindowsCheckBox;
+            bool? result = null;
+            overlay.CloseRequest = value => result = value;
+            Assert.Equal(initialValue, startup.IsChecked);
+            startup.IsChecked = selectedValue;
+
+            Click(view.SaveButton);
+
+            Assert.True(result);
+            Assert.Equal(selectedValue, overlay.StartWithWindows);
+        });
+    }
+
     private static SettingsOverlay CreateOverlay(AppSettings settings, Func<Task>? showUpdates)
     {
         return new SettingsOverlay(settings, Path.GetTempPath(), showUpdates);

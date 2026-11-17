@@ -17,12 +17,17 @@ internal static class UpdateWorker
             {
                 using (var appGate = AcquireApplication())
                 {
-                    try { UpdateFiles.RemoveManagedFiles(AppDomain.CurrentDomain.BaseDirectory); }
+                    try
+                    {
+                        string directory = AppDomain.CurrentDomain.BaseDirectory;
+                        try { StartupRegistration.RemoveForExecutable(Path.Combine(directory, "ClipboardManager.exe")); }
+                        finally { UpdateFiles.RemoveManagedFiles(directory); }
+                    }
                     finally { appGate.ReleaseMutex(); }
                 }
                 return 0;
             }
-            catch (Exception exception) { MessageBox.Show("增量更新文件清理未完成：" + exception.Message, "剪贴板卸载"); return 1; }
+            catch (Exception exception) { MessageBox.Show("卸载清理未完成：" + exception.Message, "剪贴板卸载"); return 1; }
         }
         string workspace = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         string root = Path.GetDirectoryName(workspace);

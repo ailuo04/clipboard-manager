@@ -9,6 +9,7 @@ namespace ClipboardManager.ViewModels;
 public sealed class MainViewModel : ObservableObject
 {
     private readonly HistoryService _history;
+    private readonly StartupService _startup;
     private readonly Window _owner;
     private Views.ImageEditorWindow? _imageEditor;
     private readonly Action<bool>? _trayModeChanged;
@@ -33,9 +34,11 @@ public sealed class MainViewModel : ObservableObject
     public MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged = null)
         : this(owner, history, trayModeChanged, null) { }
 
-    internal MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged, WindowOverlayHost? overlays)
+    internal MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged, WindowOverlayHost? overlays,
+        StartupService? startup = null)
     {
         _history = history;
+        _startup = startup ?? new StartupService();
         _owner = owner;
         _trayModeChanged = trayModeChanged;
         _overlays = overlays;
@@ -229,17 +232,31 @@ public sealed class MainViewModel : ObservableObject
         try
         {
             if (_overlays is null) return;
-            var dialog = new SettingsOverlay(_history.Settings, _history.RootDirectory, ShowUpdatesAsync);
+            bool? startupEnabled = null;
+            try { startupEnabled = _startup.IsEnabled; }
+            catch (Exception exception) { AppLogger.LogException("读取开机自启动设置失败", exception); }
+            var dialog = new SettingsOverlay(_history.Settings, _history.RootDirectory, ShowUpdatesAsync, startupEnabled);
             if (await _overlays.ShowAsync(dialog, OverlaySize.Settings) != true) return;
             await RunOperationAsync(async () =>
             {
                 string? warning = await _history.UpdateSettingsAsync(dialog.Settings, _lifetime.Token);
+                Notice = warning ?? string.Empty;
                 ThemeManager.SetPreference(dialog.SelectedTheme);
                 ApplyTrayMode(_history.Settings.MinimizeToTray);
                 _updateCoordinator.ResetAutoCheckDelay();
                 RefreshRecords();
                 Status = "设置已保存";
-                if (warning is not null) Notice = warning;
+                if (dialog.StartWithWindows is bool startWithWindows)
+                {
+                    try { _startup.SetEnabled(startWithWindows); }
+                    catch (Exception exception)
+                    {
+                        AppLogger.LogException("更新开机自启动设置失败", exception);
+                        Status = "部分设置已保存";
+                        string message = "其他设置已保存，但开机自启动设置失败：" + exception.Message;
+                        Notice = string.IsNullOrEmpty(Notice) ? message : Notice + " " + message;
+                    }
+                }
             }, "保存设置失败");
         }
         catch (Exception exception) { Report("打开设置失败", exception); }

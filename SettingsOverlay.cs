@@ -11,7 +11,7 @@ internal sealed class SettingsOverlay : OverlayView
 {
     private readonly AppTheme _openedTheme;
 
-    internal SettingsOverlay(AppSettings settings, string dataDirectory, Func<Task>? showUpdates = null)
+    internal SettingsOverlay(AppSettings settings, string dataDirectory, Func<Task>? showUpdates = null, bool? startWithWindows = false)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _openedTheme = ThemeManager.Preference;
@@ -38,6 +38,15 @@ internal sealed class SettingsOverlay : OverlayView
         themeLight.Checked += PreviewTheme;
         themeSystem.Checked += PreviewTheme;
 
+        StartWithWindows = startWithWindows;
+        var startup = view.StartWithWindowsCheckBox;
+        startup.IsChecked = startWithWindows == true;
+        startup.IsEnabled = startWithWindows.HasValue;
+        if (!startWithWindows.HasValue)
+        {
+            validation.Text = "无法读取开机自启动设置，其他设置仍可修改。";
+            startup.ToolTip = validation.Text;
+        }
         var autoUpdates = view.AutoCheckUpdatesCheckBox;
         var minimizeToTray = view.MinimizeToTrayCheckBox;
         autoUpdates.IsChecked = Settings.AutoCheckUpdates;
@@ -84,6 +93,7 @@ internal sealed class SettingsOverlay : OverlayView
             Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
             Settings.MinimizeToTray = minimizeToTray.IsChecked == true;
             Settings.HideCapsulePreview = hideCapsulePreview.IsChecked == true;
+            StartWithWindows = startup.IsEnabled ? startup.IsChecked == true : null;
             SelectedTheme = selectedTheme;
             Complete(true);
         };
@@ -96,6 +106,8 @@ internal sealed class SettingsOverlay : OverlayView
     }
 
     public AppSettings Settings { get; private set; }
+
+    public bool? StartWithWindows { get; private set; }
 
     public AppTheme SelectedTheme { get; private set; } = ThemeManager.Preference;
 
