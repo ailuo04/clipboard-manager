@@ -229,6 +229,13 @@ public partial class MainView : Grid
 
     private void OnHoverPreviewMouseDown(object sender, MouseButtonEventArgs args) => HoverPreviewSurface.Focus();
 
+    private void OnHoverPreviewTextMouseDown(object sender, MouseButtonEventArgs args)
+    {
+        if (args.ChangedButton != MouseButton.Left || !ReferenceEquals(_hoverPreviewTarget, LatestCopyButton)) return;
+        // The popup does not activate on click. Activate its owner before TextBox handles this press.
+        if (Window.GetWindow(this) is { IsActive: false } owner) owner.Activate();
+    }
+
     private void OnHoverPreviewKeyDown(object sender, KeyEventArgs args)
     {
         if (args.Key != Key.Escape || Keyboard.Modifiers != ModifierKeys.None) return;

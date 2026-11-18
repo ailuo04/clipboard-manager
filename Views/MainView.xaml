@@ -265,6 +265,7 @@
                            Foreground="{DynamicResource AccentBrush}" Margin="1,0,0,7" />
                 <TextBox x:Name="HoverPreviewTextContent" MaxHeight="280" Style="{StaticResource HoverPreviewTextBox}"
                          Text="{Binding HoverText, Mode=OneWay}" AutomationProperties.Name="可选择复制的文本预览"
+                         PreviewMouseDown="OnHoverPreviewTextMouseDown"
                          ContextMenuOpening="OnHoverPreviewContextMenuOpening">
                     <TextBox.ContextMenu>
                         <ContextMenu Opened="OnHoverPreviewContextMenuOpening" Closed="OnHoverPreviewContextMenuClosed">

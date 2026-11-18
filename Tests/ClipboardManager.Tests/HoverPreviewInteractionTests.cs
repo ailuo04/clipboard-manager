@@ -165,6 +165,28 @@ public sealed class HoverPreviewInteractionTests(SettingsOverlayWpfFixture wpf)
         finally { ThemeManager.Apply(original); }
     });
 
+    [Fact]
+    public void HoveringOverTheCapsuleDoesNotActivateItButPressingThePreviewTextDoes() => wpf.Run(() => WithView(view =>
+    {
+        Window owner = Window.GetWindow(view)!;
+        Popup popup = Preview(view);
+        Enter(view.LatestCopyButton);
+        Pump(360);
+        Assert.True(popup.IsOpen);
+        Assert.False(view.IsHistoryPopupOpen);
+        Assert.False(owner.IsActive);
+
+        var text = Assert.Single(Descendants<TextBox>(popup.Child));
+        Assert.Equal("6\r\nJ-USB1", text.Text);
+        var press = new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left)
+            { RoutedEvent = Mouse.PreviewMouseDownEvent };
+        text.RaiseEvent(press);
+
+        Assert.True(owner.IsActive);
+        Assert.False(press.Handled); // The same press must reach the TextBox's normal selection handler.
+        Assert.True(popup.IsOpen);
+    }, hoverText: "6\r\nJ-USB1"));
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -318,11 +340,11 @@ public sealed class HoverPreviewInteractionTests(SettingsOverlayWpfFixture wpf)
         return popup;
     }
 
-    private static void WithView(Action<MainView> action, Action? copy = null)
+    private static void WithView(Action<MainView> action, Action? copy = null, string? hoverText = null)
     {
         var record = new
         {
-            HoverText = string.Join("\n", Enumerable.Range(1, 70).Select(index => $"第 {index} 行：可滚动预览内容。")),
+            HoverText = hoverText ?? string.Join("\n", Enumerable.Range(1, 70).Select(index => $"第 {index} 行：可滚动预览内容。")),
             ContentInfo = "预览测试", SingleLine = "可滚动预览内容", ShortTimeLabel = "12:00", PositionLabel = "1",
             CopyCommand = new RelayCommand(copy ?? (() => { }))
         };
