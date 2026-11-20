@@ -43,7 +43,7 @@ public sealed class StartupSettingsTests(SettingsOverlayWpfFixture wpf)
                 frame = new WindowFrame();
                 window.Content = frame;
                 host = new WindowOverlayHost(window, frame);
-                model = new MainViewModel(window, history, null, host, startup);
+                model = new MainViewModel(window, history, host, startup);
                 initialized = model.InitializeAsync();
             });
             await initialized;

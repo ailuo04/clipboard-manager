@@ -48,9 +48,7 @@ internal sealed class SettingsOverlay : OverlayView
             startup.ToolTip = validation.Text;
         }
         var autoUpdates = view.AutoCheckUpdatesCheckBox;
-        var minimizeToTray = view.MinimizeToTrayCheckBox;
         autoUpdates.IsChecked = Settings.AutoCheckUpdates;
-        minimizeToTray.IsChecked = Settings.MinimizeToTray;
         var hideCapsulePreview = view.HideCapsulePreviewCheckBox;
         hideCapsulePreview.IsChecked = Settings.HideCapsulePreview;
         var updateButton = view.OpenUpdatesButton;
@@ -91,7 +89,6 @@ internal sealed class SettingsOverlay : OverlayView
             Settings.MaxRecords = count;
             Settings.MaxStorageMb = megabytes;
             Settings.AutoCheckUpdates = autoUpdates.IsChecked == true;
-            Settings.MinimizeToTray = minimizeToTray.IsChecked == true;
             Settings.HideCapsulePreview = hideCapsulePreview.IsChecked == true;
             StartWithWindows = startup.IsEnabled ? startup.IsChecked == true : null;
             SelectedTheme = selectedTheme;

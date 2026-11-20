@@ -8,8 +8,6 @@ public sealed class AppSettings
 
     public bool AutoCheckUpdates { get; set; } = true;
 
-    public bool MinimizeToTray { get; set; } = false;
-
     public bool HideCapsulePreview { get; set; } = false;
 
     public double? WidgetLeft { get; set; }
@@ -23,7 +21,6 @@ public sealed class AppSettings
             MaxRecords = MaxRecords,
             MaxStorageMb = MaxStorageMb,
             AutoCheckUpdates = AutoCheckUpdates,
-            MinimizeToTray = MinimizeToTray,
             HideCapsulePreview = HideCapsulePreview,
             WidgetLeft = WidgetLeft,
             WidgetTop = WidgetTop

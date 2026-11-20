@@ -208,7 +208,6 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
             view.MaxRecordsBox.Text = "600";
             view.MaxStorageBox.Text = "768";
             view.AutoCheckUpdatesCheckBox.IsChecked = false;
-            view.MinimizeToTrayCheckBox.IsChecked = true;
             view.ThemeDarkRadio.IsChecked = true;
 
             Click(view.SaveButton);
@@ -219,7 +218,6 @@ public sealed class SettingsOverlayTests(SettingsOverlayWpfFixture wpf)
             Assert.Equal(600, ReadSettings(overlay).MaxRecords);
             Assert.Equal(768, ReadSettings(overlay).MaxStorageMb);
             Assert.False(ReadSettings(overlay).AutoCheckUpdates);
-            Assert.True(ReadSettings(overlay).MinimizeToTray);
             Assert.Equal(AppTheme.Dark, ReadSelectedTheme(overlay));
             overlay.OnDismissed(true);
             Assert.Equal(AppTheme.Dark, ThemeManager.Preference);

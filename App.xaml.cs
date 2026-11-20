@@ -13,7 +13,7 @@ public partial class App : Application
     private RegisteredWaitHandle? _activationWait;
     private int _exitCode;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         _instanceMutex = new Mutex(true, "Local\\ClipboardManager.Desktop.v1", out bool created);
         if (!created)
@@ -40,9 +40,10 @@ public partial class App : Application
             {
                 if (args.ExceptionObject is Exception exception) AppLogger.LogException("未处理的后台异常", exception);
             };
-            MainWindow = new MainWindow();
-            MainWindow.Show();
+            var window = new MainWindow();
+            MainWindow = window;
             ListenForActivationRequests();
+            await window.StartInTrayAsync();
         }
         catch (Exception exception)
         {

@@ -43,7 +43,7 @@ public sealed class ClearConfirmationOverlayTests(SettingsOverlayWpfFixture wpf)
                 var frame = new ClipboardManager.Views.WindowFrame();
                 window.Content = frame;
                 host = new WindowOverlayHost(window, frame);
-                viewModel = new MainViewModel(window, history, null, host);
+                viewModel = new MainViewModel(window, history, host);
                 initialized = viewModel.InitializeAsync();
             });
             await initialized;

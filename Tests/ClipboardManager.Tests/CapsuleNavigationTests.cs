@@ -226,9 +226,6 @@ public sealed class CapsuleNavigationTests(SettingsOverlayWpfFixture wpf)
                 window = new MainWindow(new HistoryService(new HistoryStore(
                     System.IO.Path.Combine(System.IO.Path.GetTempPath(), Guid.NewGuid().ToString("N")))))
                     { ShowInTaskbar = false, Topmost = false, Opacity = 0 };
-                // Navigation tests use real loaded visuals, but never start clipboard capture or updates.
-                var loaded = typeof(MainWindow).GetMethod("OnLoaded", PrivateInstance)!;
-                window.Loaded -= (RoutedEventHandler)loaded.CreateDelegate(typeof(RoutedEventHandler), window);
                 view = Field<MainView>(window, "_view");
                 ((Popup)view.FindName("HistoryPopup")).Child.Opacity = 0;
                 window.Show();

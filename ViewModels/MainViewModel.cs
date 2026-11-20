@@ -12,7 +12,6 @@ public sealed class MainViewModel : ObservableObject
     private readonly StartupService _startup;
     private readonly Window _owner;
     private Views.ImageEditorWindow? _imageEditor;
-    private readonly Action<bool>? _trayModeChanged;
     private readonly WindowOverlayHost? _overlays;
     private readonly ClipboardReader _clipboard = new();
     private readonly ClipboardMonitor _monitor;
@@ -31,16 +30,15 @@ public sealed class MainViewModel : ObservableObject
     private string _notice = string.Empty;
     private string _status = "正在加载历史记录…";
 
-    public MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged = null)
-        : this(owner, history, trayModeChanged, null) { }
+    public MainViewModel(Window owner, HistoryService history)
+        : this(owner, history, null) { }
 
-    internal MainViewModel(Window owner, HistoryService history, Action<bool>? trayModeChanged, WindowOverlayHost? overlays,
+    internal MainViewModel(Window owner, HistoryService history, WindowOverlayHost? overlays,
         StartupService? startup = null)
     {
         _history = history;
         _startup = startup ?? new StartupService();
         _owner = owner;
-        _trayModeChanged = trayModeChanged;
         _overlays = overlays;
         _monitor = new ClipboardMonitor(owner);
         _capture = new ClipboardCaptureCoordinator(_clipboard, _history,
@@ -122,7 +120,6 @@ public sealed class MainViewModel : ObservableObject
             if (IsClosing) return;
             RefreshRecords();
             _monitor.Start();
-            ApplyTrayMode(_history.Settings.MinimizeToTray);
             IsReady = true;
             _updateCoordinator.StartAfterLoad();
             Status = "历史记录已加载";
@@ -242,7 +239,6 @@ public sealed class MainViewModel : ObservableObject
                 string? warning = await _history.UpdateSettingsAsync(dialog.Settings, _lifetime.Token);
                 Notice = warning ?? string.Empty;
                 ThemeManager.SetPreference(dialog.SelectedTheme);
-                ApplyTrayMode(_history.Settings.MinimizeToTray);
                 _updateCoordinator.ResetAutoCheckDelay();
                 RefreshRecords();
                 Status = "设置已保存";
@@ -263,16 +259,6 @@ public sealed class MainViewModel : ObservableObject
     }
 
     private Task ShowUpdatesAsync() => _updateCoordinator.ShowUpdatesAsync();
-
-    private void ApplyTrayMode(bool enabled)
-    {
-        try { _trayModeChanged?.Invoke(enabled); }
-        catch (Exception exception)
-        {
-            AppLogger.LogException("更新系统托盘状态失败", exception);
-            Notice = "系统托盘不可用；关闭窗口时程序将退出。";
-        }
-    }
 
     private async Task RunOperationAsync(Func<Task> action, string context)
     {
@@ -324,7 +310,7 @@ public sealed class MainViewModel : ObservableObject
     public void ReportHotKeyFailure(Exception exception)
     {
         string previousNotice = Notice;
-        Report("全局快捷键 Ctrl+Shift+Space 注册失败，可能已被其他程序占用；仍可点击胶囊箭头查看历史记录", exception);
+        Report("全局快捷键 Ctrl+Shift+Space 注册失败，可能已被其他程序占用；可从系统托盘或胶囊打开历史记录", exception);
         if (!string.IsNullOrEmpty(previousNotice)) Notice = previousNotice + " " + Notice;
     }
 

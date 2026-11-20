@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory)]
     [string]$Archive,
     [ValidatePattern('^\d+\.\d+\.\d+$')]
-    [string]$Version = '0.1.6',
+    [string]$Version = '0.1.7',
     [string]$OutputDirectory = (Join-Path $PSScriptRoot 'dist'),
     [string]$CompilerPath,
     [switch]$VerifyInstall
@@ -79,6 +79,18 @@ using System.Text;
 public static class ClipboardInstallerPaths {
     [DllImport("kernel32.dll", EntryPoint = "GetLongPathNameW", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern uint Expand(string path, StringBuilder buffer, uint capacity);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr FindWindowEx(IntPtr parent, IntPtr previous, string className, string title);
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr window, out uint processId);
+    public static bool HasAppWindow(uint processId) {
+        IntPtr window = IntPtr.Zero;
+        while ((window = FindWindowEx(IntPtr.Zero, window, null, "剪贴板")) != IntPtr.Zero) {
+            GetWindowThreadProcessId(window, out uint owner);
+            if (owner == processId) return true;
+        }
+        return false;
+    }
     [ComImport, Guid("000214F9-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IUnicodeShellLink {
         void GetPath([Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder path, int capacity, IntPtr findData, uint flags);
@@ -127,19 +139,18 @@ public static class ClipboardInstallerPaths {
                 else { Join-Path $installDirectory 'ClipboardManager.exe' }
             } else { Join-Path $installDirectory 'runtime\dotnet.exe' }
             for ($attempt = 0; $attempt -lt 60; $attempt++) {
-                $appWindowProcess = Get-Process | Where-Object { $_.Path -eq $expectedHost -and $_.MainWindowHandle -ne [IntPtr]::Zero } | Select-Object -First 1
+                $appWindowProcess = Get-Process | Where-Object { $_.Path -eq $expectedHost -and [ClipboardInstallerPaths]::HasAppWindow($_.Id) } | Select-Object -First 1
                 if ($appWindowProcess) { break }
-                if ($appProcess.HasExited) { throw 'The installed launcher exited before opening the application.' }
+                if ($appProcess.HasExited) { throw 'The installed launcher exited before starting the application.' }
                 Start-Sleep -Milliseconds 250
             }
-            if (-not $appWindowProcess) { throw 'The installed application did not open its main window.' }
-            # Get-Process must retain its handle before exit, otherwise ExitCode is unavailable.
-            $null = $appWindowProcess.Handle
-            if (-not $appWindowProcess.CloseMainWindow()) { throw 'The installed application did not accept a close request.' }
-            if (-not $appWindowProcess.WaitForExit(15000)) { throw 'The installed application did not exit within 15 seconds.' }
-            if ($appWindowProcess.ExitCode -ne 0) { throw "The installed application exited with code: $($appWindowProcess.ExitCode)" }
-            if (-not $appProcess.WaitForExit(15000)) { throw 'The installed launcher did not exit within 15 seconds.' }
-            if ($appProcess.ExitCode -ne 0) { throw "The installed launcher exited with code: $($appProcess.ExitCode)" }
+            if (-not $appWindowProcess) { throw 'The installed application did not initialize its native window.' }
+            if ($appWindowProcess.WaitForExit(1000)) { throw "The installed application exited during startup: $($appWindowProcess.ExitCode)" }
+            # Closing a tray application hides it. Stop this disposable install before reinstalling.
+            $appProcess.Kill($true)
+            if (-not $appProcess.WaitForExit(15000) -or -not $appWindowProcess.WaitForExit(15000)) {
+                throw 'The installer smoke-test processes did not stop within 15 seconds.'
+            }
             $appWindowProcess = $null
             $appProcess = $null
             Invoke-Setup $builtInstaller $arguments

@@ -31,7 +31,6 @@ public sealed class MainWindow : Window
     private readonly SystemTrayIcon _trayIcon;
     private bool _allowClose;
     private bool _exitRequested;
-    private bool _closeToTray;
     private bool _restoreHistoryPopupAfterOverlay;
     private bool _deactivationDeferredForRecordDrag;
     private bool _applicationDeactivated;
@@ -48,7 +47,8 @@ public sealed class MainWindow : Window
         Height = CapsuleHeight;
         ResizeMode = ResizeMode.NoResize;
         Topmost = true;
-        // The capsule appears at startup without taking the focus from whatever the user is doing.
+        ShowInTaskbar = false;
+        // When shown, the capsule only takes focus on an explicit activation request.
         ShowActivated = false;
         WindowStartupLocation = WindowStartupLocation.Manual;
         Rect workArea = SystemParameters.WorkArea;
@@ -70,6 +70,7 @@ public sealed class MainWindow : Window
         _view = new Views.MainView();
         _view.CapsuleDragHandle.MouseLeftButtonDown += OnCapsuleDragHandleMouseDown;
         _view.HistoryToggleRequested += OnHistoryToggleRequested;
+        _view.HistoryPopup.Closed += OnHistoryPopupClosed;
         _view.RecordDragCompleted += OnRecordDragCompleted;
         _view.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
         _windowFrame.WindowContent.Children.Add(_view);
@@ -77,11 +78,13 @@ public sealed class MainWindow : Window
         _overlayHost = new WindowOverlayHost(this, _windowFrame);
         _overlayHost.SessionStarting += OnOverlaySessionStarting;
         _overlayHost.SessionEnded += OnOverlaySessionEnded;
-        _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()),
-            UpdateTrayMode, _overlayHost);
+        _viewModel = new MainViewModel(this, history ?? new HistoryService(new HistoryStore()), _overlayHost);
         _trayIcon = new SystemTrayIcon(this);
         _trayIcon.OpenRequested += (_, _) => ShowHistoryAndFocus();
-        _trayIcon.PauseRequested += (_, _) => _viewModel.PauseCommand.Execute(null);
+        _trayIcon.PauseRequested += (_, _) =>
+        {
+            if (_viewModel.PauseCommand.CanExecute(null)) _viewModel.PauseCommand.Execute(null);
+        };
         _trayIcon.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         _viewModel.CopyCompleted += OnCopyCompleted;
@@ -101,7 +104,6 @@ public sealed class MainWindow : Window
             HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(WndProc);
         };
         ThemeManager.RegisterWindow(this);
-        Loaded += OnLoaded;
         Closing += OnClosing;
         Application.Current.SessionEnding += OnSessionEnding;
         Closed += (_, _) =>
@@ -113,13 +115,20 @@ public sealed class MainWindow : Window
         };
     }
 
-    private async void OnLoaded(object sender, RoutedEventArgs args)
+    internal async Task StartInTrayAsync()
     {
-        Loaded -= OnLoaded;
-        UpdateWindowFrame();
+        // The clipboard listener, shortcut and tray callbacks need an HWND even before the first Show().
+        new WindowInteropHelper(this).EnsureHandle();
         await _viewModel.InitializeAsync();
         if (_viewModel.IsClosing) return;
         RestoreWidgetPosition();
+        try { _trayIcon.SetEnabled(true, _viewModel.IsPaused); }
+        catch (Exception exception)
+        {
+            // Keep the capsule accessible if Explorer cannot register the tray icon.
+            _viewModel.ReportTrayFailure(exception);
+            Show();
+        }
         try { _hotKey.Start(); }
         catch (Exception exception) { _viewModel.ReportHotKeyFailure(exception); }
     }
@@ -240,7 +249,7 @@ public sealed class MainWindow : Window
 
         Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
         {
-            if (!_overlayHost.IsOpen && !_viewModel.IsClosing && !_exitRequested)
+            if (IsVisible && !_overlayHost.IsOpen && !_viewModel.IsClosing && !_exitRequested)
                 OpenHistoryPopup();
         }));
     }
@@ -400,18 +409,14 @@ public sealed class MainWindow : Window
         Close();
     }
 
-    private void UpdateTrayMode(bool enabled)
+    private void OnHistoryPopupClosed(object? sender, EventArgs args)
     {
-        try
+        if (!_trayIcon.IsEnabled || _overlayHost.IsOpen || _exitRequested) return;
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
-            _trayIcon.SetEnabled(enabled, _viewModel.IsPaused);
-            _closeToTray = enabled && _trayIcon.IsEnabled;
-        }
-        catch (Exception exception)
-        {
-            _closeToTray = false;
-            _viewModel.ReportTrayFailure(exception);
-        }
+            if (IsVisible && !_view.IsHistoryPopupOpen && !_overlayHost.IsOpen && !_exitRequested)
+                Hide();
+        }));
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
@@ -429,9 +434,10 @@ public sealed class MainWindow : Window
     private async void OnClosing(object? sender, CancelEventArgs args)
     {
         _overlayHost.CloseAll(null);
-        if (!_exitRequested && _closeToTray && _viewModel.IsReady)
+        if (!_exitRequested && _trayIcon.IsEnabled)
         {
             args.Cancel = true;
+            _view.CloseHistoryPopup();
             Hide();
             return;
         }
