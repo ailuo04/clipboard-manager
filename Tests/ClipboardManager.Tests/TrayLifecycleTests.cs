@@ -15,7 +15,7 @@ namespace ClipboardManager.Tests;
 public sealed class TrayLifecycleTests(SettingsOverlayWpfFixture wpf)
 {
     [Fact]
-    public async Task ExistingProfileStartsHiddenAndCanOpenPauseAndExitFromTray()
+    public async Task ExistingProfileKeepsCapsuleVisibleUntilWindowClosesToTray()
     {
         string directory = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
@@ -29,10 +29,10 @@ public sealed class TrayLifecycleTests(SettingsOverlayWpfFixture wpf)
             Task startup = Task.CompletedTask;
             wpf.Run(() =>
             {
-                window = new MainWindow(new HistoryService(store)) { Opacity = 0, Topmost = false };
+                window = new MainWindow(new HistoryService(store)) { Opacity = 0 };
                 window.Closed += (_, _) => closed.TrySetResult();
                 Assert.False(window.ShowInTaskbar);
-                startup = window.StartInTrayAsync();
+                startup = window.StartAsync();
             });
             await startup.WaitAsync(TimeSpan.FromSeconds(10));
             wpf.Run(() =>
@@ -46,13 +46,14 @@ public sealed class TrayLifecycleTests(SettingsOverlayWpfFixture wpf)
 
                 Assert.True(model.IsReady);
                 Assert.True(monitor.IsStarted);
+                bool capsuleVisibleAtStartup = window.IsVisible;
+                Assert.True(window.Topmost);
                 if (GetShellWindow() == IntPtr.Zero && !tray.IsEnabled)
                 {
                     Assert.True(window.IsVisible);
                     window.ExitApplication();
                     return;
                 }
-                Assert.False(window.IsVisible);
                 Assert.True(tray.IsEnabled);
 
                 SendMessage(handle, TrayNativeMethods.TrayCallbackMessage, IntPtr.Zero, TrayNativeMethods.WmLeftButtonUp);
@@ -61,7 +62,8 @@ public sealed class TrayLifecycleTests(SettingsOverlayWpfFixture wpf)
                 Assert.False(window.ShowInTaskbar);
                 view.CloseHistoryPopup();
                 DrainDispatcher();
-                Assert.False(window.IsVisible);
+                Assert.Equal((true, true), (capsuleVisibleAtStartup, window.IsVisible));
+                Assert.False(view.IsHistoryPopupOpen);
                 Assert.True(monitor.IsStarted);
 
                 window.ShowFromExternalRequest();

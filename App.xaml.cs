@@ -43,7 +43,7 @@ public partial class App : Application
             var window = new MainWindow();
             MainWindow = window;
             ListenForActivationRequests();
-            await window.StartInTrayAsync();
+            await window.StartAsync();
         }
         catch (Exception exception)
         {

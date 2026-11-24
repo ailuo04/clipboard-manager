@@ -70,7 +70,6 @@ public sealed class MainWindow : Window
         _view = new Views.MainView();
         _view.CapsuleDragHandle.MouseLeftButtonDown += OnCapsuleDragHandleMouseDown;
         _view.HistoryToggleRequested += OnHistoryToggleRequested;
-        _view.HistoryPopup.Closed += OnHistoryPopupClosed;
         _view.RecordDragCompleted += OnRecordDragCompleted;
         _view.ExitRequested += (_, _) => Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(ExitApplication));
         _windowFrame.WindowContent.Children.Add(_view);
@@ -115,20 +114,16 @@ public sealed class MainWindow : Window
         };
     }
 
-    internal async Task StartInTrayAsync()
+    internal async Task StartAsync()
     {
-        // The clipboard listener, shortcut and tray callbacks need an HWND even before the first Show().
+        // The clipboard listener needs an HWND during initialization, before the capsule is shown.
         new WindowInteropHelper(this).EnsureHandle();
         await _viewModel.InitializeAsync();
         if (_viewModel.IsClosing) return;
         RestoreWidgetPosition();
+        Show();
         try { _trayIcon.SetEnabled(true, _viewModel.IsPaused); }
-        catch (Exception exception)
-        {
-            // Keep the capsule accessible if Explorer cannot register the tray icon.
-            _viewModel.ReportTrayFailure(exception);
-            Show();
-        }
+        catch (Exception exception) { _viewModel.ReportTrayFailure(exception); }
         try { _hotKey.Start(); }
         catch (Exception exception) { _viewModel.ReportHotKeyFailure(exception); }
     }
@@ -407,16 +402,6 @@ public sealed class MainWindow : Window
     {
         _exitRequested = true;
         Close();
-    }
-
-    private void OnHistoryPopupClosed(object? sender, EventArgs args)
-    {
-        if (!_trayIcon.IsEnabled || _overlayHost.IsOpen || _exitRequested) return;
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-        {
-            if (IsVisible && !_view.IsHistoryPopupOpen && !_overlayHost.IsOpen && !_exitRequested)
-                Hide();
-        }));
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
