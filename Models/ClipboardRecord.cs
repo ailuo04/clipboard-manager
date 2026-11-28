@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace ClipboardManager.Models;
 
 public sealed record ClipboardRecord
@@ -7,6 +9,9 @@ public sealed record ClipboardRecord
     public ClipboardRecordKind Kind { get; set; }
 
     public string? Text { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public byte[]? QqRichText { get; set; }
 
     public string? ImageFileName { get; set; }
 

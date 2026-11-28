@@ -1,14 +1,17 @@
 using System.Windows;
 using System.Windows.Media.Imaging;
+using ClipboardManager.Services;
 
 namespace ClipboardManager.Utilities;
 
 internal static class RecordDragData
 {
-    internal static DataObject CreateText(string text)
+    internal static DataObject CreateText(string text, byte[]? qqRichText = null)
     {
         var data = new DataObject();
         data.SetText(text, TextDataFormat.UnicodeText);
+        if (qqRichText is { Length: > 0 })
+            data.SetData(QqClipboardText.RichTextFormat, new MemoryStream(qqRichText, writable: false), autoConvert: false);
         return data;
     }
 

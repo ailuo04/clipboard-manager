@@ -88,6 +88,8 @@ public sealed class HistoryService
         byte[]? imageBytes = null;
         string hash;
         int width = 0, height = 0;
+        long textBytes = 0;
+        byte[]? qqRichText = null;
         if (snapshot.Kind == ClipboardRecordKind.Image)
         {
             var prepared = await Task.Run(() => ImageProcessor.Prepare(snapshot.Image ?? throw new InvalidDataException("图片数据为空。")), cancellationToken).ConfigureAwait(false);
@@ -99,7 +101,8 @@ public sealed class HistoryService
         else
         {
             if (string.IsNullOrEmpty(snapshot.Text)) throw new InvalidDataException("文本数据为空。");
-            hash = await Task.Run(() => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(snapshot.Text))), cancellationToken).ConfigureAwait(false);
+            qqRichText = snapshot.QqRichText is { Length: > 0 } rich ? rich : null;
+            (hash, textBytes) = await Task.Run(() => MeasureText(snapshot.Text, qqRichText), cancellationToken).ConfigureAwait(false);
         }
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
@@ -109,10 +112,10 @@ public sealed class HistoryService
             var existing = _records.FirstOrDefault(record => record.Kind == snapshot.Kind && record.ContentHash == hash);
             var record = existing is null ? new ClipboardRecord
             {
-                Kind = snapshot.Kind, Text = snapshot.Text, ContentHash = hash,
+                Kind = snapshot.Kind, Text = snapshot.Text, QqRichText = qqRichText, ContentHash = hash,
                 CopiedAtUtc = snapshot.CapturedAtUtc,
                 ImageWidth = width, ImageHeight = height,
-                ByteLength = imageBytes?.LongLength ?? Encoding.UTF8.GetByteCount(snapshot.Text!)
+                ByteLength = imageBytes?.LongLength ?? textBytes
             } : existing with { CopiedAtUtc = snapshot.CapturedAtUtc };
             var next = _records.Where(item => item.Id != record.Id).Prepend(record).ToList();
             string? createdFile = null;
@@ -144,6 +147,19 @@ public sealed class HistoryService
             }
         }
         finally { _gate.Release(); }
+    }
+
+    private static (string Hash, long Bytes) MeasureText(string text, byte[]? qqRichText)
+    {
+        var plain = Encoding.UTF8.GetBytes(text);
+        if (qqRichText is null) return (Convert.ToHexString(SHA256.HashData(plain)), plain.Length);
+
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        hash.AppendData(plain);
+        hash.AppendData([0]); // NUL terminates clipboard text; it cannot occur inside the captured text.
+        hash.AppendData(qqRichText);
+        // History serializes the native bytes as Base64.
+        return (Convert.ToHexString(hash.GetHashAndReset()), plain.LongLength + 4 * ((qqRichText.LongLength + 2) / 3));
     }
 
     public Task<string?> DeleteAsync(Guid id, CancellationToken cancellationToken = default)

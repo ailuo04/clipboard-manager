@@ -10,6 +10,7 @@ namespace ClipboardManager.Services;
 public sealed class ClipboardReader : IAsyncDisposable
 {
     public const int MaxClipboardBytes = 128 * 1024 * 1024;
+    private const int MaxTextBytes = 8 * 1024 * 1024;
     private const string OriginFormat = "ClipboardManager.PrivateOrigin.v1";
     private static readonly string[] ImageFormats = ["PNG", "image/png", "JFIF", "JPEG", "image/jpeg", "BMP", "image/bmp"];
     private static readonly HashSet<string> ImageExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -20,7 +21,7 @@ public sealed class ClipboardReader : IAsyncDisposable
     public Task<ClipboardReadResult> ReadAsync(CancellationToken cancellationToken)
         => _worker.RunAsync(() => Read(cancellationToken), cancellationToken);
 
-    public Task WriteTextAsync(string text, IntPtr owner, CancellationToken cancellationToken)
+    public Task WriteTextAsync(string text, IntPtr owner, CancellationToken cancellationToken, byte[]? qqRichText = null)
     {
         return _worker.RunAsync(() =>
         {
@@ -28,6 +29,15 @@ public sealed class ClipboardReader : IAsyncDisposable
             try
             {
                 NativeMethods.Check(NativeMethods.EmptyClipboard(), "清空剪贴板以写入文本失败");
+                // Offer the native representation first, with Unicode for apps that do not recognize it.
+                if (qqRichText is { Length: > 0 and <= MaxTextBytes })
+                {
+                    try { SetBytes(RegisterFormat(QqClipboardText.RichTextFormat), qqRichText); }
+                    catch (Exception exception) when (IsExpectedReadError(exception))
+                    {
+                        AppLogger.LogException("写入 QQ 富文本失败，将继续写入纯文本", exception);
+                    }
+                }
                 SetBytes(NativeMethods.CfUnicodeText, Encoding.Unicode.GetBytes(text + '\0'));
                 SetOrigin();
                 return true;
@@ -66,6 +76,8 @@ public sealed class ClipboardReader : IAsyncDisposable
         bool hasBitmap = false;
         string? imagePath = null;
         string? text = null;
+        byte[]? qqRichText = null;
+        byte[]? qqHtml = null;
         string source = string.Empty;
         var errors = new List<string>();
         uint sequence;
@@ -157,7 +169,7 @@ public sealed class ClipboardReader : IAsyncDisposable
                 // Unreadable or oversized text must not discard an image copied alongside it.
                 try
                 {
-                    var bytes = ReadBytes(NativeMethods.CfUnicodeText, 8 * 1024 * 1024);
+                    var bytes = ReadBytes(NativeMethods.CfUnicodeText, MaxTextBytes);
                     int length = 0;
                     while (length + 1 < bytes.Length && (bytes[length] != 0 || bytes[length + 1] != 0)) length += 2;
                     text = Encoding.Unicode.GetString(bytes, 0, length);
@@ -166,6 +178,16 @@ public sealed class ClipboardReader : IAsyncDisposable
                 {
                     LogFormatError("文本", exception, errors);
                 }
+            }
+
+            // QQ exports system emoji as a native rich-text payload plus named HTML image references.
+            var qqFormat = RegisterFormat(QqClipboardText.RichTextFormat);
+            if (NativeMethods.IsClipboardFormatAvailable(qqFormat))
+            {
+                qqRichText = TryReadOptionalFormat(qqFormat, QqClipboardText.RichTextFormat);
+                var htmlFormat = RegisterFormat(DataFormats.Html);
+                if (NativeMethods.IsClipboardFormatAvailable(htmlFormat))
+                    qqHtml = TryReadOptionalFormat(htmlFormat, DataFormats.Html);
             }
         }
         finally { Close(); }
@@ -217,8 +239,19 @@ public sealed class ClipboardReader : IAsyncDisposable
         }
 
         if (bitmap is not null) return new ClipboardReadResult(sequence, ClipboardSnapshot.FromImage(bitmap, source), null);
+        if (qqHtml is not null) text = QqClipboardText.AddEmoji(text, qqHtml);
         var warning = errors.Count == 0 ? null : "剪贴板内容无法读取：" + string.Join("；", errors.Distinct().Take(3));
-        return new ClipboardReadResult(sequence, string.IsNullOrEmpty(text) ? null : ClipboardSnapshot.FromText(text), warning);
+        return new ClipboardReadResult(sequence, string.IsNullOrEmpty(text) ? null : ClipboardSnapshot.FromText(text, qqRichText: qqRichText), warning);
+    }
+
+    private static byte[]? TryReadOptionalFormat(uint format, string name)
+    {
+        try { return ReadBytes(format, MaxTextBytes); }
+        catch (Exception exception) when (IsExpectedReadError(exception))
+        {
+            AppLogger.LogException($"读取可选剪贴板格式 {name} 失败", exception);
+            return null;
+        }
     }
 
     private void SetOrigin() => SetBytes(RegisterFormat(OriginFormat), _origin);

@@ -290,27 +290,19 @@ public sealed class WidgetTests(SettingsOverlayWpfFixture wpf)
     [Fact]
     public void RecordDataDragFactoryProvidesTextImageAndFileDropFormats()
     {
-        Type? factory = typeof(ClipboardManager.Views.MainView).Assembly.GetType("ClipboardManager.Utilities.RecordDragData");
-        Assert.NotNull(factory);
-        var flags = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic;
-        var textFactory = factory!.GetMethod("CreateText", flags);
-        var imageFactory = factory.GetMethod("CreateImage", flags);
-        Assert.NotNull(textFactory);
-        Assert.NotNull(imageFactory);
-
         const string text = "拖到其他软件的文字";
-        var textData = Assert.IsType<DataObject>(textFactory!.Invoke(null, [text]));
+        var textData = RecordDragData.CreateText(text);
         Assert.True(textData.GetDataPresent(DataFormats.UnicodeText));
         Assert.Equal(text, textData.GetData(DataFormats.UnicodeText));
 
         BitmapSource bitmap = BitmapSource.Create(1, 1, 96, 96, PixelFormats.Bgra32, null, new byte[] { 0, 0, 0, 255 }, 4);
         bitmap.Freeze();
         const string imagePath = "C:\\clipboard-history\\image.png";
-        var imageData = Assert.IsType<DataObject>(imageFactory!.Invoke(null, [imagePath, bitmap]));
+        var imageData = RecordDragData.CreateImage(imagePath, bitmap);
         Assert.True(imageData.GetDataPresent(DataFormats.Bitmap));
         Assert.True(imageData.GetDataPresent(DataFormats.FileDrop));
         Assert.Equal(imagePath, Assert.IsType<string[]>(imageData.GetData(DataFormats.FileDrop))[0]);
-        var fileOnlyData = Assert.IsType<DataObject>(imageFactory.Invoke(null, [imagePath, null]));
+        var fileOnlyData = RecordDragData.CreateImage(imagePath, null);
         Assert.False(fileOnlyData.GetDataPresent(DataFormats.Bitmap));
         Assert.Equal(imagePath, Assert.IsType<string[]>(fileOnlyData.GetData(DataFormats.FileDrop))[0]);
     }

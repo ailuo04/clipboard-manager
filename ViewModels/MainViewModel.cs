@@ -138,7 +138,7 @@ public sealed class MainViewModel : ObservableObject
     public Task CopyAsync(RecordViewModel item) => RunOperationAsync(async () =>
     {
         if (item.IsImage) await _clipboard.WriteImageAsync(item.ImagePath!, _monitor.Handle, _lifetime.Token);
-        else await _clipboard.WriteTextAsync(item.Record.Text!, _monitor.Handle, _lifetime.Token);
+        else await _clipboard.WriteTextAsync(item.Record.Text!, _monitor.Handle, _lifetime.Token, item.Record.QqRichText);
         Status = item.IsImage ? "图片已复制到剪贴板" : "完整文本已复制到剪贴板";
         CopyCompleted?.Invoke(this, EventArgs.Empty);
     }, "复制记录失败");

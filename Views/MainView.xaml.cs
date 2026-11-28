@@ -390,7 +390,7 @@ public partial class MainView : Grid
 
     private static async Task<DataObject?> CreateDragDataAsync(RecordViewModel record)
     {
-        if (!record.IsImage) return RecordDragData.CreateText(record.Record.Text ?? string.Empty);
+        if (!record.IsImage) return RecordDragData.CreateText(record.Record.Text ?? string.Empty, record.Record.QqRichText);
         if (string.IsNullOrWhiteSpace(record.ImagePath)) return null;
 
         BitmapSource? bitmap = null;

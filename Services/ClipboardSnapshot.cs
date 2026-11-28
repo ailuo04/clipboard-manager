@@ -5,10 +5,11 @@ namespace ClipboardManager.Services;
 
 public sealed class ClipboardSnapshot
 {
-    private ClipboardSnapshot(ClipboardRecordKind kind, string? text, BitmapSource? image, string source)
+    private ClipboardSnapshot(ClipboardRecordKind kind, string? text, BitmapSource? image, string source, byte[]? qqRichText = null)
     {
         Kind = kind;
         Text = text;
+        QqRichText = qqRichText;
         Image = image;
         Source = source;
     }
@@ -17,15 +18,17 @@ public sealed class ClipboardSnapshot
 
     public string? Text { get; }
 
+    public byte[]? QqRichText { get; }
+
     public BitmapSource? Image { get; }
 
     public string Source { get; }
 
     public DateTime CapturedAtUtc { get; } = DateTime.UtcNow;
 
-    public static ClipboardSnapshot FromText(string text, string source = "UnicodeText")
+    public static ClipboardSnapshot FromText(string text, string source = "UnicodeText", byte[]? qqRichText = null)
     {
-        return new ClipboardSnapshot(ClipboardRecordKind.Text, text, null, source);
+        return new ClipboardSnapshot(ClipboardRecordKind.Text, text, null, source, qqRichText);
     }
 
     public static ClipboardSnapshot FromImage(BitmapSource image, string source)
